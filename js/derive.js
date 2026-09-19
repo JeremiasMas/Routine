@@ -1,7 +1,7 @@
 // Deriva TODO el estado de juego (XP, niveles, rachas, récords, logros)
 // a partir del historial crudo. Es una función pura: mismo historial,
 // mismo resultado. Así nunca se desincroniza nada.
-import { ACHIEVEMENTS, BONUS, templateById, plannedSets } from './config.js';
+import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier,
@@ -380,6 +380,21 @@ export function derive(data, today = todayKey()) {
   const gimnasio = [...byActivity.values()].find((st) => st.activity.kind === 'gym');
   const strength = gimnasio ? strengthProfile(gimnasio.records, pesoCorporal, sexo) : [];
   const strengthOverall = nivelGeneral(strength);
+
+  // El nivel del gimnasio lo da la fuerza lograda, no la cantidad de sesiones.
+  if (gimnasio && gimnasio.activity.rankBy === 'strength') {
+    gimnasio.strength = strength;
+    gimnasio.strengthOverall = strengthOverall;
+    if (strengthOverall) {
+      const nombres = gimnasio.activity.tierNames;
+      const i = strengthOverall.index;
+      gimnasio.level = { ...gimnasio.level, level: strengthOverall.level, pct: strengthOverall.pct };
+      gimnasio.tier = { name: nombres?.[i] || strengthOverall.name, color: TIERS[i]?.color || TIERS[0].color, index: i, min: i + 1 };
+      gimnasio.nextTier = strengthOverall.next
+        ? { name: nombres?.[i + 1] || strengthOverall.next, color: TIERS[i + 1]?.color, index: i + 1, min: i + 2 }
+        : null;
+    }
+  }
   const strengthRatios = Object.fromEntries(strength.map((s) => [s.liftKey, s.ratio]));
   // Movimientos en nivel intermedio o superior (índice 2 en la escala).
   const strengthIntermediates = strength.filter((s) => (s.nivel?.index ?? -1) >= 2).length;
@@ -388,6 +403,7 @@ export function derive(data, today = todayKey()) {
   const summary = {
     totals, volumes, bests, sessions, activeDays, goalDays, weeklyStreaks, perfectDays, personalRecords,
     strengthRatios, strengthIntermediates, bodyFat,
+    strengthBand: strengthOverall?.index || 0,
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
   };

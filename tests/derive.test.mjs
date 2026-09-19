@@ -412,3 +412,42 @@ test('el rango del cuerpo sale de la grasa medida, no de la XP', () => {
   assert.equal(st.nextTier.name, 'Definido');
   assert.equal(st.level.level, 4, 'el nivel es la banda de grasa');
 });
+
+test('el nivel del gimnasio lo da la fuerza, no la cantidad de sesiones', () => {
+  const gym = acts(['gym'])[0];
+  assert.equal(gym.rankBy, 'strength');
+
+  const sesion = (peso) => ({ gym: { exercises: [
+    { name: 'Sentadilla con barra', sets: [{ weight: peso, reps: 5 }] },
+    { name: 'Pecho plano', sets: [{ weight: peso * 0.7, reps: 5 }] },
+  ] } });
+
+  // Muchas sesiones flojas.
+  const constante = build([gym], {});
+  for (let i = 1; i <= 30; i++) constante.entries[addDays(HOY, -i)] = sesion(40);
+  constante.settings = { weight: 61.5 };
+
+  // Pocas sesiones, pero fuerte.
+  const fuerte = build([gym], {
+    [addDays(HOY, -2)]: sesion(110),
+    [HOY]: sesion(115),
+  });
+  fuerte.settings = { weight: 61.5 };
+
+  const a = derive(constante, HOY).byActivity.get('gym');
+  const b = derive(fuerte, HOY).byActivity.get('gym');
+
+  assert.ok(a.activeDays > b.activeDays, 'el primero fue muchas más veces');
+  assert.ok(b.level.level > a.level.level,
+    `pero el fuerte tiene más nivel (${b.level.level} vs ${a.level.level})`);
+  assert.ok(b.tier.name !== a.tier.name, 'y distinto rango');
+});
+
+test('sin sesiones cargadas el gimnasio no inventa un nivel de fuerza', () => {
+  const gym = acts(['gym'])[0];
+  const data = build([gym], {});
+  data.settings = { weight: 61.5 };
+  const st = derive(data, HOY).byActivity.get('gym');
+  assert.ok(!st.strengthOverall, 'sin ejercicios con estándar no hay nivel de fuerza');
+  assert.equal(st.level.level, 1);
+});

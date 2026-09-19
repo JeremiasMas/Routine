@@ -91,9 +91,14 @@ test('cada actividad puede tener sus propios nombres de rango', async () => {
 test('todas las disciplinas con nivel traen una escalera completa de rangos', async () => {
   const { DEFAULT_ACTIVITIES, TIERS } = await import('../js/config.js');
   for (const a of DEFAULT_ACTIVITIES) {
-    // El agua es un hábito sin niveles y el cuerpo usa las bandas de grasa.
-    if (a.leveled === false || a.rankBy) {
-      assert.ok(!a.tierNames, `${a.id} no debería tener escalera de XP`);
+    // El agua es un hábito sin niveles: no lleva escalera.
+    if (a.leveled === false) {
+      assert.ok(!a.tierNames, `${a.id} es un hábito y no debería tener rangos`);
+      continue;
+    }
+    // La composición corporal usa las bandas de grasa, que traen sus nombres.
+    if (a.rankBy === 'bodyfat') {
+      assert.ok(!a.tierNames, `${a.id} toma los nombres de las bandas de grasa`);
       continue;
     }
     assert.ok(Array.isArray(a.tierNames), `${a.id} no tiene tierNames`);

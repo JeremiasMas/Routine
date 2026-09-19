@@ -15,7 +15,7 @@ dependencias — se instala en el teléfono y funciona sin conexión.
 | 💧 Agua | todos los días | 2,15 L (se calcula sola) | *hábito: no da XP* |
 | 🇫🇷 Francés | todos los días | 20 min efectivos | Duolingo + Coffee Break French |
 | 🎹 Piano | lun · vie · sáb · dom | 30 min | proporcional a los minutos |
-| 🏋️ Gimnasio | lun · mié · vie | la rutina del día | series completadas sobre las planificadas |
+| 🏋️ Gimnasio | lun · mié · vie | la rutina del día | XP por series; **el nivel lo da la fuerza** |
 | 🥊 Muay Thai | mar · jue | 1h 30 por clase | racha semanal (2 clases desde sep. 2026, 1 antes) |
 | ✍️ Escritura en Substack | 1 vez por semana | 1 publicación | racha semanal |
 | 📏 Composición corporal | 1 vez por semana | 13% de grasa | medirte, no el resultado |
@@ -69,10 +69,26 @@ progrese. En el código es `leveled: false`, y cualquier actividad puede serlo.
 
 ### Fuerza relativa 💪
 
+**El nivel del gimnasio lo da la fuerza que lográs, no la cantidad de veces que
+vas.** Ir treinta veces a mover poco no sube de rango; levantar más, sí. Las
+sesiones siguen dando XP (y alimentan tu nivel de jugador), pero el rango de la
+actividad sale del promedio de fuerza.
+
 Con tu peso corporal, la carga y las repeticiones estima el **1RM** (fórmula de
 Epley) y lo expresa como **múltiplos de tu propio peso**, que es la medida que
 permite comparar: 100 kg de sentadilla no significan lo mismo con 61 kg encima
 que con 95.
+
+**Por qué no es un promedio de kilos ni de ratios.** Promediar kilos deja que la
+sentadilla y el peso muerto tapen a todo lo demás. Promediar ratios tampoco
+sirve: 1,5× el peso corporal es *intermedio* en sentadilla y casi *élite* en
+press militar. Lo que se promedia es **la posición de cada movimiento en su
+propia escala**, así todos pesan igual. El resultado cae en una de seis bandas
+—Novato de sala, Fierrero, Atleta, Fuerte, Bestia y Titán— y la app te dice
+**qué movimiento está frenando el promedio** y cuántos kilos le faltan.
+
+Con pocos movimientos cargados el promedio es poco representativo, así que la
+app lo avisa hasta que tengas al menos tres.
 
 Cada movimiento básico se ubica en una escala de cinco niveles —Principiante,
 Novato, Intermedio, Avanzado y Élite— y la app te dice **cuántos kilos te faltan
@@ -219,12 +235,15 @@ disciplina, porque "Adepto" no dice nada y "Nak Su" sí.
 |---|---|---|---|---|---|---|
 | 📊 Datos | Curioso | Analista Jr. | Analista | Analista Sr. | Científico de datos | Oráculo |
 | 🎹 Piano | Primeras teclas | Estudiante | Intérprete | Concertista | Virtuoso | Maestro de capilla |
-| 🏋️ Gimnasio | Novato de sala | Constante | Fierrero | Atleta | Bestia | Titán |
+| 🏋️ Gimnasio* | Novato de sala | Fierrero | Atleta | Fuerte | Bestia | Titán |
 | 🥊 Muay Thai | Luk Sit | Nak Muay | Nak Su | Campeón de estadio | Kru | Ajarn |
 | 👟 Pasos | Paseante | Caminante | Andariego | Trotamundos | Explorador | Nómade |
 | 💧 Agua | Gota | Arroyo | Río | Cascada | Lago | Océano |
 | 🇫🇷 Francés | A1 · Débutant | A2 · Élémentaire | B1 · Intermédiaire | B2 · Avancé | C1 · Autonome | C2 · Maîtrise |
 | ✍️ Substack | Borrador | Cronista | Editorialista | Ensayista | Escritor | Pluma consagrada |
+
+\* El gimnasio no usa los umbrales de XP: sus seis rangos corresponden a las
+bandas de fuerza relativa (de "empezando" a "élite").
 
 El agua no aparece porque es un hábito sin niveles, y la composición corporal
 tiene su propia escalera, la de los porcentajes de grasa.
@@ -265,7 +284,7 @@ node tools/make-icons.mjs && python3 -m http.server 8080
 ### Tests
 
 ```bash
-npm test            # 87 tests: XP, rangos, rachas, fuerza, cuerpo e importación
+npm test            # 92 tests: XP, rangos, rachas, fuerza, cuerpo e importación
 ```
 
 ## Tus datos

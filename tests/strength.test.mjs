@@ -101,3 +101,41 @@ test('el nivel general promedia los movimientos con estándar', () => {
   assert.ok(NIVELES.includes(general.name));
   assert.equal(nivelGeneral([]), null);
 });
+
+test('el nivel general promedia posiciones, no kilos', () => {
+  // Misma persona: la sentadilla pesa mucho más en kilos que el press militar,
+  // pero ambos deben pesar lo mismo en el promedio.
+  const soloSentadilla = nivelGeneral(strengthProfile([
+    { name: 'Sentadilla con barra', e1rm: 1.5 * PC },   // intermedio
+  ], PC, 'm'));
+  const conPressFlojo = nivelGeneral(strengthProfile([
+    { name: 'Sentadilla con barra', e1rm: 1.5 * PC },   // intermedio
+    { name: 'Press militar', e1rm: 0.5 * PC },          // principiante
+  ], PC, 'm'));
+  assert.ok(conPressFlojo.score < soloSentadilla.score,
+    'un movimiento rezagado tiene que bajar el promedio aunque mueva pocos kilos');
+  assert.equal(conPressFlojo.weakest.liftKey, 'ohp', 'y queda señalado como el que frena');
+});
+
+test('las bandas de fuerza van de Empezando a Élite', () => {
+  const banda = (mult) => nivelGeneral(strengthProfile([
+    { name: 'Sentadilla con barra', e1rm: mult * PC },
+  ], PC, 'm'));
+  assert.equal(banda(0.6).name, 'Empezando', 'por debajo del primer umbral');
+  assert.equal(banda(1.0).name, 'Principiante');
+  assert.equal(banda(1.3).name, 'Novato');
+  assert.equal(banda(1.6).name, 'Intermedio');
+  assert.equal(banda(2.3).name, 'Avanzado');
+  assert.equal(banda(2.8).name, 'Élite');
+  assert.equal(banda(2.8).next, null, 'élite no tiene siguiente');
+  assert.equal(banda(2.8).pct, 1);
+});
+
+test('el nivel de fuerza va de 1 a 6 y sirve como nivel de actividad', () => {
+  for (const mult of [0.6, 1.0, 1.3, 1.6, 2.3, 2.8]) {
+    const g = nivelGeneral(strengthProfile([{ name: 'Sentadilla con barra', e1rm: mult * PC }], PC, 'm'));
+    assert.ok(g.level >= 1 && g.level <= 6, `nivel fuera de rango: ${g.level}`);
+    assert.ok(g.pct >= 0 && g.pct <= 1, `progreso fuera de rango: ${g.pct}`);
+  }
+  assert.equal(nivelGeneral([]), null, 'sin ejercicios con estándar no hay nivel');
+});

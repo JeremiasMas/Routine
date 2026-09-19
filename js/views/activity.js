@@ -22,6 +22,10 @@ export function render({ params, navigate, celebrate }) {
   const esHabito = st.leveled === false;
   const anilloCentro = esHabito
     ? el('b', { style: 'font-size:.9rem', text: `${st.streak}` })
+    : a.rankBy === 'strength' && st.strengthOverall
+      ? el('div', { style: 'text-align:center' },
+          el('b', { style: 'font-size:1.2rem;display:block;line-height:1', text: String(st.level.level) }),
+          el('span', { style: 'font-size:.5rem;letter-spacing:.1em;color:var(--muted)', text: 'FUERZA' }))
     : a.rankBy === 'bodyfat' && st.bodyFat != null
       ? el('div', { style: 'text-align:center' },
           el('b', { style: 'font-size:1rem;display:block;line-height:1', text: `${formatNumber(st.bodyFat)}%` }),
@@ -50,6 +54,8 @@ export function render({ params, navigate, celebrate }) {
           'Es un hábito, no una disciplina: cuenta la racha y hace falta para el día perfecto, pero no acumula XP ni rangos.')
       : a.rankBy === 'bodyfat'
         ? bodyFatHeader(st, a)
+        : a.rankBy === 'strength'
+        ? strengthHeader(st, a)
         : el('div', {},
             el('div', { style: 'margin-top:12px' },
               xpBar(st.level.pct, { left: `${formatNumber(st.level.into)} / ${formatNumber(st.level.need)} XP`, right: `Nivel ${st.level.level + 1} en ${formatNumber(st.level.need - st.level.into)} XP` })),
@@ -127,10 +133,13 @@ export function render({ params, navigate, celebrate }) {
       root.append(el('div', { class: 'card', style: 'margin-bottom:10px' },
         el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px' },
           el('div', {},
-            el('div', { style: 'font-weight:700;font-size:1.05rem', text: state.strengthOverall.name }),
-            el('div', { class: 'row__sub', text: state.strengthOverall.next
-              ? `promedio de ${state.strengthOverall.lifts} movimientos · ${Math.round(state.strengthOverall.pct * 100)}% hacia ${state.strengthOverall.next}`
-              : `promedio de ${state.strengthOverall.lifts} movimientos básicos` })),
+            // El nombre grande es el rango de la actividad; entre paréntesis, el
+            // de la escala estándar, que es el que usan los movimientos de abajo.
+            el('div', { style: 'font-weight:700;font-size:1.05rem', text: st.tier?.name || state.strengthOverall.name }),
+            el('div', { class: 'row__sub', text: `nivel ${state.strengthOverall.name} en la escala general · promedio de ${state.strengthOverall.lifts} ${state.strengthOverall.lifts === 1 ? 'movimiento' : 'movimientos'}` }),
+            state.strengthOverall.next
+              ? el('div', { class: 'row__sub', text: `${Math.round(state.strengthOverall.pct * 100)}% hacia ${st.nextTier?.name || state.strengthOverall.next}` })
+              : null),
           el('div', { style: 'font-size:1.6rem', text: '💪' })),
         el('div', { style: 'margin-top:10px' }, xpBar(state.strengthOverall.pct))));
     }
@@ -187,6 +196,30 @@ export function render({ params, navigate, celebrate }) {
     `Cada nivel de ${a.name} cuesta más que el anterior: el próximo pide ${formatNumber(xpToNextLevel(st.level.level))} XP.`));
 
   return root;
+}
+
+/** Cabecera del gimnasio: el nivel lo da la fuerza, no las sesiones. */
+function strengthHeader(st, a) {
+  const g = st.strengthOverall;
+  if (!g) {
+    return el('p', { class: 'hint', style: 'margin-top:12px' },
+      'Cargá algunas sesiones con peso y repeticiones: el nivel del gimnasio lo da la fuerza que lográs, no la cantidad de veces que vas.');
+  }
+  const flojo = g.weakest;
+  return el('div', {},
+    el('div', { style: 'margin-top:12px' },
+      xpBar(g.pct, {
+        left: `promedio de ${g.lifts} ${g.lifts === 1 ? 'movimiento' : 'movimientos'}`,
+        right: g.next ? `Próximo: ${st.nextTier?.name || g.next}` : 'Último rango',
+      })),
+    flojo && flojo.falta > 0
+      ? el('p', { class: 'hint', style: 'margin-top:10px' },
+          `Lo que más frena el promedio es ${flojo.lift.toLowerCase()}: ${formatNumber(flojo.falta)} kg de 1RM para pasar a ${flojo.nivel.next}.`)
+      : null,
+    g.lifts < 3
+      ? el('p', { class: 'hint', style: 'margin-top:6px' },
+          `El promedio sale de ${g.lifts} ${g.lifts === 1 ? 'movimiento' : 'movimientos'}. Cargá los básicos —sentadilla, banca, press militar, remo y dominadas— para que el nivel sea representativo.`)
+      : null);
 }
 
 /** Barra de progreso hacia la meta de grasa corporal. */

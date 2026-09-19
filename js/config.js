@@ -51,7 +51,10 @@ export const DEFAULT_ACTIVITIES = [
     weeklyTarget: 3,
     days: [1, 3, 5],     // lunes, miércoles y viernes
     streakUnitLabel: 'semanas',
-    tierNames: ['Novato de sala', 'Constante', 'Fierrero', 'Atleta', 'Bestia', 'Titán'],
+    // El nivel no lo dan las sesiones sino la fuerza lograda: cada nombre
+    // corresponde a una banda de la escala de fuerza relativa.
+    rankBy: 'strength',
+    tierNames: ['Novato de sala', 'Fierrero', 'Atleta', 'Fuerte', 'Bestia', 'Titán'],
     motto: 'La rutina no se negocia, se hace.',
   },
   {
@@ -393,6 +396,9 @@ export const ACHIEVEMENTS = [
   { id: 'fuerza-intermedio', name: 'Fuerza intermedia', icon: '⚡', xp: 300, target: 3,
     desc: '3 movimientos en nivel intermedio o superior.',
     progress: (s) => s.strengthIntermediates || 0 },
+  { id: 'fuerza-general', name: 'Atleta completo', icon: '🏅', xp: 400, target: 3,
+    desc: 'Alcanzar nivel intermedio de fuerza general.',
+    progress: (s) => s.strengthBand || 0 },
   { id: 'player-10', name: 'Doble dígito', icon: '🏆', xp: 200, target: 10,
     desc: 'Alcanzá el nivel 10 de jugador.',
     progress: (s) => s.playerLevel },

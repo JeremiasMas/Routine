@@ -129,17 +129,46 @@ export function strengthProfile(records, bodyweight, sexo = 'm') {
   }).sort((a, b) => (b.nivel?.index ?? -1) - (a.nivel?.index ?? -1) || b.ratio - a.ratio);
 }
 
-/** Nivel general: el promedio de los ejercicios con estándar. */
+/**
+ * Bandas de fuerza general. Son las cinco de la escala más una previa, para
+ * cuando todavía no llegaste al primer umbral en ningún movimiento.
+ */
+export const BANDAS_FUERZA = ['Empezando', ...NIVELES];
+
+/**
+ * Nivel general de fuerza: el promedio de la POSICIÓN de cada ejercicio en su
+ * propia escala, no de los kilos ni de los ratios crudos.
+ *
+ * Promediar ratios sería engañoso: 1,5× el peso corporal es intermedio en
+ * sentadilla y casi élite en press militar, así que los movimientos pesados
+ * dominarían el promedio. Midiendo a cada uno contra su propio estándar, todos
+ * pesan igual.
+ *
+ * @returns {{score:number, index:number, name:string, pct:number, lifts:number,
+ *            next:?string, weakest:?object}|null}
+ */
 export function nivelGeneral(perfil) {
-  const conNivel = perfil.filter((p) => p.nivel);
+  const conNivel = (perfil || []).filter((p) => p.nivel);
   if (!conNivel.length) return null;
-  const promedio = conNivel.reduce((n, p) => n + p.nivel.index + p.nivel.pct, 0) / conNivel.length;
-  const index = Math.max(0, Math.min(NIVELES.length - 1, Math.floor(promedio)));
+
+  // index va de -1 (por debajo del primer umbral) a 4 (élite).
+  const score = conNivel.reduce((n, p) => n + p.nivel.index + p.nivel.pct, 0) / conNivel.length;
+  const banda = Math.max(0, Math.min(BANDAS_FUERZA.length - 1, Math.floor(score) + 1));
+  const dentro = score - Math.floor(score);
+
+  // El movimiento más rezagado es el que frena el promedio.
+  const weakest = [...conNivel].sort(
+    (a, b) => (a.nivel.index + a.nivel.pct) - (b.nivel.index + b.nivel.pct),
+  )[0];
+
   return {
-    name: promedio < 0 ? 'Empezando' : NIVELES[index],
-    index,
-    pct: promedio - Math.floor(promedio),
-    next: index + 1 < NIVELES.length ? NIVELES[index + 1] : null,
+    score,
+    index: banda,
+    level: banda + 1,               // 1 a 6, para mostrar como nivel
+    name: BANDAS_FUERZA[banda],
+    pct: banda >= BANDAS_FUERZA.length - 1 ? 1 : dentro,
+    next: banda + 1 < BANDAS_FUERZA.length ? BANDAS_FUERZA[banda + 1] : null,
     lifts: conNivel.length,
+    weakest,
   };
 }
