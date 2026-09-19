@@ -29,6 +29,10 @@ jobs:
       - name: Generar los íconos PNG del manifest
         run: npm run icons
       - uses: actions/configure-pages@v5
+        with:
+          # Crea el sitio de Pages si todavía no existe, en vez de fallar
+          # pidiendo que alguien lo habilite a mano en Settings.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
