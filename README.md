@@ -175,8 +175,11 @@ contrario sería mentira.
 repetir cuando quieras:
 
 1. Samsung Health → ⚙ Ajustes → **Descargar datos personales**.
-2. Descomprimí el ZIP que te llega.
-3. En *Ajustes → Pasos*, elegí el archivo `com.samsung.shealth.step_daily_trend….csv`.
+2. En *Ajustes → Pasos*, soltá el **ZIP tal cual te llega**.
+
+La app lo abre sola —con `DecompressionStream`, sin ninguna librería—, busca
+adentro el archivo de pasos e ignora el resto del export (sueño, pulsaciones y
+demás). También acepta un CSV suelto si preferís.
 
 Antes de tocar nada te muestra **una vista previa**: cuántos días entran, cuáles son
 nuevos y cuáles pisan algo que habías cargado a mano. El export trae varias filas por
@@ -329,6 +332,7 @@ js/
   strength.js           Fuerza relativa y niveles por ejercicio  (con tests)
   seed.js               Historial previo a la app  (con tests)
   steps-import.js       Lectura del CSV de Samsung Health  (con tests)
+  zip.js                Lector de ZIP sin dependencias  (con tests)
   derive.js             Deriva niveles, rachas y récords del historial (con tests)
   state.js              Persistencia y detección de eventos de juego
   utils.js              Fechas locales, formato y helpers de DOM

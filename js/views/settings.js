@@ -6,6 +6,7 @@ import {
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
 } from '../state.js';
 import { parseStepsCsv, diffSteps } from '../steps-import.js';
+import { extraerTextos, esCsvDePasos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
@@ -72,10 +73,9 @@ export function render({ navigate }) {
       'Samsung Health no tiene una conexión en vivo para aplicaciones web: su SDK es solo para apps Android del programa de socios, y Health Connect no se puede leer desde el navegador. Lo que sí funciona es traer los datos de su exportación oficial, que podés repetir cuando quieras.'),
     el('ol', { class: 'hint', style: 'margin:10px 0 0;padding-left:18px;line-height:1.7' },
       el('li', {}, 'Samsung Health → ⚙ Ajustes → ', el('b', {}, 'Descargar datos personales'), '.'),
-      el('li', {}, 'Descomprimí el ZIP que te llega.'),
-      el('li', {}, 'Elegí acá el archivo ', el('code', {}, 'com.samsung.shealth.step_daily_trend….csv'), '.')),
+      el('li', {}, 'Elegí acá el ', el('b', {}, 'ZIP tal cual te llega'), ': la app busca sola el archivo de pasos adentro. (También acepta un CSV suelto.)')),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos de un CSV'))));
+      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)'))));
 
   // --- Preferencias ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Preferencias' })));
@@ -196,7 +196,7 @@ function editActivity(activity, navigate) {
 
 /** Importa pasos de uno o más CSV, mostrando antes qué va a cambiar. */
 function importarPasos(navigate) {
-  const input = el('input', { type: 'file', accept: '.csv,text/csv', multiple: true });
+  const input = el('input', { type: 'file', accept: '.zip,.csv,text/csv,application/zip', multiple: true });
   input.addEventListener('change', async () => {
     const archivos = [...(input.files || [])];
     if (!archivos.length) return;
@@ -204,12 +204,22 @@ function importarPasos(navigate) {
     const porDia = new Map();
     const errores = [];
     let descartadas = 0;
+    /** Un ZIP puede traer varios CSV; un CSV suelto es uno solo. */
+    async function textosDe(archivo) {
+      if (!/\.zip$/i.test(archivo.name)) return [{ name: archivo.name, text: await archivo.text() }];
+      const dentro = await extraerTextos(await archivo.arrayBuffer(), esCsvDePasos);
+      if (!dentro.length) throw new Error('no encontré ningún archivo de pasos adentro del ZIP');
+      return dentro;
+    }
+
     for (const archivo of archivos) {
       try {
-        const r = parseStepsCsv(await archivo.text());
-        if (r.error) { errores.push(`${archivo.name}: ${r.error}`); continue; }
-        descartadas += r.skipped;
-        for (const { date, steps } of r.days) porDia.set(date, Math.max(porDia.get(date) || 0, steps));
+        for (const { name, text } of await textosDe(archivo)) {
+          const r = parseStepsCsv(text);
+          if (r.error) { errores.push(`${name.split('/').pop()}: ${r.error}`); continue; }
+          descartadas += r.skipped;
+          for (const { date, steps } of r.days) porDia.set(date, Math.max(porDia.get(date) || 0, steps));
+        }
       } catch (err) {
         errores.push(`${archivo.name}: ${err.message}`);
       }

@@ -16,6 +16,7 @@ const ASSETS = [
   './js/strength.js',
   './js/seed.js',
   './js/steps-import.js',
+  './js/zip.js',
   './js/config.js',
   './js/utils.js',
   './js/ui/components.js',
