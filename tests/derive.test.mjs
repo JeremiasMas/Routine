@@ -240,7 +240,7 @@ test('el día perfecto solo exige lo que ese día toca', () => {
   const martes = derive(build(todas, {
     [MAR]: {
       datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 },
-      frances: { sources: { duolingo: 4 } }, muaythai: { value: 90 },
+      frances: { sources: { duolingo: 5 } }, muaythai: { value: 90 },
     },
   }), MAR);
   assert.equal(martes.perfectDays, 1, 'el martes no hace falta piano ni gimnasio');
@@ -249,7 +249,7 @@ test('el día perfecto solo exige lo que ese día toca', () => {
   const lunes = derive(build(todas, {
     [LUN]: {
       datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 },
-      frances: { sources: { duolingo: 4 } }, muaythai: { value: 90 },
+      frances: { sources: { duolingo: 5 } }, muaythai: { value: 90 },
     },
   }), LUN);
   assert.equal(lunes.perfectDays, 0, 'el lunes faltarían piano y gimnasio');
@@ -380,12 +380,28 @@ test('el francés suma minutos de sus dos fuentes', () => {
   assert.equal(entryValue(fr, {}), 0);
 });
 
-test('un episodio del podcast equivale a cinco lecciones', () => {
+test('un episodio del podcast equivale a once lecciones', () => {
   const fr = acts(['frances'])[0];
+  const duo = fr.sources.find((f) => f.id === 'duolingo');
+  const cbf = fr.sources.find((f) => f.id === 'cbf');
+  assert.equal(duo.minutes, 2, 'una lección son 2 minutos');
+  assert.equal(cbf.minutes, 22, 'un episodio son 22');
+  assert.equal(cbf.minutes / duo.minutes, 11);
+
   const unEpisodio = derive(build([fr], { [HOY]: { frances: { sources: { cbf: 1 } } } }), HOY);
-  const cincoLecciones = derive(build([fr], { [HOY]: { frances: { sources: { duolingo: 5 } } } }), HOY);
-  assert.equal(unEpisodio.byActivity.get('frances').xp, cincoLecciones.byActivity.get('frances').xp);
-  assert.ok(unEpisodio.byActivity.get('frances').xp >= 100, 'y con eso ya se cumple la meta del día');
+  const onceLecciones = derive(build([fr], { [HOY]: { frances: { sources: { duolingo: 11 } } } }), HOY);
+  assert.equal(unEpisodio.byActivity.get('frances').xp, onceLecciones.byActivity.get('frances').xp);
+});
+
+test('la meta diaria de francés es alcanzable por cualquiera de las dos vías', () => {
+  const fr = acts(['frances'])[0];
+  const meta = (fuentes) => derive(build([fr], { [HOY]: { frances: { sources: fuentes } } }), HOY)
+    .byActivity.get('frances').byDate.get(HOY).met;
+  assert.equal(meta({ duolingo: 5 }), true, 'cinco lecciones cumplen el día');
+  assert.equal(meta({ cbf: 1 }), true, 'un episodio también');
+  assert.equal(meta({ duolingo: 2, cbf: 0 }), false, 'dos lecciones sueltas no');
+  assert.equal(meta({ duolingo: 3, cbf: 0 }), false);
+  assert.equal(meta({ duolingo: 2 }), false);
 });
 
 test('el acumulado previo cuenta para el total y la XP, no para la racha', () => {

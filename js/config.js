@@ -103,20 +103,22 @@ export const DEFAULT_ACTIVITIES = [
     color: '#84cc16',
     kind: 'multi',
     unit: 'min',
-    goal: 20,            // minutos efectivos de francés por día
+    goal: 10,            // minutos de francés por día
     step: 5,
     streakMode: 'daily',
     /**
-     * Dos fuentes con distinto rendimiento por unidad. Una lección de Duolingo
-     * son unos 4 minutos de repetición sobre pocas palabras; un episodio de
-     * Coffee Break French son 22 minutos de diálogo, explicación gramatical y
-     * escucha en contexto, que es justo lo que Duolingo casi no entrena. Por
-     * eso el episodio vale más que sus minutos de reloj y la lección un poco
-     * más que los suyos: 1 episodio ≈ 5 lecciones.
+     * Dos fuentes, medidas en minutos reales.
+     *
+     * Una lección de Duolingo son 2 minutos de repetición densa con retrieval
+     * constante; un episodio de Coffee Break French son 22 de diálogo,
+     * gramática explicada y escucha a velocidad natural. Por minuto se
+     * compensan —Duolingo es más intenso, el podcast más amplio—, así que no
+     * hace falta ponderar ninguna: el tiempo real es el denominador honesto.
+     * De ahí que un episodio equivalga a 11 lecciones.
      */
     sources: [
-      { id: 'duolingo', name: 'Duolingo', icon: '🦉', unitLabel: 'lecciones', minutes: 5, presets: [1, 2, 3, 5] },
-      { id: 'cbf', name: 'Coffee Break French', icon: '🎧', unitLabel: 'episodios', minutes: 25, presets: [1, 2] },
+      { id: 'duolingo', name: 'Duolingo', icon: '🦉', unitLabel: 'lecciones', minutes: 2, presets: [1, 3, 5, 10] },
+      { id: 'cbf', name: 'Coffee Break French', icon: '🎧', unitLabel: 'episodios', minutes: 22, presets: [1, 2] },
     ],
     // Los niveles reales del Marco Común Europeo de Referencia.
     tierNames: ['A1 · Débutant', 'A2 · Élémentaire', 'B1 · Intermédiaire', 'B2 · Avancé', 'C1 · Autonome', 'C2 · Maîtrise'],

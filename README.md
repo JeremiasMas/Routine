@@ -13,7 +13,7 @@ dependencias — se instala en el teléfono y funciona sin conexión.
 | 📊 Análisis de datos | todos los días | 45 min | proporcional a los minutos |
 | 👟 Pasos | todos los días | 10.000 | proporcional a los pasos |
 | 💧 Agua | todos los días | 2,15 L (se calcula sola) | *hábito: no da XP* |
-| 🇫🇷 Francés | todos los días | 20 min efectivos | Duolingo + Coffee Break French |
+| 🇫🇷 Francés | todos los días | 10 min | Duolingo + Coffee Break French |
 | 🎹 Piano | lun · vie · sáb · dom | 30 min | proporcional a los minutos |
 | 🏋️ Gimnasio | lun · mié · vie | la rutina del día | XP por series; **el nivel lo da la fuerza** |
 | 🥊 Muay Thai | mar · jue | 1h 30 por clase | racha semanal (2 clases desde sep. 2026, 1 antes) |
@@ -47,19 +47,23 @@ acumulando como estadística y alimenta los récords personales.
 
 ### Francés: Duolingo + podcast 🇫🇷
 
-La moneda son **minutos efectivos de francés**, con dos fuentes que no rinden
-igual:
+La moneda son **minutos de francés**, sumando dos fuentes:
 
-| Fuente | Vale | Por qué |
-|---|---|---|
-| 🦉 1 lección de Duolingo | 5 min | ~4 minutos de repetición sobre pocas palabras, con buena retención por repaso espaciado pero poco contexto |
-| 🎧 1 episodio de Coffee Break French | 25 min | 22 minutos reales de diálogo, explicación gramatical y escucha, más un plus por entrenar comprensión auditiva —justo lo que las lecciones casi no tocan |
+| Fuente | Vale |
+|---|---|
+| 🦉 1 lección de Duolingo | 2 min |
+| 🎧 1 episodio de Coffee Break French | 22 min |
 
-**Un episodio equivale a unas cinco lecciones.** Con la meta en 20 minutos
-diarios, un episodio ya la supera y cuatro lecciones la cumplen justo. La
-estimación es discutible y está toda en un solo lugar (`sources` de la
-actividad, en `js/config.js`): si te parece que el podcast rinde más o menos,
-cambiás el número y toda tu XP se recalcula.
+Son minutos reales, sin ponderar. La tentación era darle un plus al podcast por
+entrenar comprensión auditiva, o a Duolingo por su densidad de repetición, pero
+**por minuto se compensan**: Duolingo es más intenso y el podcast más amplio.
+El tiempo es el denominador honesto, y evita inventar multiplicadores que no se
+pueden defender.
+
+**Un episodio equivale a 11 lecciones.** Con la meta en 10 minutos, cinco
+lecciones la cumplen justo y medio episodio también. Si querés cambiar la
+equivalencia, está toda en `sources` dentro de `js/config.js`: tocás el número y
+toda tu XP se recalcula sola.
 
 ### Agua: un hábito, no una disciplina 💧
 

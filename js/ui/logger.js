@@ -354,9 +354,9 @@ function multiForm(activity, dateKey, onSaved) {
   refrescar();
   return el('div', { class: 'logger' },
     el('p', { class: 'hint' },
-      `La meta son ${formatValue(activity.goal, activity.unit)} de francés por día. ` +
-      `Un episodio del podcast rinde como cinco lecciones de Duolingo: son 22 minutos de diálogo y ` +
-      `gramática en contexto, que es lo que las lecciones casi no entrenan.`),
+      `La meta son ${formatValue(activity.goal, activity.unit)} de francés por día: ` +
+      `cinco lecciones de Duolingo, medio episodio del podcast, o lo que mezcles. ` +
+      `Se cuentan los minutos reales de cada uno.`),
     ...bloques,
     resumen,
     ctrl.node);
