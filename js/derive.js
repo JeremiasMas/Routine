@@ -1,21 +1,61 @@
 // Deriva TODO el estado de juego (XP, niveles, rachas, récords, logros)
 // a partir del historial crudo. Es una función pura: mismo historial,
 // mismo resultado. Así nunca se desincroniza nada.
-import { ACHIEVEMENTS, BONUS } from './config.js';
+import { ACHIEVEMENTS, BONUS, templateById, plannedSets } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier,
 } from './xp.js';
-import { todayKey, addDays, daysBetween, weekStart, dayKey } from './utils.js';
+import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
 const SHIELD_EVERY = 7;     // se gana uno cada 7 días de racha
 
-/** Valor numérico de un registro, según el tipo de actividad. */
+/**
+ * Valor numérico de un registro, según el tipo de actividad.
+ * En el gimnasio la unidad son SERIES completadas: con una rutina de 30 a 42
+ * series, el tonelaje sirve como marca pero no como meta.
+ */
 export function entryValue(activity, entry) {
   if (!entry) return 0;
-  if (activity.kind === 'gym') return gymVolume(entry.exercises);
+  if (activity.kind === 'gym') return completedSets(entry.exercises);
   return Number(entry.value) || 0;
+}
+
+/** Series con repeticiones cargadas (el peso puede ir vacío: peso corporal). */
+export function completedSets(exercises = []) {
+  let n = 0;
+  for (const ex of exercises) {
+    for (const set of ex.sets || []) if (Number(set.reps) > 0) n += 1;
+  }
+  return n;
+}
+
+/** Tonelaje de la sesión: se guarda como estadística y alimenta los récords. */
+export function entryVolume(entry) {
+  return entry?.exercises ? gymVolume(entry.exercises) : 0;
+}
+
+/**
+ * Meta de un registro concreto. Casi siempre es la meta de la actividad, pero
+ * una sesión de gimnasio con plantilla se mide contra SU rutina: completar el
+ * día de pecho (27 series) vale lo mismo que el de hombros (42).
+ */
+export function goalFor(activity, entry) {
+  if (activity.kind === 'gym' && entry?.templateId) {
+    const planned = plannedSets(templateById(entry.templateId));
+    if (planned > 0) return planned;
+  }
+  return Number(activity.goal) || 1;
+}
+
+/**
+ * ¿Toca esta actividad este día? Sin `days` se espera todos los días.
+ * Los días libres no suman ni rompen rachas: descansar no es fallar.
+ */
+export function isScheduled(activity, dateKey) {
+  if (!activity.days?.length) return activity.streakMode !== 'weekly';
+  return activity.days.includes(keyToDate(dateKey).getDay());
 }
 
 function emptyActivityState(activity) {
@@ -27,12 +67,15 @@ function emptyActivityState(activity) {
     bestStreak: 0,
     shields: 0,
     total: 0,
+    volume: 0,
     activeDays: 0,
     best: 0,
     bestDate: null,
     history: [],          // [{date, value, xp, met}]
     byDate: new Map(),
-    records: new Map(),   // ejercicio -> {weight, reps, e1rm, date}
+    records: new Map(),      // ejercicio -> {weight, reps, e1rm, date}
+    lastSets: new Map(),     // ejercicio -> últimas series cargadas
+    lastByTemplate: new Map(), // plantilla -> últimos ejercicios de esa rutina
     prCount: 0,
     weekCount: 0,
     weekTarget: activity.weeklyTarget || 0,
@@ -62,7 +105,6 @@ export function derive(data, today = todayKey()) {
   let perfectDays = 0;
   let totalEntries = 0;
 
-  const dailyActivities = activities.filter((a) => a.streakMode !== 'weekly');
   const span = Math.max(0, daysBetween(start, end));
 
   // ---- Pasada 1: semanas (para actividades con objetivo semanal) ----
@@ -107,13 +149,15 @@ export function derive(data, today = todayKey()) {
     const dayEntries = entries[date] || {};
     let dayXp = 0;
     let metCount = 0;
+    let required = 0;
 
     for (const a of activities) {
       const st = byActivity.get(a.id);
       const raw = dayEntries[a.id];
       const value = entryValue(a, raw);
-      const goal = Number(a.goal) || 1;
+      const goal = goalFor(a, raw);
       const met = value >= goal;
+      const scheduled = isScheduled(a, date);
       const ss = streakState.get(a.id);
 
       if (raw !== undefined && value > 0) totalEntries += 1;
@@ -126,9 +170,10 @@ export function derive(data, today = todayKey()) {
         const xp = entryXp(value, goal, streakForBonus);
         st.xp += xp;
         st.total += value;
+        st.volume += entryVolume(raw);
         st.activeDays += 1;
-        st.history.push({ date, value, xp, met });
-        st.byDate.set(date, { value, xp, met, entry: raw });
+        st.history.push({ date, value, xp, met, goal, volume: entryVolume(raw) });
+        st.byDate.set(date, { value, xp, met, goal, entry: raw });
         dayXp += xp;
         if (value > st.best) {
           st.best = value;
@@ -143,9 +188,12 @@ export function derive(data, today = todayKey()) {
 
       // Récords personales del gimnasio (en orden cronológico).
       if (a.kind === 'gym' && raw?.exercises) {
+        if (raw.templateId) st.lastByTemplate.set(raw.templateId, raw.exercises);
         for (const ex of raw.exercises) {
           const name = (ex.name || '').trim().toLowerCase();
           if (!name) continue;
+          // Lo último que levantaste en este ejercicio, para precargarlo.
+          if (ex.sets?.length) st.lastSets.set(name, ex.sets);
           for (const set of ex.sets || []) {
             const e1rm = estimatedOneRepMax(set.weight, set.reps);
             if (e1rm <= 0) continue;
@@ -168,19 +216,23 @@ export function derive(data, today = todayKey()) {
       // Racha diaria con escudos: un día perdido consume un escudo si hay.
       if (a.streakMode !== 'weekly') {
         if (met) {
+          // Cumplir en un día libre también suma: hacer de más nunca penaliza.
           ss.streak += 1;
           if (ss.streak % SHIELD_EVERY === 0) ss.shields = Math.min(MAX_SHIELDS, ss.shields + 1);
           st.bestStreak = Math.max(st.bestStreak, ss.streak);
-        } else if (date < today) {
+        } else if (date < today && scheduled) {
           if (ss.shields > 0) ss.shields -= 1; // la racha sobrevive
           else ss.streak = 0;
         }
       }
 
-      if (met && a.streakMode !== 'weekly') metCount += 1;
+      // El día perfecto es "hiciste todo lo que HOY tocaba", no todo lo que existe.
+      if (scheduled) {
+        required += 1;
+        if (met) metCount += 1;
+      }
     }
 
-    const required = dailyActivities.length;
     const perfect = required > 0 && metCount === required;
     if (perfect) {
       perfectDays += 1;
@@ -192,9 +244,11 @@ export function derive(data, today = todayKey()) {
 
   // ---- Consolidación por actividad ----
   const totals = {};
+  const volumes = {};
   const bests = {};
   const sessions = {};
   const activeDays = {};
+  const weeklyStreaks = {};
   let personalRecords = 0;
   let bestDailyStreak = 0;
   let minActivityLevel = Infinity;
@@ -220,6 +274,8 @@ export function derive(data, today = todayKey()) {
     );
     st.recordList = [...st.records.values()].sort((x, y) => y.e1rm - x.e1rm);
     totals[a.id] = st.total;
+    volumes[a.id] = st.volume;
+    weeklyStreaks[a.id] = a.streakMode === 'weekly' ? st.streak : 0;
     bests[a.id] = st.best;
     sessions[a.id] = st.activeDays;
     activeDays[a.id] = st.activeDays;
@@ -231,7 +287,7 @@ export function derive(data, today = todayKey()) {
 
   // ---- Logros ----
   const summary = {
-    totals, bests, sessions, activeDays, perfectDays, personalRecords,
+    totals, volumes, bests, sessions, activeDays, weeklyStreaks, perfectDays, personalRecords,
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
   };
@@ -280,12 +336,12 @@ export function derive(data, today = todayKey()) {
 }
 
 /** XP que sumaría un valor dado hoy, para mostrar la previsualización. */
-export function previewXp(state, activity, value) {
+export function previewXp(state, activity, value, entry = null) {
   const st = state.byActivity.get(activity.id);
   const streak = activity.streakMode === 'weekly'
     ? (st?.streak || 0) * 3
     : (st?.streak || 0);
-  return entryXp(value, Number(activity.goal) || 1, streak);
+  return entryXp(value, goalFor(activity, entry), streak);
 }
 
 export { dayKey };

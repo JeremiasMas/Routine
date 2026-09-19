@@ -1,5 +1,5 @@
 // Ajustes: metas, actividades, copia de seguridad.
-import { el, formatValue } from '../utils.js';
+import { el, formatValue, weekdayShort, scheduleLabel } from '../utils.js';
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll,
@@ -22,7 +22,7 @@ export function render({ navigate }) {
     el('span', { style: 'font-size:1.3rem', text: a.icon }),
     el('div', { class: 'row__main' },
       el('div', { text: a.name }),
-      el('div', { class: 'row__sub', text: `${formatValue(a.goal, a.unit)}${a.streakMode === 'weekly' ? ` · ${a.weeklyTarget}× por semana` : ' · por día'}` })),
+      el('div', { class: 'row__sub', text: `${formatValue(a.goal, a.unit)} · ${a.streakMode === 'weekly' ? `${a.weeklyTarget}× por semana` : scheduleLabel(a.days)}` })),
     el('span', { class: 'muted', text: '✎' })))));
 
   root.append(el('div', { style: 'margin-top:10px' },
@@ -74,6 +74,25 @@ function editActivity(activity, navigate) {
     el('label', { text: 'Veces por semana' }), weeklyTarget);
   mode.addEventListener('change', () => { weeklyField.style.display = mode.value === 'weekly' ? '' : 'none'; });
 
+  // Días en que toca: los libres no rompen la racha.
+  const diasSel = new Set(a.days || []);
+  const diaBtns = [1, 2, 3, 4, 5, 6, 0].map((d) => {
+    const btn = el('button', {
+      type: 'button', class: `presets-day${diasSel.has(d) ? ' is-active' : ''}`,
+      style: `--c:${a.color}`, 'aria-pressed': diasSel.has(d) ? 'true' : 'false',
+      onClick: () => {
+        if (diasSel.has(d)) diasSel.delete(d); else diasSel.add(d);
+        btn.classList.toggle('is-active', diasSel.has(d));
+        btn.setAttribute('aria-pressed', diasSel.has(d) ? 'true' : 'false');
+      },
+    }, weekdayShort(d));
+    return btn;
+  });
+  const diasField = el('div', { class: 'field' },
+    el('label', { text: 'Días en que toca' }),
+    el('div', { class: 'presets' }, diaBtns),
+    el('p', { class: 'hint' }, 'Sin ninguno marcado se espera todos los días. Los días libres no rompen la racha, y si hacés de más igual suma.'));
+
   const body = el('div', {},
     el('p', { class: 'hint', style: 'margin-bottom:12px' }, 'La meta es la vara de 100 XP: si la subís, cada registro rinde menos; si la bajás, rinde más. Tu XP acumulada se recalcula sola.'),
     el('div', { class: 'field-row' },
@@ -85,6 +104,7 @@ function editActivity(activity, navigate) {
       field('unit', 'Unidad')),
     el('div', { class: 'field' }, el('label', { text: 'Frecuencia esperada' }), mode),
     weeklyField,
+    diasField,
     el('div', { class: 'btn-row' },
       el('button', { class: 'btn btn--primary btn--block', onClick: save }, isNew ? 'Crear actividad' : 'Guardar'),
       !isNew && !['datos', 'piano', 'gym', 'muaythai', 'pasos', 'duolingo', 'substack'].includes(a.id)
@@ -100,6 +120,7 @@ function editActivity(activity, navigate) {
       goal: Math.max(1, Number(f.goal.value) || 1),
       streakMode: mode.value,
       weeklyTarget: Math.max(1, Number(weeklyTarget.value) || 1),
+      days: [...diasSel].sort(),
     };
     if (isNew) addActivity(patch);
     else updateActivity(a.id, patch);

@@ -1,9 +1,13 @@
 // Hojas de registro: número simple, sesión de gimnasio y publicación semanal.
-import { el, formatValue, formatNumber, relativeDay, uid } from '../utils.js';
+import { el, formatValue, formatNumber, relativeDay, uid, keyToDate } from '../utils.js';
 import { openSheet } from './sheet.js';
 import { getEntry, setEntry, getState } from '../state.js';
-import { previewXp } from '../derive.js';
+import { previewXp, completedSets, goalFor } from '../derive.js';
 import { gymVolume, estimatedOneRepMax } from '../xp.js';
+import {
+  GYM_TEMPLATES, templateById, templateForDay,
+  DEFAULT_SETS, DEFAULT_REP_RANGE,
+} from '../config.js';
 
 /** Abre el registrador correcto para la actividad. */
 export function openLogger(activity, dateKey, onSaved) {
@@ -12,7 +16,7 @@ export function openLogger(activity, dateKey, onSaved) {
   return openSheet(title, numberForm(activity, dateKey, onSaved));
 }
 
-function footer(activity, dateKey, getPayload, getValue, onSaved, existing) {
+function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getContext = () => null) {
   const preview = el('span', { class: 'xp-preview' });
   const save = el('button', { class: 'btn btn--primary btn--block', style: `--c:${activity.color}` }, 'Guardar');
   const remove = existing
@@ -28,8 +32,9 @@ function footer(activity, dateKey, getPayload, getValue, onSaved, existing) {
 
   const update = () => {
     const value = getValue();
-    const xp = previewXp(getState(), activity, value);
-    const goal = Number(activity.goal) || 1;
+    const context = getContext();
+    const xp = previewXp(getState(), activity, value, context);
+    const goal = goalFor(activity, context);
     preview.innerHTML = value > 0
       ? `Sumás <b>+${xp} XP</b> · ${Math.round((value / goal) * 100)}% de la meta`
       : 'Ingresá un valor para ver la XP que sumás.';
@@ -82,95 +87,186 @@ function numberForm(activity, dateKey, onSaved) {
     ctrl.node);
 }
 
-/** ---------- Sesión de gimnasio: ejercicios con series ---------- */
+/** ---------- Sesión de gimnasio: rutina del día con series ---------- */
 function gymForm(activity, dateKey, onSaved) {
   const existing = getEntry(dateKey, activity.id);
-  const records = getState().byActivity.get(activity.id)?.records || new Map();
-  let exercises = existing?.exercises?.length
-    ? structuredClone(existing.exercises)
-    : [{ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }];
+  const gymState = getState().byActivity.get(activity.id);
+  const records = gymState?.records || new Map();
+  const lastSets = gymState?.lastSets || new Map();
+  const lastByTemplate = gymState?.lastByTemplate || new Map();
+
+  // Si no hay nada cargado, se propone la rutina que toca ese día de la semana.
+  const sugerida = templateForDay(keyToDate(dateKey).getDay());
+  let templateId = existing?.templateId ?? sugerida?.id ?? null;
+  let exercises = [];
+
+  /** Series precargadas con lo último que levantaste en ese ejercicio. */
+  function seedSets(name, count = DEFAULT_SETS) {
+    const previas = lastSets.get((name || '').trim().toLowerCase());
+    return Array.from({ length: count }, (_, i) => ({
+      weight: previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? '',
+      reps: '',
+      target: previas?.[i]?.reps ?? null,
+    }));
+  }
+
+  function loadTemplate(id, { keepExisting = false } = {}) {
+    templateId = id;
+    if (keepExisting && existing?.exercises?.length) {
+      exercises = structuredClone(existing.exercises).map((ex) => ({ ...ex, id: uid() }));
+      return;
+    }
+    const template = templateById(id);
+    const base = template?.exercises?.length
+      ? template.exercises
+      : (lastByTemplate.get(id) || []); // el Día 4 aprende de la última vez
+    exercises = base.length
+      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, sets: seedSets(ex.name) }))
+      : [{ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }];
+  }
+  loadTemplate(templateId, { keepExisting: true });
 
   const list = el('div', {});
   const summary = el('div', { class: 'row' });
   const ctrl = footer(activity, dateKey,
-    () => ({ exercises: clean(exercises) }),
-    () => gymVolume(clean(exercises)), onSaved, existing);
+    () => ({ templateId, exercises: clean(exercises) }),
+    () => completedSets(clean(exercises)),
+    onSaved, existing,
+    () => ({ templateId }));
 
-  function clean(list_) {
-    return list_
+  function clean(input) {
+    return input
       .map((ex) => ({
         name: (ex.name || '').trim(),
-        sets: (ex.sets || []).filter((s) => Number(s.weight) > 0 && Number(s.reps) > 0)
-          .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) })),
+        sets: (ex.sets || [])
+          .filter((s) => Number(s.reps) > 0)
+          .map((s) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) })),
       }))
-      .filter((ex) => ex.sets.length);
+      .filter((ex) => ex.name && ex.sets.length);
+  }
+
+  // --- Selector de rutina ---
+  const chips = el('div', { class: 'presets', style: 'margin-bottom:12px' },
+    GYM_TEMPLATES.map((t) => el('button', {
+      type: 'button', dataset: { tpl: t.id }, style: `--c:${activity.color}`,
+      onClick: () => { loadTemplate(t.id); refresh(); },
+    }, t.short)),
+    el('button', {
+      type: 'button', dataset: { tpl: 'libre' }, style: `--c:${activity.color}`,
+      onClick: () => { loadTemplate(null); refresh(); },
+    }, 'Libre'));
+
+  function syncChips() {
+    for (const b of chips.querySelectorAll('button')) {
+      b.classList.toggle('is-active', b.dataset.tpl === (templateId || 'libre'));
+    }
   }
 
   function refresh() {
     list.innerHTML = '';
     exercises.forEach((ex, i) => list.append(exerciseCard(ex, i)));
-    const volume = gymVolume(clean(exercises));
-    const sets = clean(exercises).reduce((n, ex) => n + ex.sets.length, 0);
+    syncChips();
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const limpio = clean(exercises);
+    const hechas = completedSets(limpio);
+    const meta = goalFor(activity, { templateId });
+    const volumen = gymVolume(limpio);
     summary.innerHTML = '';
     summary.append(
       el('div', { class: 'row__main' },
-        el('div', { text: `${formatNumber(volume)} kg de tonelaje` }),
-        el('div', { class: 'row__sub', text: `${sets} series · meta ${formatNumber(activity.goal)} kg` })),
-      el('div', { class: 'row__value', text: `${Math.round((volume / (activity.goal || 1)) * 100)}%` }));
+        el('div', { text: `${hechas} de ${meta} series` }),
+        el('div', { class: 'row__sub', text: `${formatNumber(volumen)} kg de tonelaje` })),
+      el('div', { class: 'row__value', text: `${Math.round((hechas / meta) * 100)}%` }));
     ctrl.update();
   }
 
-  function exerciseCard(ex, index) {
-    const nameInput = el('input', {
-      type: 'text', placeholder: 'Ejercicio (ej. Sentadilla)', value: ex.name || '',
-      list: 'exercise-names',
-    });
-    nameInput.addEventListener('input', () => { ex.name = nameInput.value; updateRecordHint(); });
+  /** Un ejercicio está listo cuando todas sus series tienen repeticiones. */
+  function isComplete(ex) {
+    return (ex.sets || []).length > 0 && ex.sets.every((s) => Number(s.reps) > 0);
+  }
 
-    const recordHint = el('div', { class: 'row__sub' });
-    function updateRecordHint() {
-      const rec = records.get((ex.name || '').trim().toLowerCase());
-      recordHint.textContent = rec
-        ? `Tu récord: ${rec.weight} kg × ${rec.reps} (1RM ≈ ${rec.e1rm} kg)`
-        : '';
-    }
-    updateRecordHint();
+  function exerciseCard(ex, index) {
+    const rec = records.get((ex.name || '').trim().toLowerCase());
+    const head = ex.name
+      ? el('div', { style: 'flex:1;min-width:0' },
+          el('div', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
+          el('div', { class: 'row__sub' },
+            rec ? `Récord: ${rec.weight} kg × ${rec.reps}` : `${DEFAULT_SETS}×${DEFAULT_REP_RANGE}`))
+      : (() => {
+          const input = el('input', { type: 'text', placeholder: 'Ejercicio', list: 'exercise-names', value: '' });
+          input.addEventListener('input', () => { ex.name = input.value; updateSummary(); });
+          return input;
+        })();
 
     const setsWrap = el('div', {});
     const renderSets = () => {
       setsWrap.innerHTML = '';
       ex.sets.forEach((set, si) => {
-        const weight = el('input', { type: 'number', inputmode: 'decimal', min: '0', step: '2.5', placeholder: 'kg', value: set.weight ?? '' });
-        const reps = el('input', { type: 'number', inputmode: 'numeric', min: '0', step: '1', placeholder: 'reps', value: set.reps ?? '' });
-        weight.addEventListener('input', () => { set.weight = weight.value; refreshSummaryOnly(); });
-        reps.addEventListener('input', () => { set.reps = reps.value; refreshSummaryOnly(); });
+        const weight = el('input', {
+          type: 'number', inputmode: 'decimal', min: '0', step: '2.5',
+          placeholder: ex.bw ? '+kg' : 'kg', value: set.weight ?? '',
+        });
+        const reps = el('input', {
+          type: 'number', inputmode: 'numeric', min: '0', step: '1',
+          placeholder: set.target ? String(set.target) : 'reps', value: set.reps ?? '',
+        });
+        weight.addEventListener('input', () => { set.weight = weight.value; updateSummary(); });
+        reps.addEventListener('input', () => { set.reps = reps.value; updateSummary(); });
+        // Al terminar el ejercicio se pliega solo: durante el entrenamiento
+        // querés ver lo que falta, no lo que ya hiciste.
+        reps.addEventListener('change', () => { if (isComplete(ex)) collapse(true); });
         setsWrap.append(el('div', { class: 'set-row' },
           el('span', { class: 'set-row__n', text: `${si + 1}` }),
           weight, reps,
-          el('button', { class: 'icon-btn', type: 'button', 'aria-label': `Quitar serie ${si + 1}`,
-            onClick: () => { ex.sets.splice(si, 1); if (!ex.sets.length) ex.sets.push({ weight: '', reps: '' }); refresh(); } }, '✕')));
+          el('button', {
+            class: 'icon-btn', type: 'button', 'aria-label': `Quitar serie ${si + 1}`,
+            onClick: () => { ex.sets.splice(si, 1); if (!ex.sets.length) ex.sets.push({ weight: '', reps: '' }); refresh(); },
+          }, '✕')));
       });
     };
     renderSets();
 
-    return el('div', { class: 'exercise' },
+    const resumen = el('div', { class: 'exercise__summary' });
+    const card = el('div', { class: 'exercise' },
       el('div', { class: 'exercise__head' },
-        nameInput,
-        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Quitar ejercicio',
-          onClick: () => { exercises.splice(index, 1); if (!exercises.length) exercises.push({ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }); refresh(); } }, '🗑')),
-      recordHint,
-      el('div', { class: 'set-row', style: 'margin:8px 0 4px' },
-        el('span', {}), el('span', { class: 'set-row__n', text: 'peso' }), el('span', { class: 'set-row__n', text: 'reps' }), el('span', {})),
-      setsWrap,
-      el('button', { class: 'btn btn--ghost', type: 'button', style: 'min-height:38px;padding:0 12px',
-        onClick: () => { const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ weight: last?.weight ?? '', reps: last?.reps ?? '' }); refresh(); } }, '+ Serie'));
-  }
+        head,
+        el('button', {
+          class: 'icon-btn', type: 'button', 'aria-label': `Quitar ${ex.name || 'ejercicio'}`,
+          onClick: () => { exercises.splice(index, 1); if (!exercises.length) exercises.push({ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }); refresh(); },
+        }, '🗑')),
+      resumen,
+      el('div', { class: 'exercise__body' },
+        el('div', { class: 'set-row', style: 'margin:8px 0 4px' },
+          el('span', {}),
+          el('span', { class: 'set-row__n', text: ex.bw ? 'peso extra' : 'peso' }),
+          el('span', { class: 'set-row__n', text: 'reps' }),
+          el('span', {})),
+        setsWrap,
+        el('button', {
+          class: 'btn btn--ghost', type: 'button', style: 'min-height:34px;padding:0 12px;font-size:.82rem',
+          onClick: () => { const last = ex.sets[ex.sets.length - 1]; ex.sets.push({ weight: last?.weight ?? '', reps: '' }); refresh(); },
+        }, '+ Serie')));
 
-  function refreshSummaryOnly() {
-    const volume = gymVolume(clean(exercises));
-    summary.querySelector('.row__main div').textContent = `${formatNumber(volume)} kg de tonelaje`;
-    summary.querySelector('.row__value').textContent = `${Math.round((volume / (activity.goal || 1)) * 100)}%`;
-    ctrl.update();
+    function collapse(on) {
+      card.classList.toggle('is-collapsed', on);
+      if (!on) return;
+      const hechas = ex.sets.filter((x) => Number(x.reps) > 0);
+      const pesos = [...new Set(hechas.map((x) => Number(x.weight) || 0))];
+      const carga = pesos.length === 1
+        ? (pesos[0] > 0 ? `${pesos[0]} kg` : 'peso corporal')
+        : `${Math.min(...pesos)}–${Math.max(...pesos)} kg`;
+      resumen.textContent = `✓ ${hechas.length} series · ${carga} × ${hechas.map((x) => x.reps).join(', ')}`;
+    }
+    // Tocar el encabezado vuelve a abrirlo para corregir.
+    card.querySelector('.exercise__head').addEventListener('click', (e) => {
+      if (e.target.closest('.icon-btn') || e.target.tagName === 'INPUT') return;
+      collapse(!card.classList.contains('is-collapsed'));
+    });
+    if (isComplete(ex)) collapse(true);
+    return card;
   }
 
   const datalist = el('datalist', { id: 'exercise-names' },
@@ -178,11 +274,17 @@ function gymForm(activity, dateKey, onSaved) {
 
   refresh();
   return el('div', { class: 'logger' },
-    el('p', { class: 'hint' }, `Cargá peso y repeticiones de cada serie. El tonelaje (peso × reps) da la XP, y superar tu 1RM estimado suma bonus por récord.`),
+    el('p', { class: 'hint' },
+      sugerida && !existing
+        ? `Hoy toca ${sugerida.name}. Los pesos vienen precargados con lo último que levantaste: corregí lo que cambió y anotá las reps.`
+        : 'Elegí la rutina y cargá las reps de cada serie. Completarla entera son 100 XP.'),
+    chips,
     datalist,
     list,
-    el('button', { class: 'btn btn--block', type: 'button',
-      onClick: () => { exercises.push({ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }); refresh(); } }, '+ Ejercicio'),
+    el('button', {
+      class: 'btn btn--block', type: 'button',
+      onClick: () => { exercises.push({ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }); refresh(); },
+    }, '+ Ejercicio'),
     summary,
     ctrl.node);
 }

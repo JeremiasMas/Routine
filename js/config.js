@@ -33,6 +33,7 @@ export const DEFAULT_ACTIVITIES = [
     step: 5,
     presets: [10, 20, 30, 45],
     streakMode: 'daily',
+    days: [1, 5, 6, 0], // lunes, viernes, sábado y domingo
     motto: 'Los dedos recuerdan lo que la cabeza olvida.',
   },
   {
@@ -41,13 +42,14 @@ export const DEFAULT_ACTIVITIES = [
     icon: '🏋️',
     color: '#fb7185',
     kind: 'gym',
-    unit: 'kg',
-    goal: 4000,
-    step: 500,
+    unit: 'series',
+    goal: 30,            // series de una sesión libre; con plantilla manda la plantilla
+    step: 1,
     streakMode: 'weekly',
-    weeklyTarget: 4,
+    weeklyTarget: 3,
+    days: [1, 3, 5],     // lunes, miércoles y viernes
     streakUnitLabel: 'semanas',
-    motto: 'El tonelaje no miente.',
+    motto: 'La rutina no se negocia, se hace.',
   },
   {
     id: 'muaythai',
@@ -60,7 +62,8 @@ export const DEFAULT_ACTIVITIES = [
     step: 15,
     presets: [30, 45, 60, 90],
     streakMode: 'weekly',
-    weeklyTarget: 3,
+    weeklyTarget: 2,
+    days: [2, 4],        // martes y jueves
     streakUnitLabel: 'semanas',
     motto: 'El arte de las ocho extremidades.',
   },
@@ -107,6 +110,99 @@ export const DEFAULT_ACTIVITIES = [
     motto: 'Publicar es el único editor honesto.',
   },
 ];
+
+/**
+ * Rutina del gimnasio. Cargarla desde una plantilla evita tipear 14 ejercicios,
+ * y las series planificadas son la meta de la sesión: completarlas = 100 XP.
+ *  - day: día de la semana en que toca (0 = domingo)
+ *  - bw: ejercicio de peso corporal (el peso es carga EXTRA, puede ir vacío)
+ */
+export const GYM_TEMPLATES = [
+  {
+    id: 'espalda-biceps',
+    day: 1,
+    name: 'Espalda / Bíceps + Abs',
+    short: 'Espalda · Bíceps',
+    exercises: [
+      { name: 'Dominadas agarre ancho', bw: true },
+      { name: 'Remo bajo cerrado' },
+      { name: 'Remo con barra al pecho' },
+      { name: 'Pullover' },
+      { name: 'Bíceps en polea' },
+      { name: 'Face pulls' },
+      { name: 'Standing cable crunch' },
+      { name: 'Elevaciones de piernas en paralelas', bw: true },
+      { name: 'Weighted crunch' },
+      { name: 'Russian twist' },
+    ],
+  },
+  {
+    id: 'hombros-triceps',
+    day: 3,
+    name: 'Hombros / Tríceps / Antebrazos',
+    short: 'Hombros · Tríceps',
+    exercises: [
+      { name: 'Vuelo lateral con mancuerna vertical' },
+      { name: 'Vuelo lateral con mancuerna horizontal' },
+      { name: 'Vuelo posterior' },
+      { name: 'Pullover en camilla inclinada' },
+      { name: 'Encogimientos de trapecio' },
+      { name: 'Press militar' },
+      { name: 'Arnold con polea' },
+      { name: 'Tríceps supino' },
+      { name: 'Tríceps con soga' },
+      { name: 'Tríceps trasnuca' },
+      { name: 'French press' },
+      { name: 'Dumbbell standing pronation wrist' },
+      { name: 'Dumbbell over bench palms up curl' },
+      { name: 'Dumbbell standing wrist curl' },
+    ],
+  },
+  {
+    id: 'pecho-piernas',
+    day: 5,
+    name: 'Pecho / Piernas',
+    short: 'Pecho · Piernas',
+    exercises: [
+      { name: 'Pecho plano' },
+      { name: 'Pecho inclinado' },
+      { name: 'Aperturas inclinadas' },
+      { name: 'Sentadilla con barra' },
+      { name: 'Sillón de cuádriceps' },
+      { name: 'Camilla de isquiotibiales' },
+      { name: 'Peso muerto rumano' },
+      { name: 'Sillón de abductores' },
+      { name: 'Elevaciones de talón' },
+    ],
+  },
+  {
+    id: 'dia-4',
+    day: 6,
+    name: 'Día 4 complementario',
+    short: 'Día 4',
+    optional: true,
+    exercises: [], // lo armás vos: se agregan ejercicios a mano y quedan guardados
+  },
+];
+
+/** Series y repeticiones por defecto de cada ejercicio de la rutina. */
+export const DEFAULT_SETS = 3;
+export const DEFAULT_REP_RANGE = '10-15';
+
+export function templateById(id) {
+  return GYM_TEMPLATES.find((t) => t.id === id) || null;
+}
+
+/** Plantilla que toca en un día de la semana (0 = domingo). */
+export function templateForDay(weekday) {
+  return GYM_TEMPLATES.find((t) => t.day === weekday && !t.optional) || null;
+}
+
+/** Series planificadas de una plantilla. */
+export function plannedSets(template) {
+  if (!template || !template.exercises.length) return 0;
+  return template.exercises.reduce((n, ex) => n + (ex.sets || DEFAULT_SETS), 0);
+}
 
 /** Rangos por nivel de actividad. */
 export const TIERS = [
@@ -176,7 +272,13 @@ export const ACHIEVEMENTS = [
     progress: (s) => ((s.bests.pasos || 0) >= 20000 ? 1 : 0) },
   { id: 'tonnage-100k', name: 'Cien toneladas', icon: '🏋️', xp: 250, target: 100000,
     desc: '100.000 kg de tonelaje acumulado.',
-    progress: (s) => s.totals.gym || 0 },
+    progress: (s) => s.volumes.gym || 0 },
+  { id: 'gym-50', name: 'Rata de gimnasio', icon: '🦾', xp: 200, target: 50,
+    desc: '50 sesiones de gimnasio completadas.',
+    progress: (s) => s.sessions.gym || 0 },
+  { id: 'gym-full-week', name: 'Semana redonda', icon: '🗓️', xp: 150, target: 4,
+    desc: '4 semanas cumpliendo las 3 sesiones de gimnasio.',
+    progress: (s) => s.weeklyStreaks.gym || 0 },
   { id: 'pr-1', name: 'Récord personal', icon: '🥇', xp: 50, target: 1,
     desc: 'Rompé tu primer récord en un ejercicio.',
     progress: (s) => s.personalRecords },

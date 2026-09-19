@@ -1,9 +1,13 @@
 // Pantalla principal: el tablero de misiones del día.
-import { el, formatValue, formatNumber, relativeDay, todayKey, addDays, weekStart, weekLabel, dayName, plural } from '../utils.js';
+import {
+  el, formatValue, formatNumber, relativeDay, todayKey, addDays,
+  weekStart, weekLabel, dayName, keyToDate, plural,
+} from '../utils.js';
 import { getState } from '../state.js';
+import { isScheduled, goalFor } from '../derive.js';
+import { templateForDay, templateById } from '../config.js';
 import { ring, chip, xpBar } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
-import { entryValue } from '../derive.js';
 
 let viewDate = todayKey();
 
@@ -23,36 +27,67 @@ export function render({ navigate, celebrate }) {
       }, 'Ir a hoy')),
     el('button', { 'aria-label': 'Día siguiente', disabled: isToday, onClick: () => { viewDate = addDays(viewDate, 1); navigate(); } }, '›')));
 
-  const daily = state.activities.filter((a) => a.streakMode !== 'weekly');
-  const weekly = state.activities.filter((a) => a.streakMode === 'weekly');
-  const done = daily.filter((a) => (state.byActivity.get(a.id)?.byDate.get(viewDate)?.met)).length;
+  // Lo que toca hoy según tu semana; el resto queda como extra, no como falta.
+  const toca = state.activities.filter((a) => isScheduled(a, viewDate));
+  // Incluye el gimnasio y el muay thai en sus días libres (para el día 4 opcional),
+  // pero no las misiones puramente semanales como Substack.
+  const extra = state.activities.filter((a) => !isScheduled(a, viewDate)
+    && (a.streakMode !== 'weekly' || a.days?.length));
+  const semanales = state.activities.filter((a) => a.streakMode === 'weekly');
+  const hechas = toca.filter((a) => state.byActivity.get(a.id)?.byDate.get(viewDate)?.met).length;
   const dayXp = state.daily.get(viewDate)?.xp || 0;
+  const perfecto = toca.length > 0 && hechas === toca.length;
+  const rutina = templateForDay(keyToDate(viewDate).getDay());
 
   // --- Resumen del día ---
   root.append(el('div', { class: 'card', style: 'margin-bottom:4px' },
     el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px' },
       el('div', {},
-        el('div', { style: 'font-weight:700', text: done === daily.length && daily.length ? '¡Día perfecto! ⭐' : `${done} de ${daily.length} misiones diarias` }),
-        el('div', { class: 'row__sub', text: done === daily.length && daily.length ? `+${50} XP de bonus por completar todo` : 'Completá todas para el bonus de día perfecto (+50 XP)' })),
+        el('div', { style: 'font-weight:700', text: perfecto ? '¡Día perfecto! ⭐' : `${hechas} de ${toca.length} misiones de hoy` }),
+        el('div', { class: 'row__sub', text: perfecto
+          ? '+50 XP de bonus por completar todo lo que tocaba'
+          : 'Completá todo lo que toca hoy para el bonus (+50 XP)' })),
       el('div', { style: 'text-align:right' },
         el('div', { class: 'stat__value', text: `${formatNumber(dayXp)}` }),
         el('div', { class: 'stat__label', text: 'XP del día' }))),
-    el('div', { style: 'margin-top:10px' }, xpBar(daily.length ? done / daily.length : 0))));
+    el('div', { style: 'margin-top:10px' }, xpBar(toca.length ? hechas / toca.length : 0))));
 
-  // --- Misiones diarias ---
+  // --- Lo que toca hoy ---
   root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Misiones diarias' }),
-    el('small', { text: isToday ? 'Tocá para registrar' : 'Registro retroactivo' })));
-  root.append(el('div', { class: 'quests' },
-    daily.map((a) => questCard(a, state, viewDate, navigate, celebrate))));
+    el('h2', { text: 'Hoy toca' }),
+    el('small', { text: rutina ? rutina.short : (isToday ? 'Tocá para registrar' : 'Registro retroactivo') })));
+  root.append(toca.length
+    ? el('div', { class: 'quests' }, toca.map((a) => questCard(a, state, viewDate, navigate, celebrate)))
+    : el('div', { class: 'empty' }, 'Hoy descansás. 😌 Igual podés registrar lo que hagas.'));
 
-  // --- Misiones semanales ---
-  if (weekly.length) {
+  // --- Lo que hoy no toca (se puede registrar igual) ---
+  if (extra.length) {
     root.append(el('div', { class: 'section-title' },
-      el('h2', { text: 'Misiones de la semana' }),
-      el('small', { text: weekLabel(weekStart(viewDate)) })));
+      el('h2', { text: 'Hoy no toca' }), el('small', { text: 'suma igual' })));
     root.append(el('div', { class: 'quests' },
-      weekly.map((a) => questCard(a, state, viewDate, navigate, celebrate, true))));
+      extra.map((a) => questCard(a, state, viewDate, navigate, celebrate, { off: true }))));
+  }
+
+  // --- Progreso de la semana ---
+  if (semanales.length) {
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Tu semana' }), el('small', { text: weekLabel(weekStart(viewDate)) })));
+    root.append(el('div', { class: 'card', style: 'display:grid;gap:12px' },
+      semanales.map((a) => {
+        const st = state.byActivity.get(a.id);
+        const hecho = st?.weekCount || 0;
+        const meta = st?.weekTarget || 1;
+        return el('button', {
+          style: 'display:block;width:100%;text-align:left',
+          onClick: () => openLogger(a, viewDate, (events) => { celebrate(events); navigate(); }),
+        },
+          el('div', { style: 'display:flex;justify-content:space-between;gap:8px;font-size:.86rem' },
+            el('span', {}, `${a.icon} ${a.name}`),
+            el('span', { style: `color:${hecho >= meta ? 'var(--ok)' : 'var(--muted)'}`, text: `${formatNumber(hecho)}/${meta}` })),
+          el('div', { style: 'margin-top:6px' },
+            el('div', { class: 'xpbar' },
+              el('div', { class: 'xpbar__fill', style: `width:${Math.min(100, (hecho / meta) * 100)}%;background:${a.color}` }))));
+      })));
   }
 
   // --- Últimos 7 días ---
@@ -62,11 +97,16 @@ export function render({ navigate, celebrate }) {
   return root;
 }
 
-function questCard(activity, state, dateKey, navigate, celebrate, isWeekly = false) {
+function questCard(activity, state, dateKey, navigate, celebrate, { off = false } = {}) {
   const st = state.byActivity.get(activity.id);
   const day = st?.byDate.get(dateKey);
   const value = day?.value || 0;
-  const goal = Number(activity.goal) || 1;
+  const isWeekly = activity.streakMode === 'weekly';
+  // El gimnasio se mide contra la rutina del día: 27 series el viernes, 42 el miércoles.
+  const rutina = activity.kind === 'gym'
+    ? (templateById(day?.entry?.templateId) || templateForDay(keyToDate(dateKey).getDay()))
+    : null;
+  const goal = day?.goal ?? goalFor(activity, rutina ? { templateId: rutina.id } : null);
   const met = value >= goal;
   const pct = Math.min(1, value / goal);
 
@@ -84,7 +124,7 @@ function questCard(activity, state, dateKey, navigate, celebrate, isWeekly = fal
   if (st?.shields > 0) meta.append(chip(`🛡 ${st.shields}`, 'chip--shield'));
 
   const card = el('button', {
-    class: `quest${met ? ' is-done' : ''}`,
+    class: `quest${met ? ' is-done' : ''}${off ? ' quest--off' : ''}`,
     style: `--c:${activity.color}`,
     onClick: () => openLogger(activity, dateKey, (events) => { celebrate(events); navigate(); }),
   },
@@ -92,6 +132,7 @@ function questCard(activity, state, dateKey, navigate, celebrate, isWeekly = fal
     el('div', { class: 'quest__body' },
       el('div', { class: 'quest__head' },
         el('span', { class: 'quest__name', text: activity.name }),
+        rutina && !met ? chip(rutina.short) : null,
         met ? el('span', { text: '✓', style: `color:${activity.color};font-weight:700` }) : null),
       meta),
     ring(pct, {

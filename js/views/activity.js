@@ -1,5 +1,5 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
-import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural, scheduleLabel } from '../utils.js';
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
@@ -27,6 +27,9 @@ export function render({ params, navigate, celebrate }) {
         el('h1', { style: 'font-size:1.2rem', text: `${a.icon} ${a.name}` }),
         el('div', { class: 'quest__meta', style: 'margin-top:6px' },
           chip(st.tier.name, 'chip--tier', `--t:${st.tier.color}`),
+          chip(`📅 ${a.streakMode === 'weekly' && !a.days?.length
+            ? `${a.weeklyTarget}× por semana`
+            : scheduleLabel(a.days)}`),
           st.streak > 0 ? chip(`🔥 ${a.streakMode === 'weekly'
             ? plural(st.streak, 'semana', 'semanas')
             : plural(st.streak, 'día', 'días')}`, 'chip--fire') : null,
@@ -44,9 +47,21 @@ export function render({ params, navigate, celebrate }) {
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Tus números' })));
   root.append(el('div', { class: 'stat-grid' },
     stat(formatValue(st.total, a.unit), 'Acumulado'),
-    stat(st.activeDays, a.streakMode === 'weekly' ? 'Sesiones' : 'Días activos'),
+    a.kind === 'gym'
+      ? stat(st.volume >= 10000
+          ? `${formatNumber(Math.round(st.volume / 100) / 10)} t`
+          : `${formatNumber(st.volume)} kg`, 'Tonelaje')
+      : stat(st.activeDays, 'Días activos'),
     stat(formatNumber(st.xp), 'XP total'),
     stat(st.bestStreak, a.streakMode === 'weekly' ? 'Mejor racha (sem.)' : 'Mejor racha (días)')));
+
+  if (a.kind === 'gym') {
+    root.append(el('div', { class: 'row', style: 'margin-top:10px' },
+      el('div', { class: 'row__main' },
+        el('div', { text: 'Sesiones completadas' }),
+        el('div', { class: 'row__sub', text: `${st.weekCount} de ${st.weekTarget} esta semana` })),
+      el('div', { class: 'row__value', text: formatNumber(st.activeDays) })));
+  }
 
   if (st.best > 0) {
     root.append(el('div', { class: 'row', style: 'margin-top:10px' },

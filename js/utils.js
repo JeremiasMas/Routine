@@ -59,6 +59,18 @@ export function dayName(key) {
   return DIAS[keyToDate(key).getDay()];
 }
 
+/** Nombre corto de un día de la semana (0 = domingo). */
+export function weekdayShort(index) {
+  return DIAS[index];
+}
+
+/** "lun · mié · vie" o "todos los días". */
+export function scheduleLabel(days) {
+  if (!days?.length) return 'todos los días';
+  const orden = [1, 2, 3, 4, 5, 6, 0];
+  return orden.filter((d) => days.includes(d)).map((d) => DIAS[d]).join(' · ');
+}
+
 export function monthName(index) {
   return MESES[index];
 }
