@@ -303,13 +303,19 @@ function bodyForm(activity, dateKey, onSaved) {
   const historial = state.byActivity.get(activity.id)?.history || [];
   const anteriores = historial.filter((h) => h.date < dateKey);
   const previa = anteriores.length ? anteriores[anteriores.length - 1].entry : null;
-  const base = existing || previa || {};
+  // Sin mediciones previas se parte del perfil, así la primera no arranca vacía.
+  const lineaBase = { weight: perfil.weight, waist: perfil.waist, neck: perfil.neck, hip: perfil.hip };
+  const primera = !existing && !previa;
+  const base = existing || previa || lineaBase;
 
   const campos = {};
   const campo = (key, label, sufijo, paso = '0.1') => {
     const input = el('input', {
       type: 'number', inputmode: 'decimal', min: '0', step: paso,
-      value: existing?.[key] ?? '', placeholder: base?.[key] ? String(base[key]) : sufijo,
+      // La primera medición viene con los valores del perfil para confirmar o corregir;
+      // de ahí en más el campo queda vacío y la anterior se muestra como referencia.
+      value: existing?.[key] ?? (primera ? (base?.[key] ?? '') : ''),
+      placeholder: base?.[key] ? String(base[key]) : sufijo,
       'aria-label': `${label} en ${sufijo}`,
     });
     input.addEventListener('input', update);

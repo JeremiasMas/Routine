@@ -232,6 +232,10 @@ export function plannedSets(template) {
 export const DEFAULT_PROFILE = {
   height: 160,
   bodyFormula: '3',
+  // Línea de base: la primera medición arranca con estos valores ya cargados.
+  weight: 61.5,
+  waist: 78,
+  neck: 35,
 };
 
 /** Rangos por nivel de actividad. */

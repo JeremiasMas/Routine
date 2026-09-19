@@ -5,7 +5,7 @@ import {
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
 } from '../state.js';
 import { parseStepsCsv, diffSteps } from '../steps-import.js';
-import { waterGoalMl } from '../body.js';
+import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { toast } from '../ui/feedback.js';
@@ -48,9 +48,20 @@ export function render({ navigate }) {
   root.append(el('div', { class: 'card' },
     el('div', { class: 'field' }, el('label', { text: 'Estatura (cm)' }), estatura),
     el('div', { class: 'field' }, el('label', { text: 'Fórmula de grasa corporal' }), formula),
-    el('p', { class: 'hint' },
+    (() => {
+      const linea = bodySummary(
+        { weight: data.settings.weight, waist: data.settings.waist, neck: data.settings.neck, hip: data.settings.hip },
+        data.settings,
+      );
+      return linea.fatPct != null
+        ? el('p', { class: 'hint' },
+            `Línea de base: ${formatNumber(linea.waist)} cm de cintura y ${formatNumber(linea.neck)} de cuello con ${formatNumber(linea.weight)} kg dan ` +
+            `${formatNumber(linea.fatPct)}% de grasa (${formatNumber(linea.mass.fat)} kg) y ${formatNumber(linea.mass.lean)} kg de masa magra.`)
+        : null;
+    })(),
+    el('p', { class: 'hint', style: 'margin-top:8px' },
       `Método de circunferencias de la Marina de EE.UU. La versión de 3 medidas es la que se usa para hombres; la de 4, que suma la cadera, para mujeres. ` +
-      `Con tu último peso (${formatNumber(data.settings.weight || 61.5)} kg) la meta de agua es ${formatValue(waterGoalMl(data.settings.weight || 61.5), 'ml')} por día y se actualiza sola cada vez que te medís.`)));
+      `Con ${formatNumber(data.settings.weight || 61.5)} kg la meta de agua es ${formatValue(waterGoalMl(data.settings.weight || 61.5), 'ml')} por día y se actualiza sola cada vez que te medís.`)));
 
   // --- Pasos desde Samsung Health ---
   root.append(el('div', { class: 'section-title' },

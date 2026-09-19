@@ -64,3 +64,17 @@ test('la tendencia compara dos mediciones', () => {
   assert.ok(d.fatPct < 0, 'bajó el porcentaje de grasa');
   assert.equal(bodyDelta(actual, null), null);
 });
+
+test('la línea de base del perfil da un cálculo coherente', async () => {
+  const { DEFAULT_PROFILE } = await import('../js/config.js');
+  assert.equal(DEFAULT_PROFILE.height, 160);
+  const s = bodySummary(
+    { weight: DEFAULT_PROFILE.weight, waist: DEFAULT_PROFILE.waist, neck: DEFAULT_PROFILE.neck },
+    DEFAULT_PROFILE,
+  );
+  assert.equal(s.fatPct, 16.3);
+  assert.equal(s.mass.fat, 10);
+  assert.equal(s.mass.lean, 51.5);
+  assert.equal(s.bmi, 24);
+  assert.equal(s.waterGoal, 2150);
+});
