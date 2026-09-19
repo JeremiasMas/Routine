@@ -70,7 +70,9 @@ export function render({ params, navigate, celebrate }) {
       el('div', { class: 'row__value', text: formatNumber(st.activeDays) })));
   }
 
-  if (st.best > 0) {
+  // En el gimnasio la "mejor marca" en series no dice nada: el tonelaje y los
+  // récords por ejercicio cuentan mucho mejor la historia.
+  if (st.best > 0 && a.kind !== 'gym') {
     root.append(el('div', { class: 'row', style: 'margin-top:10px' },
       el('div', { class: 'row__main' },
         el('div', { text: 'Tu mejor marca' }),
@@ -88,6 +90,42 @@ export function render({ params, navigate, celebrate }) {
   root.append(el('div', { class: 'card' }, barChart(points, { color: a.color, labelEvery: 1 }),
     el('p', { class: 'hint', style: 'margin-top:8px', text: `Las barras tenues quedaron por debajo de la meta de ${formatValue(a.goal, a.unit)}.` })));
 
+  // --- Fuerza relativa ---
+  if (a.kind === 'gym' && state.strength?.length) {
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Fuerza relativa' }),
+      el('small', { text: `con ${formatNumber(state.bodyweight)} kg de peso` })));
+
+    if (state.strengthOverall) {
+      root.append(el('div', { class: 'card', style: 'margin-bottom:10px' },
+        el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px' },
+          el('div', {},
+            el('div', { style: 'font-weight:700;font-size:1.05rem', text: state.strengthOverall.name }),
+            el('div', { class: 'row__sub', text: state.strengthOverall.next
+              ? `promedio de ${state.strengthOverall.lifts} movimientos · ${Math.round(state.strengthOverall.pct * 100)}% hacia ${state.strengthOverall.next}`
+              : `promedio de ${state.strengthOverall.lifts} movimientos básicos` })),
+          el('div', { style: 'font-size:1.6rem', text: '💪' })),
+        el('div', { style: 'margin-top:10px' }, xpBar(state.strengthOverall.pct))));
+    }
+
+    root.append(el('div', { class: 'list' }, state.strength.map((s) => el('div', { class: 'row', style: 'display:block' },
+      el('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:baseline' },
+        el('span', { style: 'font-weight:650', text: s.lift }),
+        el('span', { class: 'row__value', text: `${formatNumber(s.e1rm)} kg` })),
+      el('div', { class: 'quest__meta', style: 'margin-top:4px' },
+        chip(s.nivel.name, 'chip--tier', `--t:${a.color}`),
+        chip(`${formatNumber(s.ratio)}× tu peso`),
+        s.usaPesoCorporal ? chip(s.weight > 0 ? `+${formatNumber(s.weight)} kg de lastre` : 'sin lastre') : null),
+      s.nivel.next
+        ? el('div', { style: 'margin-top:8px' },
+            xpBar(s.nivel.pct),
+            el('div', { class: 'row__sub', style: 'margin-top:4px', text: `${s.nivel.next} a los ${formatNumber(s.objetivo)} kg — te faltan ${formatNumber(s.falta)} kg` }))
+        : el('div', { class: 'row__sub', style: 'margin-top:6px', text: 'Nivel máximo de la escala. 🐐' })))));
+
+    root.append(el('p', { class: 'hint', style: 'margin-top:10px' },
+      'El 1RM se estima con la fórmula de Epley a partir de tu mejor serie. Los niveles son referencias generales: varían con el peso corporal y la técnica, así que sirven para ubicarte y ver la progresión, no para el decimal.'));
+  }
+
   // --- Récords del gimnasio ---
   if (a.kind === 'gym' && st.recordList.length) {
     root.append(el('div', { class: 'section-title' },
@@ -97,7 +135,9 @@ export function render({ params, navigate, celebrate }) {
       st.recordList.map((r) => el('div', { class: 'row' },
         el('div', { class: 'row__main' },
           el('div', { text: r.name }),
-          el('div', { class: 'row__sub', text: `${r.weight} kg × ${r.reps} reps · ${shortDate(r.date)}` })),
+          el('div', { class: 'row__sub', text: r.bw
+            ? `${r.weight > 0 ? `+${r.weight} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
+            : `${r.weight} kg × ${r.reps} reps · ${shortDate(r.date)}` })),
         el('div', { class: 'row__value', text: `${r.e1rm} kg` })))));
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' }, 'El valor de la derecha es tu 1RM estimado (fórmula de Epley).'));
   }

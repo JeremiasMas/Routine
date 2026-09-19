@@ -6,6 +6,7 @@ import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier,
 } from './xp.js';
+import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
@@ -147,9 +148,15 @@ export function derive(data, today = todayKey()) {
   const streakState = new Map(); // actId -> {streak, shields}
   for (const a of activities) streakState.set(a.id, { streak: 0, shields: 0 });
 
+  // Peso corporal vigente en cada fecha: lo necesitan los ejercicios que se
+  // hacen con el propio cuerpo (dominadas, fondos) para calcular la carga real.
+  let pesoCorporal = Number(data.settings?.weight) || 0;
+
   for (let i = 0; i <= span; i++) {
     const date = addDays(start, i);
     const dayEntries = entries[date] || {};
+    const pesado = Number(dayEntries.cuerpo?.weight) || 0;
+    if (pesado > 0) pesoCorporal = pesado;
     let dayXp = 0;
     let metCount = 0;
     let required = 0;
@@ -198,18 +205,28 @@ export function derive(data, today = todayKey()) {
           if (!name) continue;
           // Lo último que levantaste en este ejercicio, para precargarlo.
           if (ex.sets?.length) st.lastSets.set(name, ex.sets);
+
+          const esPesoCorporal = ex.bw === true || usaPesoCorporal(liftDeEjercicio(ex.name));
           for (const set of ex.sets || []) {
-            const e1rm = estimatedOneRepMax(set.weight, set.reps);
+            const extra = Number(set.weight) || 0;
+            const reps = Number(set.reps) || 0;
+            const carga = esPesoCorporal ? pesoCorporal + extra : extra;
+            const e1rm = estimatedOneRepMax(carga, reps);
             if (e1rm <= 0) continue;
+            // En los ejercicios de peso corporal el récord se mide en veces tu
+            // propio peso: así engordar no regala un récord falso. El ratio se
+            // calcula sobre el valor sin redondear, porque el redondeo del 1RM
+            // por sí solo alcanzaba para simular una mejora.
+            const ratio = pesoCorporal > 0 ? (carga * (1 + reps / 30)) / pesoCorporal : 0;
+            const marca = { name: ex.name.trim(), weight: extra, reps, e1rm, load: Math.round(carga * 10) / 10, ratio, bw: esPesoCorporal, date };
             const prev = st.records.get(name);
+            const mejora = prev && (esPesoCorporal
+              ? marca.ratio > prev.ratio + 0.002
+              : e1rm > prev.e1rm + 0.01);
             if (!prev) {
-              st.records.set(name, {
-                name: ex.name.trim(), weight: Number(set.weight), reps: Number(set.reps), e1rm, date,
-              });
-            } else if (e1rm > prev.e1rm + 0.01) {
-              st.records.set(name, {
-                name: ex.name.trim(), weight: Number(set.weight), reps: Number(set.reps), e1rm, date,
-              });
+              st.records.set(name, marca);
+            } else if (mejora) {
+              st.records.set(name, marca);
               st.prCount += 1;
               bonusXp += BONUS.personalRecord;
             }
@@ -291,9 +308,19 @@ export function derive(data, today = todayKey()) {
   }
   if (!Number.isFinite(minActivityLevel)) minActivityLevel = 0;
 
+  // ---- Fuerza relativa ----
+  const sexo = data.settings?.bodyFormula === '4' ? 'f' : 'm';
+  const gimnasio = [...byActivity.values()].find((st) => st.activity.kind === 'gym');
+  const strength = gimnasio ? strengthProfile(gimnasio.records, pesoCorporal, sexo) : [];
+  const strengthOverall = nivelGeneral(strength);
+  const strengthRatios = Object.fromEntries(strength.map((s) => [s.liftKey, s.ratio]));
+  // Movimientos en nivel intermedio o superior (índice 2 en la escala).
+  const strengthIntermediates = strength.filter((s) => (s.nivel?.index ?? -1) >= 2).length;
+
   // ---- Logros ----
   const summary = {
     totals, volumes, bests, sessions, activeDays, goalDays, weeklyStreaks, perfectDays, personalRecords,
+    strengthRatios, strengthIntermediates,
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
   };
@@ -326,6 +353,9 @@ export function derive(data, today = todayKey()) {
 
   return {
     today,
+    bodyweight: pesoCorporal,
+    strength,
+    strengthOverall,
     activities,
     byActivity,
     daily,

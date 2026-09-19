@@ -141,6 +141,7 @@ function gymForm(activity, dateKey, onSaved) {
     return input
       .map((ex) => ({
         name: (ex.name || '').trim(),
+        bw: ex.bw || undefined,   // hace falta para calcular la carga real
         sets: (ex.sets || [])
           .filter((s) => Number(s.reps) > 0)
           .map((s) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) })),

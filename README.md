@@ -45,6 +45,31 @@ La XP del gimnasio mide **la rutina completada**, no el tonelaje: terminar el d�
 pecho (27 series) vale lo mismo que el de hombros (42). El tonelaje se sigue
 acumulando como estadística y alimenta los récords personales.
 
+### Fuerza relativa 💪
+
+Con tu peso corporal, la carga y las repeticiones estima el **1RM** (fórmula de
+Epley) y lo expresa como **múltiplos de tu propio peso**, que es la medida que
+permite comparar: 100 kg de sentadilla no significan lo mismo con 61 kg encima
+que con 95.
+
+Cada movimiento básico se ubica en una escala de cinco niveles —Principiante,
+Novato, Intermedio, Avanzado y Élite— y la app te dice **cuántos kilos te faltan
+para el siguiente**. Los ejercicios con estándar son sentadilla, press de banca,
+banca inclinada, press militar, remo con barra, peso muerto rumano y dominadas;
+los aislados (vuelos, face pulls, tríceps) no reciben nivel, porque no existen
+referencias serias de fuerza relativa para ellos.
+
+Dos detalles que hacen que el número sea honesto:
+
+- En **dominadas la carga es tu peso corporal + el lastre**. Antes un set sin
+  lastre calculaba 1RM cero y nunca registraba récord.
+- En los ejercicios de peso corporal el récord se mide en **veces tu peso**, no
+  en kilos absolutos: así subir de peso no regala un récord que no entrenaste.
+
+Los niveles son referencias generales (del tipo de las tablas de ExRx o Strength
+Level). Varían con el peso corporal y con la técnica, así que sirven para
+ubicarte y ver progresión, no para discutir decimales.
+
 ### Composición corporal 📏
 
 Con **cintura, cuello, estatura y peso** calcula el porcentaje de grasa por el
@@ -138,7 +163,7 @@ node tools/make-icons.mjs && python3 -m http.server 8080
 ### Tests
 
 ```bash
-npm test            # 54 tests: XP, rachas, composición corporal e importación
+npm test            # 68 tests: XP, rachas, fuerza, composición corporal e importación
 ```
 
 ## Tus datos
@@ -159,6 +184,7 @@ js/
   config.js             Actividades, agenda semanal, rutinas del gym y logros
   xp.js                 Matemática pura: XP, niveles, 1RM  (con tests)
   body.js               Grasa corporal, IMC y meta de agua  (con tests)
+  strength.js           Fuerza relativa y niveles por ejercicio  (con tests)
   steps-import.js       Lectura del CSV de Samsung Health  (con tests)
   derive.js             Deriva niveles, rachas y récords del historial (con tests)
   state.js              Persistencia y detección de eventos de juego
@@ -173,7 +199,7 @@ tests/                  node --test, sin dependencias
 
 ## Ideas para más adelante
 
-- Gráfico de progresión de 1RM por ejercicio.
+- Gráfico de progresión de 1RM por ejercicio a lo largo del tiempo.
 - Temporizador de descanso entre series.
 - Recordatorios de agua a lo largo del día.
 - Una app Android mínima que lea Health Connect y escriba en este historial:

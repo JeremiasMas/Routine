@@ -304,3 +304,47 @@ test('ya no existe el día 4 del gimnasio', () => {
   assert.equal(GYM_TEMPLATES.length, 3);
   assert.ok(!GYM_TEMPLATES.some((t) => t.id === 'dia-4'));
 });
+
+// ---------------------------------------------------------------------------
+// Fuerza: récords que entienden el peso corporal
+// ---------------------------------------------------------------------------
+
+test('las dominadas registran récord aunque no lleven lastre', () => {
+  const gym = acts(['gym'])[0];
+  const data = build([gym], {
+    [HOY]: { gym: { exercises: [{ name: 'Dominadas agarre ancho', bw: true, sets: [{ weight: 0, reps: 10 }] }] } },
+  });
+  data.settings = { weight: 61.5 };
+  const rec = derive(data, HOY).byActivity.get('gym').records.get('dominadas agarre ancho');
+  assert.equal(rec.load, 61.5, 'la carga es tu propio peso');
+  assert.ok(rec.e1rm > 61.5, `1RM estimado: ${rec.e1rm}`);
+  assert.equal(rec.weight, 0, 'y el lastre queda registrado aparte');
+});
+
+test('subir de peso no regala un récord en dominadas', () => {
+  const gym = acts(['gym', 'cuerpo']);
+  const dominadas = (reps) => ({ exercises: [{ name: 'Dominadas agarre ancho', bw: true, sets: [{ weight: 0, reps }] }] });
+  const data = build(gym, {
+    [addDays(HOY, -14)]: { gym: dominadas(10), cuerpo: { weight: 61.5 } },
+    [addDays(HOY, -7)]: { gym: dominadas(10), cuerpo: { weight: 65 } },  // +3,5 kg, mismas reps
+  });
+  data.settings = { weight: 61.5 };
+  const st = derive(data, HOY).byActivity.get('gym');
+  assert.equal(st.prCount, 0, 'mismas repeticiones no son un récord, pese a los kilos de más');
+
+  // Una repetición más sí lo es.
+  data.entries[HOY] = { gym: dominadas(11) };
+  assert.equal(derive(data, HOY).byActivity.get('gym').prCount, 1);
+});
+
+test('en los ejercicios con barra el récord sigue siendo en kilos', () => {
+  const gym = acts(['gym'])[0];
+  const data = build([gym], {
+    [addDays(HOY, -2)]: { gym: { exercises: [{ name: 'Sentadilla con barra', sets: [{ weight: 70, reps: 10 }] }] } },
+    [HOY]: { gym: { exercises: [{ name: 'Sentadilla con barra', sets: [{ weight: 75, reps: 10 }] }] } },
+  });
+  data.settings = { weight: 61.5 };
+  const st = derive(data, HOY).byActivity.get('gym');
+  assert.equal(st.prCount, 1);
+  assert.equal(st.records.get('sentadilla con barra').weight, 75);
+});

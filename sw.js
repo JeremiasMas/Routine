@@ -13,6 +13,7 @@ const ASSETS = [
   './js/derive.js',
   './js/xp.js',
   './js/body.js',
+  './js/strength.js',
   './js/steps-import.js',
   './js/config.js',
   './js/utils.js',
