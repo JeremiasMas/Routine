@@ -215,7 +215,7 @@ export function templateById(id) {
 
 /** Plantilla que toca en un día de la semana (0 = domingo). */
 export function templateForDay(weekday) {
-  return GYM_TEMPLATES.find((t) => t.day === weekday && !t.optional) || null;
+  return GYM_TEMPLATES.find((t) => t.day === weekday) || null;
 }
 
 /** Series planificadas de una plantilla. */
