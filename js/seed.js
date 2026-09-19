@@ -32,6 +32,16 @@ export function expandSchedule({ from, to, weekdays }) {
 }
 
 /**
+ * Lo que ya llevabas hecho antes de la app pero sin fechas: entra como total
+ * acumulado, no como registros diarios. Cuenta para el total y para la XP,
+ * pero no inventa una racha que no ocurrió.
+ */
+export const ACUMULADO_PREVIO = {
+  datos: { total: 613, note: 'Minutos de análisis de datos anteriores a la app.' },
+  substack: { total: 4, note: 'Publicaciones ya escritas.' },
+};
+
+/**
  * Convierte los tramos en un objeto de registros, listo para el estado.
  * Marca cada uno con `seeded` para poder distinguirlos de lo que cargues vos.
  */

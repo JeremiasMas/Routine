@@ -7,6 +7,7 @@ import {
   gymVolume, estimatedOneRepMax, streakMultiplier,
 } from './xp.js';
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
+import { bodySummary, bodyFatBand } from './body.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
@@ -20,9 +21,22 @@ const SHIELD_EVERY = 7;     // se gana uno cada 7 días de racha
 export function entryValue(activity, entry) {
   if (!entry) return 0;
   if (activity.kind === 'gym') return completedSets(entry.exercises);
+  // Varias fuentes (francés: lecciones de Duolingo + episodios del podcast),
+  // cada una con su rendimiento en minutos efectivos.
+  if (activity.kind === 'multi') return multiValue(activity, entry);
   // Una medición corporal cuenta como hecha si tiene al menos peso o cintura.
   if (activity.kind === 'body') return (Number(entry.weight) > 0 || Number(entry.waist) > 0) ? 1 : 0;
   return Number(entry.value) || 0;
+}
+
+/** Suma los minutos efectivos de cada fuente de una actividad múltiple. */
+export function multiValue(activity, entry) {
+  let total = 0;
+  for (const fuente of activity.sources || []) {
+    const cantidad = Number(entry?.sources?.[fuente.id]) || 0;
+    if (cantidad > 0) total += cantidad * (Number(fuente.minutes) || 0);
+  }
+  return Math.round(total);
 }
 
 /** Series con repeticiones cargadas (el peso puede ir vacío: peso corporal). */
@@ -195,7 +209,9 @@ export function derive(data, today = todayKey()) {
         const streakForBonus = a.streakMode === 'weekly'
           ? (weekStreaks.get(a.id)?.streak || 0) * 3   // una semana cumplida ≈ 3 días
           : ss.streak;
-        const xp = entryXp(value, goal, streakForBonus);
+        // Los hábitos sin nivel (el agua) cuentan racha y día perfecto,
+        // pero no acumulan XP propia.
+        const xp = a.leveled === false ? 0 : entryXp(value, goal, streakForBonus);
         st.xp += xp;
         st.total += value;
         st.volume += entryVolume(raw);
@@ -308,6 +324,16 @@ export function derive(data, today = todayKey()) {
       st.shields = ss.shields;
       bestDailyStreak = Math.max(bestDailyStreak, st.bestStreak);
     }
+    // Lo que ya llevabas hecho antes de instalar la app, sin fechas: suma al
+    // total y a la XP como si lo hubieras cumplido a razón de una meta por vez.
+    const previo = Number(data.carryOver?.[a.id]?.total) || 0;
+    if (previo > 0) {
+      st.carryOver = previo;
+      st.total += previo;
+      if (a.leveled !== false) st.xp += Math.round((previo / (Number(a.goal) || 1)) * 100);
+    }
+
+    st.leveled = a.leveled !== false;
     st.level = levelFromXp(st.xp);
     st.tier = tierFor(st.level.level, a.tierNames);
     st.nextTier = nextTierFor(st.level.level, a.tierNames);
@@ -328,6 +354,27 @@ export function derive(data, today = todayKey()) {
   }
   if (!Number.isFinite(minActivityLevel)) minActivityLevel = 0;
 
+  // ---- Composición corporal: el rango lo da el porcentaje medido ----
+  const sexoPerfil = data.settings?.bodyFormula === '4' ? 'f' : 'm';
+  let bodyFat = null;
+  for (const [, st] of byActivity) {
+    if (st.activity.rankBy !== 'bodyfat') continue;
+    const ultima = st.history[st.history.length - 1]?.entry;
+    const resumen = ultima ? bodySummary(ultima, data.settings || {}) : null;
+    bodyFat = resumen?.fatPct ?? null;
+    const banda = bodyFatBand(bodyFat, sexoPerfil);
+    st.bodyFat = bodyFat;
+    st.band = banda;
+    if (banda) {
+      // El nivel mostrado es la banda, no la XP: refleja dónde estás de verdad.
+      st.level = { ...st.level, level: banda.level, pct: banda.pct };
+      st.tier = { name: banda.name, color: banda.color, index: banda.index, min: banda.level };
+      st.nextTier = banda.next
+        ? { name: banda.next.name, min: banda.next.index + 1, color: banda.color, index: banda.next.index }
+        : null;
+    }
+  }
+
   // ---- Fuerza relativa ----
   const sexo = data.settings?.bodyFormula === '4' ? 'f' : 'm';
   const gimnasio = [...byActivity.values()].find((st) => st.activity.kind === 'gym');
@@ -340,7 +387,7 @@ export function derive(data, today = todayKey()) {
   // ---- Logros ----
   const summary = {
     totals, volumes, bests, sessions, activeDays, goalDays, weeklyStreaks, perfectDays, personalRecords,
-    strengthRatios, strengthIntermediates,
+    strengthRatios, strengthIntermediates, bodyFat,
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
   };
@@ -374,6 +421,7 @@ export function derive(data, today = todayKey()) {
   return {
     today,
     bodyweight: pesoCorporal,
+    bodyFat,
     strength,
     strengthOverall,
     activities,

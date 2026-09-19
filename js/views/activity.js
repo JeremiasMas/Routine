@@ -19,16 +19,25 @@ export function render({ params, navigate, celebrate }) {
   root.append(el('a', { class: 'back', href: '#/' }, '‹ Volver al tablero'));
 
   // --- Cabecera con nivel ---
+  const esHabito = st.leveled === false;
+  const anilloCentro = esHabito
+    ? el('b', { style: 'font-size:.9rem', text: `${st.streak}` })
+    : a.rankBy === 'bodyfat' && st.bodyFat != null
+      ? el('div', { style: 'text-align:center' },
+          el('b', { style: 'font-size:1rem;display:block;line-height:1', text: `${formatNumber(st.bodyFat)}%` }),
+          el('span', { style: 'font-size:.5rem;letter-spacing:.1em;color:var(--muted)', text: 'GRASA' }))
+      : el('div', { style: 'text-align:center' },
+          el('b', { style: 'font-size:1.2rem;display:block;line-height:1', text: String(st.level.level) }),
+          el('span', { style: 'font-size:.5rem;letter-spacing:.12em;color:var(--muted)', text: 'NIVEL' }));
+
   root.append(el('div', { class: 'card', style: `--c:${a.color}` },
     el('div', { style: 'display:flex;gap:14px;align-items:center' },
-      ring(st.level.pct, { size: 68, stroke: 6, color: a.color,
-        children: el('div', { style: 'text-align:center' },
-          el('b', { style: 'font-size:1.2rem;display:block;line-height:1', text: String(st.level.level) }),
-          el('span', { style: 'font-size:.5rem;letter-spacing:.12em;color:var(--muted)', text: 'NIVEL' })) }),
+      ring(esHabito ? (st.doneToday ? 1 : 0) : st.level.pct, { size: 68, stroke: 6, color: st.tier?.color || a.color,
+        children: anilloCentro }),
       el('div', { style: 'flex:1;min-width:0' },
         el('h1', { style: 'font-size:1.2rem', text: `${a.icon} ${a.name}` }),
         el('div', { class: 'quest__meta', style: 'margin-top:6px' },
-          chip(st.tier.name, 'chip--tier', `--t:${st.tier.color}`),
+          esHabito ? null : chip(st.tier.name, 'chip--tier', `--t:${st.tier.color}`),
           chip(`📅 ${a.streakMode === 'weekly' && !a.days?.length
             ? `${a.weeklyTarget}× por semana`
             : scheduleLabel(a.days)}`),
@@ -36,12 +45,18 @@ export function render({ params, navigate, celebrate }) {
             ? plural(st.streak, 'semana', 'semanas')
             : plural(st.streak, 'día', 'días')}`, 'chip--fire') : null,
           st.shields > 0 ? chip(`🛡 ${plural(st.shields, 'escudo', 'escudos')}`, 'chip--shield') : null))),
-    el('div', { style: 'margin-top:12px' },
-      xpBar(st.level.pct, { left: `${formatNumber(st.level.into)} / ${formatNumber(st.level.need)} XP`, right: `Nivel ${st.level.level + 1} en ${formatNumber(st.level.need - st.level.into)} XP` })),
-    st.nextTier
-      ? el('p', { class: 'hint', style: 'margin-top:10px' },
-          `Próximo rango: ${st.nextTier.name} en el nivel ${st.nextTier.min}.`)
-      : el('p', { class: 'hint', style: 'margin-top:10px' }, 'Último rango de la escalera. 🐐'),
+    esHabito
+      ? el('p', { class: 'hint', style: 'margin-top:12px' },
+          'Es un hábito, no una disciplina: cuenta la racha y hace falta para el día perfecto, pero no acumula XP ni rangos.')
+      : a.rankBy === 'bodyfat'
+        ? bodyFatHeader(st, a)
+        : el('div', {},
+            el('div', { style: 'margin-top:12px' },
+              xpBar(st.level.pct, { left: `${formatNumber(st.level.into)} / ${formatNumber(st.level.need)} XP`, right: `Nivel ${st.level.level + 1} en ${formatNumber(st.level.need - st.level.into)} XP` })),
+            st.nextTier
+              ? el('p', { class: 'hint', style: 'margin-top:10px' },
+                  `Próximo rango: ${st.nextTier.name} en el nivel ${st.nextTier.min}.`)
+              : el('p', { class: 'hint', style: 'margin-top:10px' }, 'Último rango de la escalera. 🐐')),
     a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
   root.append(el('div', { style: 'margin-top:12px' },
@@ -63,8 +78,16 @@ export function render({ params, navigate, celebrate }) {
           ? `${formatNumber(Math.round(st.volume / 100) / 10)} t`
           : `${formatNumber(st.volume)} kg`, 'Tonelaje')
       : stat(st.activeDays, 'Días activos'),
-    stat(formatNumber(st.xp), 'XP total'),
+    esHabito ? stat(st.goalDays, 'Días cumplidos') : stat(formatNumber(st.xp), 'XP total'),
     stat(st.bestStreak, a.streakMode === 'weekly' ? 'Mejor racha (sem.)' : 'Mejor racha (días)')));
+
+  if (st.carryOver > 0) {
+    root.append(el('div', { class: 'row', style: 'margin-top:10px' },
+      el('div', { class: 'row__main' },
+        el('div', { text: 'Antes de la app' }),
+        el('div', { class: 'row__sub', text: 'ya lo tenías hecho: cuenta para el total y la XP, pero no para la racha' })),
+      el('div', { class: 'row__value', text: formatValue(st.carryOver, a.unit) })));
+  }
 
   if (a.kind === 'gym') {
     root.append(el('div', { class: 'row', style: 'margin-top:10px' },
@@ -164,6 +187,26 @@ export function render({ params, navigate, celebrate }) {
     `Cada nivel de ${a.name} cuesta más que el anterior: el próximo pide ${formatNumber(xpToNextLevel(st.level.level))} XP.`));
 
   return root;
+}
+
+/** Barra de progreso hacia la meta de grasa corporal. */
+function bodyFatHeader(st, a) {
+  if (st.bodyFat == null) {
+    return el('p', { class: 'hint', style: 'margin-top:12px' },
+      `Cargá tu primera medición para ver en qué rango estás. La meta es llegar al ${a.targetBodyFat}% de grasa.`);
+  }
+  const banda = st.band;
+  return el('div', {},
+    el('div', { style: 'margin-top:12px' },
+      xpBar(banda.pct, {
+        left: `${formatNumber(st.bodyFat)}% de grasa`,
+        right: banda.next ? `${banda.next.name} bajando de ${banda.next.max}%` : `Meta del ${a.targetBodyFat}% alcanzada`,
+      })),
+    el('p', { class: 'hint', style: 'margin-top:10px' },
+      banda.next
+        ? `Te faltan ${formatNumber(banda.falta)} puntos para ${banda.next.name}.` +
+          (banda.next.max > a.targetBodyFat ? ` La meta final es el ${a.targetBodyFat}%.` : '')
+        : `Llegaste a la meta del ${a.targetBodyFat}%. La escalera termina acá a propósito: más abajo ya no es salud, es preparación de competencia.`));
 }
 
 /** Composición corporal: tendencia de grasa, peso y medidas. */

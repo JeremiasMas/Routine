@@ -12,13 +12,13 @@ dependencias — se instala en el teléfono y funciona sin conexión.
 |---|---|---|---|
 | 📊 Análisis de datos | todos los días | 45 min | proporcional a los minutos |
 | 👟 Pasos | todos los días | 10.000 | proporcional a los pasos |
-| 💧 Agua | todos los días | 2,15 L (se calcula sola) | proporcional a los mililitros |
-| 🇫🇷 Duolingo (francés) | todos los días | 30 XP | proporcional a la XP de Duolingo |
+| 💧 Agua | todos los días | 2,15 L (se calcula sola) | *hábito: no da XP* |
+| 🇫🇷 Francés | todos los días | 20 min efectivos | Duolingo + Coffee Break French |
 | 🎹 Piano | lun · vie · sáb · dom | 30 min | proporcional a los minutos |
 | 🏋️ Gimnasio | lun · mié · vie | la rutina del día | series completadas sobre las planificadas |
 | 🥊 Muay Thai | mar · jue | 1h 30 por clase | racha semanal (2 clases desde sep. 2026, 1 antes) |
 | ✍️ Escritura en Substack | 1 vez por semana | 1 publicación | racha semanal |
-| 📏 Composición corporal | 1 vez por semana | 1 medición | medirte, no el resultado |
+| 📏 Composición corporal | 1 vez por semana | 13% de grasa | medirte, no el resultado |
 
 **Cada actividad sabe qué días le tocan.** Un martes sin piano o un sábado sin
 gimnasio no rompen nada: son días libres, no faltas. Y si hacés de más un día libre,
@@ -44,6 +44,28 @@ entrenamiento ves lo que falta y no lo que ya hiciste.
 La XP del gimnasio mide **la rutina completada**, no el tonelaje: terminar el día de
 pecho (27 series) vale lo mismo que el de hombros (42). El tonelaje se sigue
 acumulando como estadística y alimenta los récords personales.
+
+### Francés: Duolingo + podcast 🇫🇷
+
+La moneda son **minutos efectivos de francés**, con dos fuentes que no rinden
+igual:
+
+| Fuente | Vale | Por qué |
+|---|---|---|
+| 🦉 1 lección de Duolingo | 5 min | ~4 minutos de repetición sobre pocas palabras, con buena retención por repaso espaciado pero poco contexto |
+| 🎧 1 episodio de Coffee Break French | 25 min | 22 minutos reales de diálogo, explicación gramatical y escucha, más un plus por entrenar comprensión auditiva —justo lo que las lecciones casi no tocan |
+
+**Un episodio equivale a unas cinco lecciones.** Con la meta en 20 minutos
+diarios, un episodio ya la supera y cuatro lecciones la cumplen justo. La
+estimación es discutible y está toda en un solo lugar (`sources` de la
+actividad, en `js/config.js`): si te parece que el podcast rinde más o menos,
+cambiás el número y toda tu XP se recalcula.
+
+### Agua: un hábito, no una disciplina 💧
+
+Tomar agua se registra, cuenta racha y hace falta para el día perfecto, pero
+**no tiene XP ni rangos propios**: no es algo que se entrene ni en lo que se
+progrese. En el código es `leveled: false`, y cualquier actividad puede serlo.
 
 ### Fuerza relativa 💪
 
@@ -76,6 +98,22 @@ Con **cintura, cuello, estatura y peso** calcula el porcentaje de grasa por el
 método de circunferencias de la **Marina de EE.UU.**, y de ahí saca masa magra,
 kilos de grasa e IMC. Cada medición se compara con la anterior y la pantalla de
 la actividad grafica la tendencia de grasa y de peso.
+
+**El rango sale del porcentaje medido, no de la XP**, y cada nombre describe
+dónde estás:
+
+| Grasa corporal | Rango |
+|---|---|
+| 25% o más | Punto de partida |
+| 20 – 25% | En progreso |
+| 17 – 20% | Saludable |
+| 15 – 17% | Atlético |
+| 13 – 15% | Definido |
+| menos de 13% | **Marcado** — la meta |
+
+La escalera **termina en la meta del 13% a propósito**: por debajo de ahí ya no
+es salud sino preparación de competencia, y una app de rutina no debería
+empujar hacia allá con rangos nuevos.
 
 Dos aclaraciones que importan:
 
@@ -133,6 +171,11 @@ Son 61 clases y 91 horas y media que llegan como nivel 11, racha de 59 semanas
 y el logro *Nak Muay* ya desbloqueado. Si alguna fecha no coincide, editá el
 tramo: los registros se regeneran solos.
 
+Y lo que llevabas hecho **sin fechas** entra como acumulado en
+`ACUMULADO_PREVIO`: 613 minutos de análisis de datos y 4 publicaciones de
+Substack. Suma al total y a la XP como si lo hubieras cumplido a razón de una
+meta por vez, pero **no inventa una racha que no ocurrió**.
+
 ### Metas con vigencia
 
 Los objetivos cambian, y el pasado se juzga con el que regía entonces. El muay
@@ -180,15 +223,16 @@ disciplina, porque "Adepto" no dice nada y "Nak Su" sí.
 | 🥊 Muay Thai | Luk Sit | Nak Muay | Nak Su | Campeón de estadio | Kru | Ajarn |
 | 👟 Pasos | Paseante | Caminante | Andariego | Trotamundos | Explorador | Nómade |
 | 💧 Agua | Gota | Arroyo | Río | Cascada | Lago | Océano |
-| 🇫🇷 Duolingo | A1 · Débutant | A2 · Élémentaire | B1 · Intermédiaire | B2 · Avancé | C1 · Autonome | C2 · Maîtrise |
+| 🇫🇷 Francés | A1 · Débutant | A2 · Élémentaire | B1 · Intermédiaire | B2 · Avancé | C1 · Autonome | C2 · Maîtrise |
 | ✍️ Substack | Borrador | Cronista | Editorialista | Ensayista | Escritor | Pluma consagrada |
-| 📏 Cuerpo | Curioso | Observador | Metódico | Riguroso | Cartógrafo | Arquitecto |
+
+El agua no aparece porque es un hábito sin niveles, y la composición corporal
+tiene su propia escalera, la de los porcentajes de grasa.
 
 El muay thai usa el escalafón tradicional (discípulo, peleador, guerrero,
 instructor, gran maestro) y el francés los niveles reales del Marco Común
-Europeo. El de composición corporal premia el rigor del seguimiento, no el
-número que dé la balanza. Una actividad que agregues vos usa los nombres
-genéricos salvo que le pongas `tierNames`.
+Europeo. Una actividad que agregues vos usa los nombres genéricos salvo que le
+pongas `tierNames`.
 
 La suma de todo alimenta tu **nivel de jugador**, que sí tiene títulos propios:
 Aspirante → Iniciado → Disciplinado → Imparable → Veterano → Campeón → Mito
@@ -221,7 +265,7 @@ node tools/make-icons.mjs && python3 -m http.server 8080
 ### Tests
 
 ```bash
-npm test            # 78 tests: XP, rangos, rachas, fuerza, cuerpo e importación
+npm test            # 87 tests: XP, rangos, rachas, fuerza, cuerpo e importación
 ```
 
 ## Tus datos

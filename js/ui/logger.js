@@ -16,6 +16,7 @@ export function openLogger(activity, dateKey, onSaved) {
   const title = `${activity.icon} ${activity.name} · ${relativeDay(dateKey)}`;
   if (activity.kind === 'gym') return openSheet(title, gymForm(activity, dateKey, onSaved));
   if (activity.kind === 'body') return openSheet(title, bodyForm(activity, dateKey, onSaved));
+  if (activity.kind === 'multi') return openSheet(title, multiForm(activity, dateKey, onSaved));
   return openSheet(title, numberForm(activity, dateKey, onSaved));
 }
 
@@ -290,6 +291,74 @@ function gymForm(activity, dateKey, onSaved) {
       onClick: () => { exercises.push({ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }); refresh(); },
     }, '+ Ejercicio'),
     summary,
+    ctrl.node);
+}
+
+/** ---------- Varias fuentes: francés con Duolingo y podcast ---------- */
+function multiForm(activity, dateKey, onSaved) {
+  const existing = getEntry(dateKey, activity.id);
+  const cantidades = {};
+  for (const fuente of activity.sources) {
+    cantidades[fuente.id] = Number(existing?.sources?.[fuente.id]) || 0;
+  }
+
+  const total = () => activity.sources.reduce(
+    (n, f) => n + cantidades[f.id] * (Number(f.minutes) || 0), 0,
+  );
+
+  const resumen = el('div', { class: 'row' });
+  const ctrl = footer(activity, dateKey,
+    () => ({ sources: { ...cantidades } }),
+    total, onSaved, existing);
+
+  function refrescar() {
+    const minutos = total();
+    const meta = Number(activity.goal) || 1;
+    resumen.innerHTML = '';
+    resumen.append(
+      el('div', { class: 'row__main' },
+        el('div', { text: `${formatValue(minutos, activity.unit)} de francés` }),
+        el('div', { class: 'row__sub', text: `meta diaria: ${formatValue(meta, activity.unit)}` })),
+      el('div', { class: 'row__value', text: `${Math.round((minutos / meta) * 100)}%` }));
+    ctrl.update();
+  }
+
+  const bloques = activity.sources.map((fuente) => {
+    const input = el('input', {
+      type: 'number', inputmode: 'numeric', min: '0', step: '1',
+      value: cantidades[fuente.id] || '', 'aria-label': `${fuente.name} en ${fuente.unitLabel}`,
+    });
+    const sincronizar = () => {
+      cantidades[fuente.id] = Math.max(0, Number(input.value) || 0);
+      for (const b of presets) b.classList.toggle('is-active', Number(b.dataset.n) === cantidades[fuente.id]);
+      refrescar();
+    };
+    input.addEventListener('input', sincronizar);
+    const paso = (delta) => { input.value = String(Math.max(0, (Number(input.value) || 0) + delta)); sincronizar(); };
+    const presets = (fuente.presets || []).map((n) => el('button', {
+      type: 'button', dataset: { n: String(n) }, style: `--c:${activity.color}`,
+      onClick: () => { input.value = String(n); sincronizar(); },
+    }, `${n} ${n === 1 ? fuente.unitLabel.replace(/e?s$/, '') : fuente.unitLabel}`));
+
+    return el('div', { class: 'exercise' },
+      el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:8px' },
+        el('span', { style: 'font-weight:650', text: `${fuente.icon} ${fuente.name}` }),
+        el('span', { class: 'row__sub', text: `${fuente.minutes} min c/u` })),
+      el('div', { class: 'stepper', style: 'margin-top:10px' },
+        el('button', { type: 'button', 'aria-label': `Restar en ${fuente.name}`, onClick: () => paso(-1) }, '−'),
+        input,
+        el('button', { type: 'button', 'aria-label': `Sumar en ${fuente.name}`, onClick: () => paso(1) }, '+')),
+      presets.length ? el('div', { class: 'presets', style: 'margin-top:8px' }, presets) : null);
+  });
+
+  refrescar();
+  return el('div', { class: 'logger' },
+    el('p', { class: 'hint' },
+      `La meta son ${formatValue(activity.goal, activity.unit)} de francés por día. ` +
+      `Un episodio del podcast rinde como cinco lecciones de Duolingo: son 22 minutos de diálogo y ` +
+      `gramática en contexto, que es lo que las lecciones casi no entrenan.`),
+    ...bloques,
+    resumen,
     ctrl.node);
 }
 

@@ -78,3 +78,37 @@ test('la línea de base del perfil da un cálculo coherente', async () => {
   assert.equal(s.bmi, 24);
   assert.equal(s.waterGoal, 2150);
 });
+
+test('el rango de grasa corporal describe el porcentaje', async () => {
+  const { bodyFatBand } = await import('../js/body.js');
+  assert.equal(bodyFatBand(28).name, 'Punto de partida');
+  assert.equal(bodyFatBand(22).name, 'En progreso');
+  assert.equal(bodyFatBand(18.5).name, 'Saludable');
+  assert.equal(bodyFatBand(16.3).name, 'Atlético', 'la línea de base cae acá');
+  assert.equal(bodyFatBand(14).name, 'Definido');
+  assert.equal(bodyFatBand(12.5).name, 'Marcado');
+});
+
+test('la escalera de grasa termina en la meta y no premia seguir bajando', async () => {
+  const { bodyFatBand } = await import('../js/body.js');
+  const meta = bodyFatBand(12.5);
+  const extremo = bodyFatBand(6);
+  assert.equal(meta.name, extremo.name, 'por debajo del 13% no hay rangos nuevos');
+  assert.equal(meta.next, null);
+  assert.equal(extremo.next, null);
+});
+
+test('la banda dice cuánto falta para la siguiente', async () => {
+  const { bodyFatBand } = await import('../js/body.js');
+  const b = bodyFatBand(16.3);
+  assert.equal(b.next.name, 'Definido');
+  assert.equal(b.next.max, 15);
+  assert.equal(b.falta, 1.3, 'puntos de grasa hasta la siguiente banda');
+  assert.ok(b.pct > 0 && b.pct < 1);
+});
+
+test('sin medición no hay banda inventada', async () => {
+  const { bodyFatBand } = await import('../js/body.js');
+  assert.equal(bodyFatBand(null), null);
+  assert.equal(bodyFatBand(0), null);
+});

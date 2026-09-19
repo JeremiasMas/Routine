@@ -74,6 +74,62 @@ export function bodySummary(entry, profile = {}) {
   };
 }
 
+/**
+ * Rangos de grasa corporal. El nombre describe el porcentaje, y la escalera
+ * TERMINA en la meta: no premia seguir bajando indefinidamente, porque por
+ * debajo de ahí ya no es salud sino preparación de competencia.
+ * Cada banda aplica cuando el porcentaje es menor que `max`.
+ */
+export const BODY_FAT_BANDS = {
+  m: [
+    { max: Infinity, name: 'Punto de partida', color: '#94a3b8' },
+    { max: 25, name: 'En progreso', color: '#4ade80' },
+    { max: 20, name: 'Saludable', color: '#38bdf8' },
+    { max: 17, name: 'Atlético', color: '#a78bfa' },
+    { max: 15, name: 'Definido', color: '#fbbf24' },
+    { max: 13, name: 'Marcado', color: '#fb7185' },
+  ],
+  f: [
+    { max: Infinity, name: 'Punto de partida', color: '#94a3b8' },
+    { max: 38, name: 'En progreso', color: '#4ade80' },
+    { max: 32, name: 'Saludable', color: '#38bdf8' },
+    { max: 28, name: 'Atlética', color: '#a78bfa' },
+    { max: 25, name: 'Definida', color: '#fbbf24' },
+    { max: 22, name: 'Marcada', color: '#fb7185' },
+  ],
+};
+
+/**
+ * Ubica un porcentaje de grasa en su banda.
+ * @returns {{index:number, name:string, color:string, next:?object, pct:number}|null}
+ */
+export function bodyFatBand(fatPct, sexo = 'm') {
+  const bandas = BODY_FAT_BANDS[sexo === 'f' ? 'f' : 'm'];
+  if (!(fatPct > 0)) return null;
+
+  // La banda más exigente cuyo techo todavía supera al porcentaje.
+  let index = 0;
+  for (let i = 0; i < bandas.length; i++) if (fatPct < bandas[i].max) index = i;
+
+  const actual = bandas[index];
+  const siguiente = bandas[index + 1] || null;
+  // Progreso dentro de la banda: cuánto falta para bajar a la siguiente.
+  const techo = Number.isFinite(actual.max) ? actual.max : fatPct + 5;
+  const piso = siguiente ? siguiente.max : techo;
+  const pct = techo > piso ? Math.min(1, Math.max(0, (techo - fatPct) / (techo - piso))) : 1;
+
+  return {
+    index,
+    level: index + 1,
+    name: actual.name,
+    color: actual.color,
+    max: actual.max,
+    next: siguiente ? { name: siguiente.name, max: siguiente.max, index: index + 1 } : null,
+    pct,
+    falta: siguiente ? Math.round((fatPct - siguiente.max) * 10) / 10 : 0,
+  };
+}
+
 /** Diferencia entre dos mediciones, para mostrar la tendencia. */
 export function bodyDelta(actual, previa) {
   if (!actual || !previa) return null;

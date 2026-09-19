@@ -138,9 +138,12 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
     ring(pct, {
       color: activity.color,
       size: 48,
-      children: el('div', { style: 'text-align:center;line-height:1' },
-        el('span', { style: 'font-size:.44rem;letter-spacing:.1em;color:var(--muted);display:block', text: 'NV' }),
-        el('b', { style: 'font-size:.82rem', text: `${st?.level.level ?? 1}` })),
+      children: st?.leveled === false
+        // Un hábito no tiene nivel: el anillo muestra cuánto llevás del día.
+        ? el('b', { style: 'font-size:.66rem', text: met ? '✓' : `${Math.round(pct * 100)}%` })
+        : el('div', { style: 'text-align:center;line-height:1' },
+            el('span', { style: 'font-size:.44rem;letter-spacing:.1em;color:var(--muted);display:block', text: 'NV' }),
+            el('b', { style: 'font-size:.82rem', text: `${st?.level.level ?? 1}` })),
     }));
 
   // Ir al detalle con pulsación larga o clic derecho.

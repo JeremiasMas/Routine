@@ -240,7 +240,7 @@ test('el día perfecto solo exige lo que ese día toca', () => {
   const martes = derive(build(todas, {
     [MAR]: {
       datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 },
-      duolingo: { value: 30 }, muaythai: { value: 90 },
+      frances: { sources: { duolingo: 4 } }, muaythai: { value: 90 },
     },
   }), MAR);
   assert.equal(martes.perfectDays, 1, 'el martes no hace falta piano ni gimnasio');
@@ -249,7 +249,7 @@ test('el día perfecto solo exige lo que ese día toca', () => {
   const lunes = derive(build(todas, {
     [LUN]: {
       datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 },
-      duolingo: { value: 30 }, muaythai: { value: 90 },
+      frances: { sources: { duolingo: 4 } }, muaythai: { value: 90 },
     },
   }), LUN);
   assert.equal(lunes.perfectDays, 0, 'el lunes faltarían piano y gimnasio');
@@ -353,4 +353,62 @@ test('en los ejercicios con barra el récord sigue siendo en kilos', () => {
   const st = derive(data, HOY).byActivity.get('gym');
   assert.equal(st.prCount, 1);
   assert.equal(st.records.get('sentadilla con barra').weight, 75);
+});
+
+// ---------------------------------------------------------------------------
+// Hábitos sin nivel, fuentes múltiples y acumulado previo
+// ---------------------------------------------------------------------------
+
+test('el agua cuenta racha y día perfecto pero no acumula XP', () => {
+  const agua = acts(['agua'])[0];
+  assert.equal(agua.leveled, false);
+  const st = derive(build([agua], { [HOY]: { agua: { value: 2200 } } }), HOY).byActivity.get('agua');
+  assert.equal(st.xp, 0, 'un hábito no suma XP propia');
+  assert.equal(st.total, 2200, 'pero sí se registra lo que tomaste');
+  assert.equal(st.streak, 1);
+  assert.equal(st.leveled, false);
+});
+
+test('el francés suma minutos de sus dos fuentes', () => {
+  const fr = acts(['frances'])[0];
+  const duo = fr.sources.find((f) => f.id === 'duolingo');
+  const cbf = fr.sources.find((f) => f.id === 'cbf');
+  assert.equal(entryValue(fr, { sources: { duolingo: 4 } }), 4 * duo.minutes);
+  assert.equal(entryValue(fr, { sources: { cbf: 1 } }), cbf.minutes);
+  assert.equal(entryValue(fr, { sources: { duolingo: 2, cbf: 1 } }), 2 * duo.minutes + cbf.minutes);
+  assert.equal(entryValue(fr, { sources: {} }), 0);
+  assert.equal(entryValue(fr, {}), 0);
+});
+
+test('un episodio del podcast equivale a cinco lecciones', () => {
+  const fr = acts(['frances'])[0];
+  const unEpisodio = derive(build([fr], { [HOY]: { frances: { sources: { cbf: 1 } } } }), HOY);
+  const cincoLecciones = derive(build([fr], { [HOY]: { frances: { sources: { duolingo: 5 } } } }), HOY);
+  assert.equal(unEpisodio.byActivity.get('frances').xp, cincoLecciones.byActivity.get('frances').xp);
+  assert.ok(unEpisodio.byActivity.get('frances').xp >= 100, 'y con eso ya se cumple la meta del día');
+});
+
+test('el acumulado previo cuenta para el total y la XP, no para la racha', () => {
+  const datos = acts(['datos'])[0];
+  const data = build([datos], {});
+  data.carryOver = { datos: { total: 613 } };
+  const st = derive(data, HOY).byActivity.get('datos');
+  assert.equal(st.carryOver, 613);
+  assert.equal(st.total, 613);
+  assert.equal(st.streak, 0, 'no inventa una racha que no ocurrió');
+  // 613 minutos con meta de 45 son 13,6 metas cumplidas.
+  assert.equal(st.xp, Math.round((613 / 45) * 100));
+  assert.ok(st.level.level >= 4, `esperaba buen nivel, dio ${st.level.level}`);
+});
+
+test('el rango del cuerpo sale de la grasa medida, no de la XP', () => {
+  const cuerpo = acts(['cuerpo'])[0];
+  const data = build([cuerpo], { [HOY]: { cuerpo: { weight: 61.5, waist: 78, neck: 35 } } });
+  data.settings = { height: 160, bodyFormula: '3' };
+  const s = derive(data, HOY);
+  const st = s.byActivity.get('cuerpo');
+  assert.equal(s.bodyFat, 16.3);
+  assert.equal(st.tier.name, 'Atlético');
+  assert.equal(st.nextTier.name, 'Definido');
+  assert.equal(st.level.level, 4, 'el nivel es la banda de grasa');
 });

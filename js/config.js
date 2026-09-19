@@ -94,16 +94,27 @@ export const DEFAULT_ACTIVITIES = [
     motto: 'Diez mil razones para salir a caminar.',
   },
   {
-    id: 'duolingo',
-    name: 'Duolingo · Francés',
+    id: 'frances',
+    name: 'Francés',
     icon: '🇫🇷',
     color: '#84cc16',
-    kind: 'number',
-    unit: 'XP',
-    goal: 30,
-    step: 10,
-    presets: [10, 20, 30, 50],
+    kind: 'multi',
+    unit: 'min',
+    goal: 20,            // minutos efectivos de francés por día
+    step: 5,
     streakMode: 'daily',
+    /**
+     * Dos fuentes con distinto rendimiento por unidad. Una lección de Duolingo
+     * son unos 4 minutos de repetición sobre pocas palabras; un episodio de
+     * Coffee Break French son 22 minutos de diálogo, explicación gramatical y
+     * escucha en contexto, que es justo lo que Duolingo casi no entrena. Por
+     * eso el episodio vale más que sus minutos de reloj y la lección un poco
+     * más que los suyos: 1 episodio ≈ 5 lecciones.
+     */
+    sources: [
+      { id: 'duolingo', name: 'Duolingo', icon: '🦉', unitLabel: 'lecciones', minutes: 5, presets: [1, 2, 3, 5] },
+      { id: 'cbf', name: 'Coffee Break French', icon: '🎧', unitLabel: 'episodios', minutes: 25, presets: [1, 2] },
+    ],
     // Los niveles reales del Marco Común Europeo de Referencia.
     tierNames: ['A1 · Débutant', 'A2 · Élémentaire', 'B1 · Intermédiaire', 'B2 · Avancé', 'C1 · Autonome', 'C2 · Maîtrise'],
     motto: 'Petit à petit, l’oiseau fait son nid.',
@@ -120,7 +131,9 @@ export const DEFAULT_ACTIVITIES = [
     presets: [250, 500, 750, 1000],
     streakMode: 'daily',
     autoGoal: 'water',   // la meta la deriva el peso, no se toca a mano
-    tierNames: ['Gota', 'Arroyo', 'Río', 'Cascada', 'Lago', 'Océano'],
+    // Tomar agua es un hábito, no una disciplina que se entrena: se cuenta la
+    // racha y cuenta para el día perfecto, pero no tiene XP ni rangos propios.
+    leveled: false,
     motto: 'La hidratación es la mitad del rendimiento.',
   },
   {
@@ -135,8 +148,10 @@ export const DEFAULT_ACTIVITIES = [
     streakMode: 'weekly',
     weeklyTarget: 1,
     streakUnitLabel: 'semanas',
-    // El rango premia el rigor del seguimiento, no el número de la balanza.
-    tierNames: ['Curioso', 'Observador', 'Metódico', 'Riguroso', 'Cartógrafo', 'Arquitecto'],
+    // El rango no sale de la XP sino del porcentaje de grasa medido, y la
+    // escalera termina en la meta: bajar de ahí ya no es salud, es competencia.
+    rankBy: 'bodyfat',
+    targetBodyFat: 13,
     motto: 'Lo que se mide, se puede mejorar.',
   },
   {
@@ -355,8 +370,8 @@ export const ACHIEVEMENTS = [
     desc: 'Publicá 25 textos en Substack.',
     progress: (s) => s.totals.substack || 0 },
   { id: 'duo-50', name: 'Francófilo', icon: '🇫🇷', xp: 150, target: 50,
-    desc: '50 días con Duolingo.',
-    progress: (s) => s.activeDays.duolingo || 0 },
+    desc: '50 días de francés.',
+    progress: (s) => s.activeDays.frances || 0 },
   { id: 'all-lvl-5', name: 'Polifacético', icon: '🎯', xp: 300, target: 1,
     desc: 'Llevá todas tus actividades a nivel 5.',
     progress: (s) => (s.minActivityLevel >= 5 ? 1 : 0) },
@@ -366,6 +381,12 @@ export const ACHIEVEMENTS = [
   { id: 'body-8', name: 'Bajo control', icon: '📏', xp: 150, target: 8,
     desc: '8 mediciones de composición corporal.',
     progress: (s) => s.sessions.cuerpo || 0 },
+  { id: 'bodyfat-15', name: 'Definido', icon: '🔪', xp: 300, target: 1,
+    desc: 'Bajar del 15% de grasa corporal.',
+    progress: (s) => ((s.bodyFat != null && s.bodyFat < 15) ? 1 : 0) },
+  { id: 'bodyfat-meta', name: 'Meta alcanzada', icon: '🎯', xp: 600, target: 1,
+    desc: 'Llegar al 13% de grasa corporal.',
+    progress: (s) => ((s.bodyFat != null && s.bodyFat <= 13) ? 1 : 0) },
   { id: 'fuerza-1x', name: 'Tu propio peso', icon: '🦵', xp: 200, target: 1,
     desc: 'Sentadilla de 1× tu peso corporal.',
     progress: (s) => ((s.strengthRatios?.squat || 0) >= 1 ? 1 : 0) },

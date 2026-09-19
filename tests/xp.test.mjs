@@ -88,9 +88,14 @@ test('cada actividad puede tener sus propios nombres de rango', async () => {
   assert.equal(tierFor(11, mt.tierNames).color, TIERS[2].color);
 });
 
-test('todas las actividades traen una escalera completa de rangos', async () => {
+test('todas las disciplinas con nivel traen una escalera completa de rangos', async () => {
   const { DEFAULT_ACTIVITIES, TIERS } = await import('../js/config.js');
   for (const a of DEFAULT_ACTIVITIES) {
+    // El agua es un hábito sin niveles y el cuerpo usa las bandas de grasa.
+    if (a.leveled === false || a.rankBy) {
+      assert.ok(!a.tierNames, `${a.id} no debería tener escalera de XP`);
+      continue;
+    }
     assert.ok(Array.isArray(a.tierNames), `${a.id} no tiene tierNames`);
     assert.equal(a.tierNames.length, TIERS.length, `${a.id} tiene ${a.tierNames.length} rangos`);
     assert.equal(new Set(a.tierNames).size, TIERS.length, `${a.id} repite algún nombre de rango`);

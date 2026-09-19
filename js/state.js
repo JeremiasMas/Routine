@@ -2,7 +2,7 @@
 // (subidas de nivel, logros nuevos, día perfecto) para poder celebrarlos.
 import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js';
 import { waterGoalMl } from './body.js';
-import { buildSeedEntries } from './seed.js';
+import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive } from './derive.js';
 import { todayKey, uid } from './utils.js';
 
@@ -20,6 +20,7 @@ function blankData() {
     activities: structuredClone(DEFAULT_ACTIVITIES),
     // Lo que ya venías haciendo antes de instalar la app.
     entries: buildSeedEntries(),
+    carryOver: structuredClone(ACUMULADO_PREVIO),
     unlocked: {},
     deviceId: uid(),
   };
@@ -31,6 +32,7 @@ function migrate(raw) {
   const next = { ...base, ...raw };
   next.settings = { ...base.settings, ...(raw.settings || {}) };
   next.entries = raw.entries || {};
+  next.carryOver = raw.carryOver || structuredClone(ACUMULADO_PREVIO);
   next.unlocked = raw.unlocked || {};
   const known = new Map(DEFAULT_ACTIVITIES.map((a) => [a.id, a]));
   next.activities = (raw.activities?.length ? raw.activities : base.activities)

@@ -32,7 +32,9 @@ export function render() {
   // --- Ranking de actividades ---
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Tus disciplinas' }), el('small', { text: 'ordenadas por XP' })));
-  const ranked = [...state.byActivity.values()].sort((a, b) => b.xp - a.xp);
+  const ranked = [...state.byActivity.values()]
+    .filter((st) => st.leveled !== false)
+    .sort((a, b) => b.xp - a.xp);
   root.append(el('div', { class: 'list' }, ranked.map((st) => el('a', {
     class: 'row', href: `#/actividad/${st.id}`, style: `--c:${st.activity.color}`,
   },
