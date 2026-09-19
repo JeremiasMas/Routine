@@ -1,0 +1,204 @@
+// Configuración base: actividades, rangos y definición de logros.
+
+export const SCHEMA_VERSION = 1;
+
+/**
+ * Cada actividad tiene su propia pista de XP y su propio nivel.
+ * La regla de oro: cumplir la meta = 100 XP, sin importar la actividad.
+ *  - kind: 'number' (un valor), 'gym' (ejercicios con series), 'writing' (posts)
+ *  - streakMode: 'daily' (se espera todos los días) o 'weekly' (N veces por semana)
+ */
+export const DEFAULT_ACTIVITIES = [
+  {
+    id: 'datos',
+    name: 'Análisis de datos',
+    icon: '📊',
+    color: '#38bdf8',
+    kind: 'number',
+    unit: 'min',
+    goal: 45,
+    step: 5,
+    presets: [15, 30, 45, 60],
+    streakMode: 'daily',
+    motto: 'Una hora de datos por día construye una carrera.',
+  },
+  {
+    id: 'piano',
+    name: 'Piano',
+    icon: '🎹',
+    color: '#c084fc',
+    kind: 'number',
+    unit: 'min',
+    goal: 30,
+    step: 5,
+    presets: [10, 20, 30, 45],
+    streakMode: 'daily',
+    motto: 'Los dedos recuerdan lo que la cabeza olvida.',
+  },
+  {
+    id: 'gym',
+    name: 'Gimnasio',
+    icon: '🏋️',
+    color: '#fb7185',
+    kind: 'gym',
+    unit: 'kg',
+    goal: 4000,
+    step: 500,
+    streakMode: 'weekly',
+    weeklyTarget: 4,
+    streakUnitLabel: 'semanas',
+    motto: 'El tonelaje no miente.',
+  },
+  {
+    id: 'muaythai',
+    name: 'Muay Thai',
+    icon: '🥊',
+    color: '#f59e0b',
+    kind: 'number',
+    unit: 'min',
+    goal: 60,
+    step: 15,
+    presets: [30, 45, 60, 90],
+    streakMode: 'weekly',
+    weeklyTarget: 3,
+    streakUnitLabel: 'semanas',
+    motto: 'El arte de las ocho extremidades.',
+  },
+  {
+    id: 'pasos',
+    name: 'Pasos',
+    icon: '👟',
+    color: '#34d399',
+    kind: 'number',
+    unit: 'pasos',
+    goal: 10000,
+    step: 500,
+    presets: [5000, 8000, 10000, 15000],
+    streakMode: 'daily',
+    motto: 'Diez mil razones para salir a caminar.',
+  },
+  {
+    id: 'duolingo',
+    name: 'Duolingo · Francés',
+    icon: '🇫🇷',
+    color: '#84cc16',
+    kind: 'number',
+    unit: 'XP',
+    goal: 30,
+    step: 10,
+    presets: [10, 20, 30, 50],
+    streakMode: 'daily',
+    motto: 'Petit à petit, l’oiseau fait son nid.',
+  },
+  {
+    id: 'substack',
+    name: 'Escritura · Substack',
+    icon: '✍️',
+    color: '#e879f9',
+    kind: 'writing',
+    unit: 'posts',
+    goal: 1,
+    step: 1,
+    presets: [1, 2],
+    streakMode: 'weekly',
+    weeklyTarget: 1,
+    streakUnitLabel: 'semanas',
+    cadence: 'weekly',
+    motto: 'Publicar es el único editor honesto.',
+  },
+];
+
+/** Rangos por nivel de actividad. */
+export const TIERS = [
+  { min: 1, name: 'Novato', color: '#94a3b8' },
+  { min: 5, name: 'Aprendiz', color: '#4ade80' },
+  { min: 10, name: 'Adepto', color: '#38bdf8' },
+  { min: 20, name: 'Experto', color: '#a78bfa' },
+  { min: 35, name: 'Maestro', color: '#fbbf24' },
+  { min: 50, name: 'Leyenda', color: '#fb7185' },
+];
+
+/** Rangos del jugador (nivel global). */
+export const PLAYER_TITLES = [
+  { min: 1, name: 'Aspirante' },
+  { min: 5, name: 'Iniciado' },
+  { min: 10, name: 'Disciplinado' },
+  { min: 18, name: 'Imparable' },
+  { min: 28, name: 'Veterano' },
+  { min: 40, name: 'Campeón' },
+  { min: 55, name: 'Mito viviente' },
+];
+
+/** XP extra por eventos especiales. */
+export const BONUS = {
+  perfectDay: 50,      // todas las actividades diarias cumplidas
+  personalRecord: 25,  // récord personal en un ejercicio
+  firstLogOfDay: 0,
+};
+
+/**
+ * Logros. Cada uno recibe el estado derivado y devuelve el progreso actual
+ * sobre `target`; se desbloquea al alcanzarlo.
+ */
+export const ACHIEVEMENTS = [
+  { id: 'first-blood', name: 'Primer paso', icon: '🌱', xp: 25, target: 1,
+    desc: 'Registrá tu primera actividad.',
+    progress: (s) => (s.totalEntries > 0 ? 1 : 0) },
+  { id: 'week-1', name: 'Semana viva', icon: '🔥', xp: 50, target: 7,
+    desc: '7 días seguidos de racha en cualquier actividad.',
+    progress: (s) => s.bestDailyStreak },
+  { id: 'week-4', name: 'Mes de fuego', icon: '🔥', xp: 150, target: 30,
+    desc: '30 días seguidos de racha en cualquier actividad.',
+    progress: (s) => s.bestDailyStreak },
+  { id: 'century-streak', name: 'Centurión', icon: '💯', xp: 500, target: 100,
+    desc: '100 días seguidos de racha en cualquier actividad.',
+    progress: (s) => s.bestDailyStreak },
+  { id: 'perfect-1', name: 'Día perfecto', icon: '⭐', xp: 50, target: 1,
+    desc: 'Cumplí todas las metas diarias en un mismo día.',
+    progress: (s) => s.perfectDays },
+  { id: 'perfect-10', name: 'Diez de diez', icon: '🌟', xp: 200, target: 10,
+    desc: 'Diez días perfectos.',
+    progress: (s) => s.perfectDays },
+  { id: 'data-10h', name: 'Analista jr.', icon: '📊', xp: 100, target: 600,
+    desc: '10 horas acumuladas de análisis de datos.',
+    progress: (s) => s.totals.datos || 0 },
+  { id: 'data-100h', name: 'Científico de datos', icon: '🧠', xp: 400, target: 6000,
+    desc: '100 horas acumuladas de análisis de datos.',
+    progress: (s) => s.totals.datos || 0 },
+  { id: 'piano-25h', name: 'Manos de seda', icon: '🎹', xp: 150, target: 1500,
+    desc: '25 horas de piano acumuladas.',
+    progress: (s) => s.totals.piano || 0 },
+  { id: 'steps-million', name: 'Millón de pasos', icon: '👟', xp: 300, target: 1000000,
+    desc: 'Un millón de pasos acumulados.',
+    progress: (s) => s.totals.pasos || 0 },
+  { id: 'steps-20k', name: 'Maratonista', icon: '🏃', xp: 75, target: 1,
+    desc: '20.000 pasos en un solo día.',
+    progress: (s) => ((s.bests.pasos || 0) >= 20000 ? 1 : 0) },
+  { id: 'tonnage-100k', name: 'Cien toneladas', icon: '🏋️', xp: 250, target: 100000,
+    desc: '100.000 kg de tonelaje acumulado.',
+    progress: (s) => s.totals.gym || 0 },
+  { id: 'pr-1', name: 'Récord personal', icon: '🥇', xp: 50, target: 1,
+    desc: 'Rompé tu primer récord en un ejercicio.',
+    progress: (s) => s.personalRecords },
+  { id: 'pr-25', name: 'Rompehuesos', icon: '💪', xp: 250, target: 25,
+    desc: '25 récords personales rotos.',
+    progress: (s) => s.personalRecords },
+  { id: 'mt-20', name: 'Nak Muay', icon: '🥊', xp: 200, target: 20,
+    desc: '20 sesiones de Muay Thai.',
+    progress: (s) => s.sessions.muaythai || 0 },
+  { id: 'write-4', name: 'Columnista', icon: '✍️', xp: 150, target: 4,
+    desc: 'Publicá 4 textos en Substack.',
+    progress: (s) => s.totals.substack || 0 },
+  { id: 'write-25', name: 'Autor', icon: '📚', xp: 500, target: 25,
+    desc: 'Publicá 25 textos en Substack.',
+    progress: (s) => s.totals.substack || 0 },
+  { id: 'duo-50', name: 'Francófilo', icon: '🇫🇷', xp: 150, target: 50,
+    desc: '50 días con Duolingo.',
+    progress: (s) => s.activeDays.duolingo || 0 },
+  { id: 'all-lvl-5', name: 'Polifacético', icon: '🎯', xp: 300, target: 1,
+    desc: 'Llevá todas tus actividades a nivel 5.',
+    progress: (s) => (s.minActivityLevel >= 5 ? 1 : 0) },
+  { id: 'player-10', name: 'Doble dígito', icon: '🏆', xp: 200, target: 10,
+    desc: 'Alcanzá el nivel 10 de jugador.',
+    progress: (s) => s.playerLevel },
+];

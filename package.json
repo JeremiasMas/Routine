@@ -1,0 +1,14 @@
+{
+  "name": "rutina-rpg",
+  "version": "1.0.0",
+  "description": "Tracker de rutina gamificado: XP, niveles y rachas por disciplina. Sin dependencias, funciona offline.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "prestart": "node tools/make-icons.mjs",
+    "start": "npx --yes http-server . -p 8080 -c-1 -o"
+  },
+  "license": "MIT"
+}

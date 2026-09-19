@@ -1,0 +1,101 @@
+// Detalle de una actividad: su nivel, su historia y sus récords.
+import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural } from '../utils.js';
+import { getState } from '../state.js';
+import { ring, chip, xpBar, stat, barChart } from '../ui/components.js';
+import { openLogger } from '../ui/logger.js';
+import { xpToNextLevel } from '../xp.js';
+
+export function render({ params, navigate, celebrate }) {
+  const state = getState();
+  const st = state.byActivity.get(params.id);
+  if (!st) {
+    return el('div', { class: 'empty' }, 'Esa actividad ya no existe.',
+      el('div', { style: 'margin-top:12px' }, el('a', { class: 'btn', href: '#/' }, 'Volver')));
+  }
+  const a = st.activity;
+  const root = el('div', {});
+  root.append(el('a', { class: 'back', href: '#/' }, '‹ Volver al tablero'));
+
+  // --- Cabecera con nivel ---
+  root.append(el('div', { class: 'card', style: `--c:${a.color}` },
+    el('div', { style: 'display:flex;gap:14px;align-items:center' },
+      ring(st.level.pct, { size: 68, stroke: 6, color: a.color,
+        children: el('div', { style: 'text-align:center' },
+          el('b', { style: 'font-size:1.2rem;display:block;line-height:1', text: String(st.level.level) }),
+          el('span', { style: 'font-size:.5rem;letter-spacing:.12em;color:var(--muted)', text: 'NIVEL' })) }),
+      el('div', { style: 'flex:1;min-width:0' },
+        el('h1', { style: 'font-size:1.2rem', text: `${a.icon} ${a.name}` }),
+        el('div', { class: 'quest__meta', style: 'margin-top:6px' },
+          chip(st.tier.name, 'chip--tier', `--t:${st.tier.color}`),
+          st.streak > 0 ? chip(`🔥 ${a.streakMode === 'weekly'
+            ? plural(st.streak, 'semana', 'semanas')
+            : plural(st.streak, 'día', 'días')}`, 'chip--fire') : null,
+          st.shields > 0 ? chip(`🛡 ${plural(st.shields, 'escudo', 'escudos')}`, 'chip--shield') : null))),
+    el('div', { style: 'margin-top:12px' },
+      xpBar(st.level.pct, { left: `${formatNumber(st.level.into)} / ${formatNumber(st.level.need)} XP`, right: `Nivel ${st.level.level + 1} en ${formatNumber(st.level.need - st.level.into)} XP` })),
+    a.motto ? el('p', { class: 'hint', style: 'margin-top:10px;font-style:italic', text: `“${a.motto}”` }) : null));
+
+  root.append(el('div', { style: 'margin-top:12px' },
+    el('button', { class: 'btn btn--primary btn--block', style: `--c:${a.color}`,
+      onClick: () => openLogger(a, state.today, (events) => { celebrate(events); navigate(); }) },
+      `Registrar ${relativeDay(state.today).toLowerCase()}`)));
+
+  // --- Números ---
+  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Tus números' })));
+  root.append(el('div', { class: 'stat-grid' },
+    stat(formatValue(st.total, a.unit), 'Acumulado'),
+    stat(st.activeDays, a.streakMode === 'weekly' ? 'Sesiones' : 'Días activos'),
+    stat(formatNumber(st.xp), 'XP total'),
+    stat(st.bestStreak, a.streakMode === 'weekly' ? 'Mejor racha (sem.)' : 'Mejor racha (días)')));
+
+  if (st.best > 0) {
+    root.append(el('div', { class: 'row', style: 'margin-top:10px' },
+      el('div', { class: 'row__main' },
+        el('div', { text: 'Tu mejor marca' }),
+        el('div', { class: 'row__sub', text: st.bestDate ? shortDate(st.bestDate) : '' })),
+      el('div', { class: 'row__value', text: formatValue(st.best, a.unit) })));
+  }
+
+  // --- Últimos 30 días ---
+  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Últimos 30 días' })));
+  const points = Array.from({ length: 30 }, (_, i) => {
+    const date = addDays(state.today, i - 29);
+    const d = st.byDate.get(date);
+    return { label: shortDate(date), short: i % 7 === 0 ? shortDate(date) : '', value: d?.value || 0, met: d?.met };
+  });
+  root.append(el('div', { class: 'card' }, barChart(points, { color: a.color, labelEvery: 1 }),
+    el('p', { class: 'hint', style: 'margin-top:8px', text: `Las barras tenues quedaron por debajo de la meta de ${formatValue(a.goal, a.unit)}.` })));
+
+  // --- Récords del gimnasio ---
+  if (a.kind === 'gym' && st.recordList.length) {
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Récords personales' }),
+      st.prCount > 0 ? el('small', { text: `${st.prCount} superados` }) : null));
+    root.append(el('div', { class: 'list' },
+      st.recordList.map((r) => el('div', { class: 'row' },
+        el('div', { class: 'row__main' },
+          el('div', { text: r.name }),
+          el('div', { class: 'row__sub', text: `${r.weight} kg × ${r.reps} reps · ${shortDate(r.date)}` })),
+        el('div', { class: 'row__value', text: `${r.e1rm} kg` })))));
+    root.append(el('p', { class: 'hint', style: 'margin-top:8px' }, 'El valor de la derecha es tu 1RM estimado (fórmula de Epley).'));
+  }
+
+  // --- Historial ---
+  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Historial' })));
+  const recent = [...st.history].reverse().slice(0, 20);
+  root.append(recent.length
+    ? el('div', { class: 'list' }, recent.map((h) => el('button', {
+        class: 'row', style: 'width:100%;text-align:left',
+        onClick: () => openLogger(a, h.date, (events) => { celebrate(events); navigate(); }),
+      },
+      el('div', { class: 'row__main' },
+        el('div', { text: relativeDay(h.date) }),
+        el('div', { class: 'row__sub', text: `${formatValue(h.value, a.unit)}${h.met ? ' · meta cumplida' : ''}` })),
+      el('div', { class: 'row__value', style: 'color:var(--gold)', text: `+${h.xp}` }))))
+    : el('div', { class: 'empty' }, 'Todavía no registraste nada acá. ¡Es el momento!'));
+
+  root.append(el('p', { class: 'hint', style: 'margin-top:14px' },
+    `Cada nivel de ${a.name} cuesta más que el anterior: el próximo pide ${formatNumber(xpToNextLevel(st.level.level))} XP.`));
+
+  return root;
+}
