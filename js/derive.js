@@ -3,7 +3,7 @@
 // mismo resultado. Así nunca se desincroniza nada.
 import { ACHIEVEMENTS, BONUS, templateById, plannedSets } from './config.js';
 import {
-  entryXp, levelFromXp, playerLevelFromXp, tierFor, playerTitleFor,
+  entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier,
 } from './xp.js';
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
@@ -309,7 +309,8 @@ export function derive(data, today = todayKey()) {
       bestDailyStreak = Math.max(bestDailyStreak, st.bestStreak);
     }
     st.level = levelFromXp(st.xp);
-    st.tier = tierFor(st.level.level);
+    st.tier = tierFor(st.level.level, a.tierNames);
+    st.nextTier = nextTierFor(st.level.level, a.tierNames);
     st.multiplier = streakMultiplier(
       a.streakMode === 'weekly' ? st.streak * 3 : st.streak,
     );

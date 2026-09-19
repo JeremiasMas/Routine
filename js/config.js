@@ -20,6 +20,7 @@ export const DEFAULT_ACTIVITIES = [
     step: 5,
     presets: [15, 30, 45, 60],
     streakMode: 'daily',
+    tierNames: ['Curioso', 'Analista Jr.', 'Analista', 'Analista Sr.', 'Científico de datos', 'Oráculo'],
     motto: 'Una hora de datos por día construye una carrera.',
   },
   {
@@ -34,6 +35,7 @@ export const DEFAULT_ACTIVITIES = [
     presets: [10, 20, 30, 45],
     streakMode: 'daily',
     days: [1, 5, 6, 0], // lunes, viernes, sábado y domingo
+    tierNames: ['Primeras teclas', 'Estudiante', 'Intérprete', 'Concertista', 'Virtuoso', 'Maestro de capilla'],
     motto: 'Los dedos recuerdan lo que la cabeza olvida.',
   },
   {
@@ -49,6 +51,7 @@ export const DEFAULT_ACTIVITIES = [
     weeklyTarget: 3,
     days: [1, 3, 5],     // lunes, miércoles y viernes
     streakUnitLabel: 'semanas',
+    tierNames: ['Novato de sala', 'Constante', 'Fierrero', 'Atleta', 'Bestia', 'Titán'],
     motto: 'La rutina no se negocia, se hace.',
   },
   {
@@ -71,6 +74,9 @@ export const DEFAULT_ACTIVITIES = [
     ],
     days: [2, 4],        // martes y jueves
     streakUnitLabel: 'semanas',
+    // Escalafón tradicional del muay thai: discípulo, peleador, guerrero,
+    // campeón, instructor y gran maestro.
+    tierNames: ['Luk Sit', 'Nak Muay', 'Nak Su', 'Campeón de estadio', 'Kru', 'Ajarn'],
     motto: 'El arte de las ocho extremidades.',
   },
   {
@@ -84,6 +90,7 @@ export const DEFAULT_ACTIVITIES = [
     step: 500,
     presets: [5000, 8000, 10000, 15000],
     streakMode: 'daily',
+    tierNames: ['Paseante', 'Caminante', 'Andariego', 'Trotamundos', 'Explorador', 'Nómade'],
     motto: 'Diez mil razones para salir a caminar.',
   },
   {
@@ -97,6 +104,8 @@ export const DEFAULT_ACTIVITIES = [
     step: 10,
     presets: [10, 20, 30, 50],
     streakMode: 'daily',
+    // Los niveles reales del Marco Común Europeo de Referencia.
+    tierNames: ['A1 · Débutant', 'A2 · Élémentaire', 'B1 · Intermédiaire', 'B2 · Avancé', 'C1 · Autonome', 'C2 · Maîtrise'],
     motto: 'Petit à petit, l’oiseau fait son nid.',
   },
   {
@@ -111,6 +120,7 @@ export const DEFAULT_ACTIVITIES = [
     presets: [250, 500, 750, 1000],
     streakMode: 'daily',
     autoGoal: 'water',   // la meta la deriva el peso, no se toca a mano
+    tierNames: ['Gota', 'Arroyo', 'Río', 'Cascada', 'Lago', 'Océano'],
     motto: 'La hidratación es la mitad del rendimiento.',
   },
   {
@@ -125,6 +135,8 @@ export const DEFAULT_ACTIVITIES = [
     streakMode: 'weekly',
     weeklyTarget: 1,
     streakUnitLabel: 'semanas',
+    // El rango premia el rigor del seguimiento, no el número de la balanza.
+    tierNames: ['Curioso', 'Observador', 'Metódico', 'Riguroso', 'Cartógrafo', 'Arquitecto'],
     motto: 'Lo que se mide, se puede mejorar.',
   },
   {
@@ -141,6 +153,7 @@ export const DEFAULT_ACTIVITIES = [
     weeklyTarget: 1,
     streakUnitLabel: 'semanas',
     cadence: 'weekly',
+    tierNames: ['Borrador', 'Cronista', 'Editorialista', 'Ensayista', 'Escritor', 'Pluma consagrada'],
     motto: 'Publicar es el único editor honesto.',
   },
 ];
@@ -244,7 +257,11 @@ export const DEFAULT_PROFILE = {
   neck: 35,
 };
 
-/** Rangos por nivel de actividad. */
+/**
+ * Escalones de rango: en qué nivel se asciende y con qué color.
+ * Los NOMBRES los pone cada actividad en su `tierNames`, porque "Adepto" no
+ * dice nada y "Nak Su" o "B2 · Avancé" sí.
+ */
 export const TIERS = [
   { min: 1, name: 'Novato', color: '#94a3b8' },
   { min: 5, name: 'Aprendiz', color: '#4ade80' },
@@ -253,6 +270,9 @@ export const TIERS = [
   { min: 35, name: 'Maestro', color: '#fbbf24' },
   { min: 50, name: 'Leyenda', color: '#fb7185' },
 ];
+
+/** Nombres genéricos, para actividades que agregues vos. */
+export const DEFAULT_TIER_NAMES = TIERS.map((t) => t.name);
 
 /** Rangos del jugador (nivel global). */
 export const PLAYER_TITLES = [

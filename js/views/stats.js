@@ -40,9 +40,9 @@ export function render() {
     el('div', { class: 'row__main' },
       el('div', { style: 'display:flex;gap:8px;align-items:center' },
         el('span', { text: st.activity.name }),
-        chip(`Nv ${st.level.level}`, 'chip--tier', `--t:${st.activity.color}`)),
+        chip(st.tier.name, 'chip--tier', `--t:${st.activity.color}`)),
       el('div', { style: 'margin-top:6px' }, xpBar(st.level.pct)),
-      el('div', { class: 'row__sub', style: 'margin-top:4px', text: `${formatNumber(st.xp)} XP · ${formatValue(st.total, st.activity.unit)} en total` })),
+      el('div', { class: 'row__sub', style: 'margin-top:4px', text: `Nivel ${st.level.level} · ${formatNumber(st.xp)} XP · ${formatValue(st.total, st.activity.unit)} en total` })),
     el('span', { class: 'muted', text: '›' })))));
 
   // --- Desglose de la XP ---

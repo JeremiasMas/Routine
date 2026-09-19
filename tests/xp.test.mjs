@@ -68,3 +68,32 @@ test('los rangos escalan con el nivel', () => {
   assert.equal(tierFor(12).name, 'Adepto');
   assert.equal(tierFor(99).name, 'Leyenda');
 });
+
+test('cada actividad puede tener sus propios nombres de rango', async () => {
+  const { nextTierFor } = await import('../js/xp.js');
+  const { DEFAULT_ACTIVITIES, TIERS } = await import('../js/config.js');
+  const mt = DEFAULT_ACTIVITIES.find((a) => a.id === 'muaythai');
+
+  assert.equal(tierFor(1, mt.tierNames).name, 'Luk Sit');
+  assert.equal(tierFor(11, mt.tierNames).name, 'Nak Su');
+  assert.equal(tierFor(99, mt.tierNames).name, 'Ajarn');
+  assert.equal(nextTierFor(11, mt.tierNames).name, 'Campeón de estadio');
+  assert.equal(nextTierFor(11, mt.tierNames).min, 20);
+  assert.equal(nextTierFor(50, mt.tierNames), null, 'el último rango no tiene siguiente');
+
+  // Sin nombres propios usa los genéricos.
+  assert.equal(tierFor(11).name, 'Adepto');
+  assert.equal(tierFor(11, ['muy', 'pocos']).name, 'Adepto', 'una lista incompleta no rompe nada');
+  // Los umbrales y colores no cambian entre actividades.
+  assert.equal(tierFor(11, mt.tierNames).color, TIERS[2].color);
+});
+
+test('todas las actividades traen una escalera completa de rangos', async () => {
+  const { DEFAULT_ACTIVITIES, TIERS } = await import('../js/config.js');
+  for (const a of DEFAULT_ACTIVITIES) {
+    assert.ok(Array.isArray(a.tierNames), `${a.id} no tiene tierNames`);
+    assert.equal(a.tierNames.length, TIERS.length, `${a.id} tiene ${a.tierNames.length} rangos`);
+    assert.equal(new Set(a.tierNames).size, TIERS.length, `${a.id} repite algún nombre de rango`);
+    for (const n of a.tierNames) assert.ok(n.trim().length > 0, `${a.id} tiene un rango vacío`);
+  }
+});

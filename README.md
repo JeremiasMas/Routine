@@ -167,9 +167,32 @@ disciplina en lugar de a la unidad que usa.
 - **Récord personal** 🥇 → superar tu 1RM estimado en un ejercicio suma 25 XP.
 - **Logros** 🏆 → 20 medallas con XP propia, desde "Primer paso" hasta "Centurión".
 
-Cada actividad sube de nivel en su propia curva (cada nivel cuesta más que el anterior)
-y atraviesa rangos: Novato → Aprendiz → Adepto → Experto → Maestro → Leyenda. La suma
-de todo alimenta tu **nivel de jugador**.
+Cada actividad sube de nivel en su propia curva (cada nivel cuesta más que el
+anterior) y atraviesa **rangos con nombre propio**: los umbrales son los mismos
+para todas —niveles 1, 5, 10, 20, 35 y 50— pero el nombre lo pone la
+disciplina, porque "Adepto" no dice nada y "Nak Su" sí.
+
+| Actividad | 1 | 5 | 10 | 20 | 35 | 50 |
+|---|---|---|---|---|---|---|
+| 📊 Datos | Curioso | Analista Jr. | Analista | Analista Sr. | Científico de datos | Oráculo |
+| 🎹 Piano | Primeras teclas | Estudiante | Intérprete | Concertista | Virtuoso | Maestro de capilla |
+| 🏋️ Gimnasio | Novato de sala | Constante | Fierrero | Atleta | Bestia | Titán |
+| 🥊 Muay Thai | Luk Sit | Nak Muay | Nak Su | Campeón de estadio | Kru | Ajarn |
+| 👟 Pasos | Paseante | Caminante | Andariego | Trotamundos | Explorador | Nómade |
+| 💧 Agua | Gota | Arroyo | Río | Cascada | Lago | Océano |
+| 🇫🇷 Duolingo | A1 · Débutant | A2 · Élémentaire | B1 · Intermédiaire | B2 · Avancé | C1 · Autonome | C2 · Maîtrise |
+| ✍️ Substack | Borrador | Cronista | Editorialista | Ensayista | Escritor | Pluma consagrada |
+| 📏 Cuerpo | Curioso | Observador | Metódico | Riguroso | Cartógrafo | Arquitecto |
+
+El muay thai usa el escalafón tradicional (discípulo, peleador, guerrero,
+instructor, gran maestro) y el francés los niveles reales del Marco Común
+Europeo. El de composición corporal premia el rigor del seguimiento, no el
+número que dé la balanza. Una actividad que agregues vos usa los nombres
+genéricos salvo que le pongas `tierNames`.
+
+La suma de todo alimenta tu **nivel de jugador**, que sí tiene títulos propios:
+Aspirante → Iniciado → Disciplinado → Imparable → Veterano → Campeón → Mito
+viviente.
 
 Nada de esto se guarda "congelado": la XP, los niveles y las rachas se recalculan
 siempre desde tu historial. Si cambiás una meta, todo tu progreso se reajusta solo.
@@ -198,7 +221,7 @@ node tools/make-icons.mjs && python3 -m http.server 8080
 ### Tests
 
 ```bash
-npm test            # 76 tests: XP, rachas, fuerza, cuerpo, historial e importación
+npm test            # 78 tests: XP, rangos, rachas, fuerza, cuerpo e importación
 ```
 
 ## Tus datos

@@ -1,5 +1,5 @@
 // Matemática de XP, niveles y rachas. Módulo puro: sin DOM, sin storage.
-import { TIERS, PLAYER_TITLES } from './config.js';
+import { TIERS, PLAYER_TITLES, DEFAULT_TIER_NAMES } from './config.js';
 
 /**
  * XP base de un registro. La meta de CADA actividad vale 100 XP, así el
@@ -62,10 +62,26 @@ export function playerLevelFromXp(totalXp) {
   return levelFromXp(totalXp, xpToNextPlayerLevel);
 }
 
-export function tierFor(level) {
-  let tier = TIERS[0];
-  for (const t of TIERS) if (level >= t.min) tier = t;
-  return tier;
+/**
+ * Rango de un nivel. Cada actividad puede traer sus propios nombres
+ * (`tierNames`); los umbrales y los colores son siempre los mismos.
+ * @param {number} level
+ * @param {string[]} [names] nombres temáticos de la actividad
+ */
+export function tierFor(level, names = null) {
+  let index = 0;
+  for (let i = 0; i < TIERS.length; i++) if (level >= TIERS[i].min) index = i;
+  const lista = names?.length === TIERS.length ? names : DEFAULT_TIER_NAMES;
+  return { ...TIERS[index], index, name: lista[index] };
+}
+
+/** El rango siguiente y en qué nivel se alcanza, o null si ya es el último. */
+export function nextTierFor(level, names = null) {
+  const actual = tierFor(level, names);
+  const siguiente = TIERS[actual.index + 1];
+  if (!siguiente) return null;
+  const lista = names?.length === TIERS.length ? names : DEFAULT_TIER_NAMES;
+  return { ...siguiente, index: actual.index + 1, name: lista[actual.index + 1] };
 }
 
 export function playerTitleFor(level) {

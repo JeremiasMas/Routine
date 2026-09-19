@@ -38,7 +38,11 @@ export function render({ params, navigate, celebrate }) {
           st.shields > 0 ? chip(`🛡 ${plural(st.shields, 'escudo', 'escudos')}`, 'chip--shield') : null))),
     el('div', { style: 'margin-top:12px' },
       xpBar(st.level.pct, { left: `${formatNumber(st.level.into)} / ${formatNumber(st.level.need)} XP`, right: `Nivel ${st.level.level + 1} en ${formatNumber(st.level.need - st.level.into)} XP` })),
-    a.motto ? el('p', { class: 'hint', style: 'margin-top:10px;font-style:italic', text: `“${a.motto}”` }) : null));
+    st.nextTier
+      ? el('p', { class: 'hint', style: 'margin-top:10px' },
+          `Próximo rango: ${st.nextTier.name} en el nivel ${st.nextTier.min}.`)
+      : el('p', { class: 'hint', style: 'margin-top:10px' }, 'Último rango de la escalera. 🐐'),
+    a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
   root.append(el('div', { style: 'margin-top:12px' },
     el('button', { class: 'btn btn--primary btn--block', style: `--c:${a.color}`,
