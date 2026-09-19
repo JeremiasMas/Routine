@@ -307,9 +307,10 @@ export const PLAYER_TITLES = [
 
 /** XP extra por eventos especiales. */
 export const BONUS = {
-  perfectDay: 50,      // todas las actividades diarias cumplidas
-  personalRecord: 25,  // récord personal en un ejercicio
-  firstLogOfDay: 0,
+  perfectDay: 50,        // todo lo que tocaba ese día
+  almostPerfect: 20,     // del 80% para arriba: fallar una no es fallar todas
+  almostThreshold: 0.8,
+  personalRecord: 25,    // récord personal en un ejercicio
 };
 
 /**

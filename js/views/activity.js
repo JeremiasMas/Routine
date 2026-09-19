@@ -158,8 +158,17 @@ export function render({ params, navigate, celebrate }) {
             el('div', { class: 'row__sub', style: 'margin-top:4px', text: `${s.nivel.next} a los ${formatNumber(s.objetivo)} kg — te faltan ${formatNumber(s.falta)} kg` }))
         : el('div', { class: 'row__sub', style: 'margin-top:6px', text: 'Nivel máximo de la escala. 🐐' })))));
 
+    if (state.calibracionVencida?.length) {
+      const nombres = state.calibracionVencida.map((c) => c.lift.toLowerCase()).join(', ');
+      root.append(el('div', { class: 'row', style: 'margin-top:10px;border-color:color-mix(in srgb, var(--gold) 40%, var(--line));background:rgba(251,191,36,.08)' },
+        el('span', { style: 'font-size:1.2rem' }, '🎯'),
+        el('div', { class: 'row__main' },
+          el('div', { style: 'font-weight:650', text: 'Calibrá tu fuerza' }),
+          el('div', { class: 'row__sub', text: `Hacé una serie pesada de 5 repeticiones en ${nombres}. Con series de 10-15 la estimación de 1RM se dispersa hasta ±28 kg; con 5 baja a ±4.` }))));
+    }
+
     root.append(el('p', { class: 'hint', style: 'margin-top:10px' },
-      'El 1RM se estima con la fórmula de Epley a partir de tu mejor serie. Los niveles son referencias generales: varían con el peso corporal y la técnica, así que sirven para ubicarte y ver la progresión, no para el decimal.'));
+      'El 1RM sale del promedio de cuatro fórmulas (Epley, Brzycki, Lombardi y Wathen) sobre tu mejor serie de hasta 12 repeticiones: las más largas entrenan, pero no sirven para medir. Los niveles son referencias generales, así que ubican y muestran progresión, no deciden decimales.'));
   }
 
   // --- Récords del gimnasio ---

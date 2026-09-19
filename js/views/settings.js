@@ -3,6 +3,7 @@ import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel }
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
+  diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
 } from '../state.js';
 import { parseStepsCsv, diffSteps } from '../steps-import.js';
 import { waterGoalMl, bodySummary } from '../body.js';
@@ -85,6 +86,19 @@ export function render({ navigate }) {
   // --- Datos ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Tus datos' })));
   root.append(el('div', { class: 'card' },
+    (() => {
+      const dias = diasSinBackup();
+      if (dias === null) return null;
+      if (!backupVencido()) {
+        return el('p', { class: 'hint', style: 'color:var(--ok)' },
+          dias === 0 ? '✓ Copia de seguridad hecha hoy.' : `✓ Última copia hace ${dias} ${dias === 1 ? 'día' : 'días'}.`);
+      }
+      return el('div', { class: 'row', style: 'border-color:color-mix(in srgb, var(--danger) 45%, var(--line));background:rgba(251,113,133,.08);margin-bottom:10px' },
+        el('span', { style: 'font-size:1.3rem' }, '⚠️'),
+        el('div', { class: 'row__main' },
+          el('div', { style: 'font-weight:650', text: dias === Infinity ? 'Nunca exportaste tu progreso' : `Hace ${dias} días que no exportás` }),
+          el('div', { class: 'row__sub', text: 'Si se borran los datos de este navegador, se pierde todo.' })));
+    })(),
     el('p', { class: 'hint' }, 'Todo se guarda solamente en este dispositivo, en el navegador. Exportá de vez en cuando para no perder el progreso si borrás los datos del navegador o cambiás de teléfono.'),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn', onClick: doExport }, '⬇ Exportar'),
@@ -252,6 +266,7 @@ function doExport() {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  markExported();
   toast('⬇', 'Copia de seguridad descargada.');
 }
 

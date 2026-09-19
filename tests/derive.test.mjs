@@ -467,3 +467,72 @@ test('sin sesiones cargadas el gimnasio no inventa un nivel de fuerza', () => {
   assert.ok(!st.strengthOverall, 'sin ejercicios con estándar no hay nivel de fuerza');
   assert.equal(st.level.level, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Fiabilidad del 1RM y día casi perfecto
+// ---------------------------------------------------------------------------
+
+test('una serie de 15 repeticiones no fija récord: no sirve para medir', () => {
+  const gym = acts(['gym'])[0];
+  const data = build([gym], {
+    [HOY]: { gym: { exercises: [
+      { name: 'Sentadilla con barra', sets: [{ weight: 200, reps: 15 }] },
+    ] } },
+  });
+  data.settings = { weight: 61.5 };
+  const st = derive(data, HOY).byActivity.get('gym');
+  assert.equal(st.records.size, 0, 'por pesada que sea, 15 reps no miden fuerza');
+  assert.equal(st.total, 1, 'pero la serie cuenta igual para la rutina');
+});
+
+test('una serie de 10 repeticiones sí cuenta', () => {
+  const gym = acts(['gym'])[0];
+  const data = build([gym], {
+    [HOY]: { gym: { exercises: [{ name: 'Sentadilla con barra', sets: [{ weight: 80, reps: 10 }] }] } },
+  });
+  data.settings = { weight: 61.5 };
+  assert.equal(derive(data, HOY).byActivity.get('gym').records.size, 1);
+});
+
+test('avisa cuando hace falta calibrar la fuerza', () => {
+  const gym = acts(['gym'])[0];
+  const pesada = { gym: { exercises: [{ name: 'Sentadilla con barra', sets: [{ weight: 100, reps: 5 }] }] } };
+
+  const reciente = build([gym], { [addDays(HOY, -7)]: pesada });
+  reciente.settings = { weight: 61.5 };
+  assert.equal(derive(reciente, HOY).calibracionVencida.length, 0, 'hace una semana, está fresca');
+
+  const vieja = build([gym], { [addDays(HOY, -60)]: pesada });
+  vieja.settings = { weight: 61.5 };
+  const s = derive(vieja, HOY);
+  assert.equal(s.calibracionVencida.length, 1, 'a los dos meses hay que recalibrar');
+  assert.equal(s.calibracionVencida[0].liftKey ?? s.calibracionVencida[0].lift, 'Sentadilla');
+
+  // Series de 10-12 mantienen el récord pero no calibran.
+  const soloLargas = build([gym], {
+    [addDays(HOY, -2)]: { gym: { exercises: [{ name: 'Sentadilla con barra', sets: [{ weight: 80, reps: 12 }] }] } },
+  });
+  soloLargas.settings = { weight: 61.5 };
+  assert.equal(derive(soloLargas, HOY).calibracionVencida.length, 1,
+    '12 reps sirven para el récord pero no para calibrar');
+});
+
+test('fallar una misión no vale lo mismo que fallar todas', () => {
+  const diarias = acts(['datos', 'pasos', 'agua', 'frances', 'piano']);
+  const dia = (extras) => derive(build(diarias, {
+    [LUN]: { datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 }, ...extras },
+  }), LUN);
+
+  // 3 de 5: sin bonus.
+  assert.equal(dia({}).bonusXp, 0);
+  // 4 de 5 (80%): bonus parcial, pero no es día perfecto.
+  const casi = dia({ frances: { sources: { duolingo: 5 } } });
+  assert.equal(casi.perfectDays, 0);
+  assert.equal(casi.bonusXp, 20);
+  assert.equal(casi.daily.get(LUN).almost, true);
+  // 5 de 5: bonus completo y estrella.
+  const perfecto = dia({ frances: { sources: { duolingo: 5 } }, piano: { value: 30 } });
+  assert.equal(perfecto.perfectDays, 1);
+  assert.equal(perfecto.bonusXp, 50);
+  assert.equal(perfecto.daily.get(LUN).almost, false);
+});

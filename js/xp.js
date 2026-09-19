@@ -25,9 +25,16 @@ export function entryXp(value, goal, streak = 0) {
   return Math.round(baseXp(value, goal) * streakMultiplier(streak));
 }
 
-/** XP necesaria para pasar del nivel `level` al siguiente. */
+/**
+ * XP para pasar del nivel `level` al siguiente.
+ *
+ * La curva es lineal a propósito: con el exponente anterior (1,2) el último
+ * rango quedaba a casi siete años de cumplir la meta todos los días, o sea que
+ * la mitad de la escalera era decorativa. Así, cumpliendo a diario, el nivel 20
+ * cae a los ~6 meses, el 35 al año y medio y el 50 a los ~3 años y medio.
+ */
 export function xpToNextLevel(level) {
-  return Math.round((100 * Math.pow(level, 1.2)) / 5) * 5;
+  return 100 * Math.max(1, Math.round(level));
 }
 
 /** XP necesaria para subir de nivel de jugador (curva más lenta). */
@@ -103,10 +110,46 @@ export function gymVolume(exercises = []) {
   return Math.round(volume);
 }
 
-/** Mejor serie de un ejercicio, estimada con Epley (1RM). */
+/**
+ * Repeticiones por encima de las cuales el 1RM estimado deja de ser confiable.
+ * A 5 reps las fórmulas usuales coinciden dentro de ±4 kg; a 15 discrepan ±28,
+ * así que una serie larga no sirve para medir fuerza por más que sea buen
+ * entrenamiento.
+ */
+export const REPS_FIABLES = 12;
+
+/** A 8 reps o menos la estimación es sólida: sirve para calibrar. */
+export const REPS_CALIBRACION = 8;
+
+/** Qué tan confiable es el 1RM estimado a partir de una serie. */
+export function confianzaDe(reps) {
+  const r = Number(reps) || 0;
+  if (r <= 0) return 'ninguna';
+  if (r <= REPS_CALIBRACION) return 'alta';
+  if (r <= REPS_FIABLES) return 'media';
+  return 'baja';
+}
+
+export function esSerieFiable(reps) {
+  const r = Number(reps) || 0;
+  return r > 0 && r <= REPS_FIABLES;
+}
+
+/**
+ * 1RM estimado: promedio de las cuatro fórmulas usuales (Epley, Brzycki,
+ * Lombardi y Wathen). Ninguna es la verdad, pero el promedio no hereda el
+ * sesgo de ninguna en particular, sobre todo cuando se separan entre sí.
+ */
 export function estimatedOneRepMax(weight, reps) {
   const w = Number(weight) || 0;
   const r = Number(reps) || 0;
   if (w <= 0 || r <= 0) return 0;
-  return Math.round(w * (1 + r / 30) * 10) / 10;
+  if (r === 1) return Math.round(w * 10) / 10;
+
+  const epley = w * (1 + r / 30);
+  const brzycki = r < 37 ? (w * 36) / (37 - r) : epley;
+  const lombardi = w * Math.pow(r, 0.10);
+  const wathen = (100 * w) / (48.8 + 53.8 * Math.exp(-0.075 * r));
+  const promedio = (epley + brzycki + lombardi + wathen) / 4;
+  return Math.round(promedio * 10) / 10;
 }

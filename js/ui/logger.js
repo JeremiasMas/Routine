@@ -104,11 +104,31 @@ function gymForm(activity, dateKey, onSaved) {
   let templateId = existing?.templateId ?? sugerida?.id ?? null;
   let exercises = [];
 
+  // Tope del rango de repeticiones: si lo cerraste en todas las series, toca subir.
+  const TOPE_REPS = Number(DEFAULT_REP_RANGE.split('-')[1]) || 15;
+  const SALTO_KG = 2.5;
+
+  /**
+   * ¿Cerraste la última sesión completa en el tope del rango? Entonces se
+   * propone subir la carga: es la progresión que uno olvida entre series.
+   */
+  function sugerenciaDeCarga(name) {
+    const previas = lastSets.get((name || '').trim().toLowerCase());
+    if (!previas?.length || previas.length < DEFAULT_SETS) return null;
+    if (!previas.every((s) => Number(s.reps) >= TOPE_REPS)) return null;
+    const peso = Number(previas[previas.length - 1]?.weight) || 0;
+    if (peso <= 0) return null;
+    return { desde: peso, hasta: peso + SALTO_KG };
+  }
+
   /** Series precargadas con lo último que levantaste en ese ejercicio. */
   function seedSets(name, count = DEFAULT_SETS) {
     const previas = lastSets.get((name || '').trim().toLowerCase());
+    const sube = sugerenciaDeCarga(name);
     return Array.from({ length: count }, (_, i) => ({
-      weight: previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? '',
+      weight: sube
+        ? sube.hasta
+        : (previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? ''),
       reps: '',
       target: previas?.[i]?.reps ?? null,
     }));
@@ -125,7 +145,7 @@ function gymForm(activity, dateKey, onSaved) {
       ? template.exercises
       : (lastByTemplate.get(id) || []); // el Día 4 aprende de la última vez
     exercises = base.length
-      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, sets: seedSets(ex.name) }))
+      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, sets: seedSets(ex.name), sube: sugerenciaDeCarga(ex.name) }))
       : [{ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }];
   }
   loadTemplate(templateId, { keepExisting: true });
@@ -198,8 +218,11 @@ function gymForm(activity, dateKey, onSaved) {
     const head = ex.name
       ? el('div', { style: 'flex:1;min-width:0' },
           el('div', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
-          el('div', { class: 'row__sub' },
-            rec ? `Récord: ${rec.weight} kg × ${rec.reps}` : `${DEFAULT_SETS}×${DEFAULT_REP_RANGE}`))
+          ex.sube
+            ? el('div', { class: 'row__sub', style: 'color:var(--ok)',
+                text: `↑ ${formatNumber(ex.sube.hasta)} kg — la última cerraste las ${DEFAULT_SETS} series en ${TOPE_REPS}` })
+            : el('div', { class: 'row__sub' },
+                rec ? `Récord: ${rec.weight} kg × ${rec.reps}` : `${DEFAULT_SETS}×${DEFAULT_REP_RANGE}`))
       : (() => {
           const input = el('input', { type: 'text', placeholder: 'Ejercicio', list: 'exercise-names', value: '' });
           input.addEventListener('input', () => { ex.name = input.value; updateSummary(); });

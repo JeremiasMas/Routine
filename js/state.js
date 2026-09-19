@@ -4,7 +4,7 @@ import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js
 import { waterGoalMl } from './body.js';
 import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive } from './derive.js';
-import { todayKey, uid } from './utils.js';
+import { todayKey, uid, daysBetween } from './utils.js';
 
 const STORAGE_KEY = 'routine-rpg';
 const listeners = new Set();
@@ -210,6 +210,31 @@ export function updateSettings(patch) {
 
 export function exportData() {
   return JSON.stringify(getData(), null, 2);
+}
+
+/** Días máximos sin exportar antes de avisar. */
+export const DIAS_SIN_BACKUP = 14;
+
+/**
+ * Hace cuántos días exportaste por última vez, o null si nunca.
+ * Todo vive en este navegador: perder los datos del sitio es perder el
+ * progreso entero, y nadie se acuerda de exportar sin que se lo recuerden.
+ */
+export function diasSinBackup() {
+  const d = getData();
+  if (!Object.keys(d.entries || {}).length) return null;
+  const ultimo = d.settings?.lastExportAt;
+  return ultimo ? daysBetween(ultimo, todayKey()) : Infinity;
+}
+
+export function backupVencido() {
+  const dias = diasSinBackup();
+  return dias !== null && dias >= DIAS_SIN_BACKUP;
+}
+
+/** Deja constancia de que bajaste una copia. */
+export function markExported() {
+  return mutate((d) => { d.settings.lastExportAt = todayKey(); });
 }
 
 export function importData(json) {

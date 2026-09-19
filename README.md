@@ -39,7 +39,9 @@ Las tres sesiones vienen cargadas como plantillas, con sus ejercicios y su
 Al abrir el registro, la app **propone la rutina que toca ese día** y precarga los
 pesos con lo último que levantaste en cada ejercicio: corregís lo que cambió y anotás
 las repeticiones. Cada ejercicio terminado **se pliega solo**, así durante el
-entrenamiento ves lo que falta y no lo que ya hiciste.
+entrenamiento ves lo que falta y no lo que ya hiciste. Y si la última vez
+cerraste las tres series en el tope del rango (15 reps), **precarga 2,5 kg más**
+y te lo avisa: es la progresión que uno olvida entre series.
 
 La XP del gimnasio mide **la rutina completada**, no el tonelaje: terminar el día de
 pecho (27 series) vale lo mismo que el de hombros (42). El tonelaje se sigue
@@ -82,6 +84,15 @@ Con tu peso corporal, la carga y las repeticiones estima el **1RM** (fórmula de
 Epley) y lo expresa como **múltiplos de tu propio peso**, que es la medida que
 permite comparar: 100 kg de sentadilla no significan lo mismo con 61 kg encima
 que con 95.
+
+**El 1RM sólo se estima con series de hasta 12 repeticiones.** A 5 reps las
+cuatro fórmulas usuales coinciden dentro de ±4 kg; a 15 discrepan ±28, o sea
+que tu 1RM "sería" cualquier cosa entre 111 y 139 kg según cuál elijas.
+Promediarlas no arregla nada —Brzycki tira para arriba lo mismo que Lombardi
+para abajo—, así que las series largas entrenan y suman XP, pero no fijan
+récords ni mueven el nivel de fuerza. Como la rutina es de 10-15 reps, la app
+te pide cada seis semanas **una serie pesada de 5 repeticiones** en los básicos
+sólo para calibrar, y te avisa cuál está vencida.
 
 **Por qué no es un promedio de kilos ni de ratios.** Promediar kilos deja que la
 sentadilla y el peso muerto tapen a todo lo demás. Promediar ratios tampoco
@@ -225,8 +236,10 @@ disciplina en lugar de a la unidad que usa.
 - **Racha** → +2% por día consecutivo, hasta +50%.
 - **Escudos de racha** 🛡 → cada 7 días de racha ganás un escudo (máximo 2). Si un día
   no llegás, se gasta un escudo y la racha sobrevive. Un día malo no borra un mes bueno.
-- **Día perfecto** ⭐ → completar todo lo que tocaba *ese* día suma 50 XP. Un martes
-  son cuatro misiones (datos, pasos, Duolingo y muay thai); un lunes son cinco.
+- **Día perfecto** ⭐ → completar todo lo que tocaba *ese* día suma 50 XP, y
+  llegar al 80% suma 20. Fallar una misión no vale lo mismo que fallar todas:
+  con un lunes de seis misiones, el todo-o-nada invitaba a abandonar el día
+  entero apenas se perdía una.
 - **Récord personal** 🥇 → superar tu 1RM estimado en un ejercicio suma 25 XP.
 - **Logros** 🏆 → 20 medallas con XP propia, desde "Primer paso" hasta "Centurión".
 
@@ -297,8 +310,10 @@ Todo vive **solo en tu dispositivo** (`localStorage` del navegador). No hay serv
 cuenta: nadie más ve tu progreso. La contracara es que si borrás los datos del navegador
 o cambiás de teléfono, se pierde.
 
-Por eso en *Ajustes* hay **Exportar** e **Importar**: bajás un `.json` con todo tu
-historial y lo restaurás donde quieras. Conviene exportar de vez en cuando.
+Por eso en *Ajustes* hay **Exportar** e **Importar**: bajás un `.json` con todo
+tu historial y lo restaurás donde quieras. Y como nadie se acuerda de hacerlo,
+**a los 14 días sin exportar la app te lo reclama** en el tablero y en Ajustes,
+con el aviso puesto donde vas a verlo todos los días.
 
 ## Estructura
 

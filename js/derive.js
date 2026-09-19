@@ -4,7 +4,7 @@
 import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
-  gymVolume, estimatedOneRepMax, streakMultiplier,
+  gymVolume, estimatedOneRepMax, streakMultiplier, esSerieFiable, REPS_CALIBRACION,
 } from './xp.js';
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
 import { bodySummary, bodyFatBand } from './body.js';
@@ -111,6 +111,7 @@ function emptyActivityState(activity) {
     byDate: new Map(),
     records: new Map(),      // ejercicio -> {weight, reps, e1rm, date}
     lastSets: new Map(),     // ejercicio -> últimas series cargadas
+    ultimaCalibracion: new Map(), // ejercicio -> fecha de la última serie pesada
     lastByTemplate: new Map(), // plantilla -> últimos ejercicios de esa rutina
     prCount: 0,
     weekCount: 0,
@@ -244,6 +245,10 @@ export function derive(data, today = todayKey()) {
           for (const set of ex.sets || []) {
             const extra = Number(set.weight) || 0;
             const reps = Number(set.reps) || 0;
+            // Una serie larga entrena, pero no mide: el 1RM que sale de 15
+            // repeticiones es demasiado incierto para fijar un récord.
+            if (!esSerieFiable(reps)) continue;
+            if (reps <= REPS_CALIBRACION) st.ultimaCalibracion.set(name, date);
             const carga = esPesoCorporal ? pesoCorporal + extra : extra;
             const e1rm = estimatedOneRepMax(carga, reps);
             if (e1rm <= 0) continue;
@@ -288,13 +293,20 @@ export function derive(data, today = todayKey()) {
       }
     }
 
+    const ratio = required > 0 ? metCount / required : 0;
     const perfect = required > 0 && metCount === required;
-    if (perfect) {
-      perfectDays += 1;
-      bonusXp += BONUS.perfectDay;
-      dayXp += BONUS.perfectDay;
+    // Fallar una misión no debería valer lo mismo que fallar todas: del 80%
+    // para arriba hay un bonus menor, para que no se abandone el día entero.
+    const almost = !perfect && ratio >= BONUS.almostThreshold;
+    const bonusDia = perfect ? BONUS.perfectDay : (almost ? BONUS.almostPerfect : 0);
+    if (perfect) perfectDays += 1;
+    if (bonusDia > 0) {
+      bonusXp += bonusDia;
+      dayXp += bonusDia;
     }
-    if (dayXp > 0 || perfect) daily.set(date, { date, xp: dayXp, perfect, met: metCount, required });
+    if (dayXp > 0 || perfect) {
+      daily.set(date, { date, xp: dayXp, perfect, almost, met: metCount, required, ratio });
+    }
   }
 
   // ---- Consolidación por actividad ----
@@ -381,6 +393,15 @@ export function derive(data, today = todayKey()) {
   const strength = gimnasio ? strengthProfile(gimnasio.records, pesoCorporal, sexo) : [];
   const strengthOverall = nivelGeneral(strength);
 
+  // Movimientos cuya estimación de fuerza está vencida: hace más de seis
+  // semanas que no hacés una serie pesada que permita medirla con confianza.
+  const DIAS_CALIBRACION = 42;
+  const calibracion = strength.map((s) => {
+    const fecha = gimnasio?.ultimaCalibracion.get(s.exercise.trim().toLowerCase()) || null;
+    return { lift: s.lift, exercise: s.exercise, date: fecha, dias: fecha ? daysBetween(fecha, today) : null };
+  });
+  const calibracionVencida = calibracion.filter((c) => c.date === null || c.dias > DIAS_CALIBRACION);
+
   // El nivel del gimnasio lo da la fuerza lograda, no la cantidad de sesiones.
   if (gimnasio && gimnasio.activity.rankBy === 'strength') {
     gimnasio.strength = strength;
@@ -440,6 +461,8 @@ export function derive(data, today = todayKey()) {
     bodyFat,
     strength,
     strengthOverall,
+    calibracion,
+    calibracionVencida,
     activities,
     byActivity,
     daily,
