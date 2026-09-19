@@ -64,7 +64,8 @@ test('las actividades semanales cuentan semanas, no días', () => {
     }
   }
   const st = derive(build(acts(['muaythai']), entries), HOY).byActivity.get('muaythai');
-  assert.equal(st.weekTarget, 2, 'dos clases por semana');
+  // En marzo de 2026 el objetivo vigente todavía era una clase por semana.
+  assert.equal(st.weekTarget, 1, 'el objetivo es el que regía en esa fecha');
   assert.ok(st.streak >= 2, `esperaba racha semanal, obtuve ${st.streak}`);
 });
 
@@ -297,7 +298,12 @@ test('el muay thai pide 1:30 por sesión', () => {
   const mt = acts(['muaythai'])[0];
   assert.equal(mt.goal, 90);
   const s = derive(build([mt], { [HOY]: { muaythai: { value: 90 } } }), HOY);
-  assert.equal(s.byActivity.get('muaythai').xp, 100);
+  // 100 XP por cumplir la meta, más el bonus de racha semanal.
+  assert.ok(s.byActivity.get('muaythai').xp >= 100);
+  assert.equal(s.byActivity.get('muaythai').total, 90);
+  // Media clase, media XP.
+  const media = derive(build([mt], { [HOY]: { muaythai: { value: 45 } } }), HOY);
+  assert.ok(media.byActivity.get('muaythai').xp < 60);
 });
 
 test('ya no existe el día 4 del gimnasio', () => {

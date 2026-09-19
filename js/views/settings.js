@@ -273,7 +273,7 @@ function doImport() {
 
 function doReset(navigate) {
   const body = el('div', {},
-    el('p', { class: 'hint' }, 'Se borra todo el historial, la XP, los niveles y los logros de este dispositivo. No se puede deshacer. Si no exportaste una copia, hacelo antes.'),
+    el('p', { class: 'hint' }, 'Se borra todo lo que registraste en la app: XP, niveles, rachas y logros de este dispositivo. No se puede deshacer, así que si no exportaste una copia, hacelo antes. El historial previo a la app (las clases de muay thai desde 2025) se vuelve a cargar, porque no depende de lo que hagas acá.'),
     el('div', { class: 'btn-row', style: 'margin-top:16px' },
       el('button', { class: 'btn btn--block', onClick: () => closeSheet() }, 'Mejor no'),
       el('button', { class: 'btn btn--danger', onClick: () => { resetAll(); closeSheet(); location.hash = '#/'; navigate(); toast('🧹', 'Empezás de cero.'); } }, 'Sí, borrar todo')));

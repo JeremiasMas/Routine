@@ -53,6 +53,24 @@ export function goalFor(activity, entry) {
 }
 
 /**
+ * Objetivo semanal vigente en una semana dada. Las metas cambian con el
+ * tiempo, y el pasado se juzga con la que regía entonces.
+ */
+export function weeklyTargetFor(activity, weekStartKey) {
+  const historia = activity.weeklyTargetHistory;
+  if (!historia?.length) return activity.weeklyTarget || 1;
+  let target = activity.weeklyTarget || 1;
+  let mejor = null;
+  for (const tramo of historia) {
+    if (tramo.from <= weekStartKey && (mejor === null || tramo.from >= mejor)) {
+      mejor = tramo.from;
+      target = tramo.target;
+    }
+  }
+  return target;
+}
+
+/**
  * ¿Toca esta actividad este día? Sin `days` se espera todos los días.
  * Los días libres no suman ni rompen rachas: descansar no es fallar.
  */
@@ -127,12 +145,12 @@ export function derive(data, today = todayKey()) {
   const weekStreaks = new Map(); // actId -> {streak, best}
   for (const a of activities) {
     if (a.streakMode !== 'weekly') continue;
-    const target = a.weeklyTarget || 1;
     let streak = 0;
     let best = 0;
     const firstWeek = weekStart(start);
     const currentWeek = weekStart(today);
     for (let w = firstWeek; w <= currentWeek; w = addDays(w, 7)) {
+      const target = weeklyTargetFor(a, w);
       const count = weekly.get(`${a.id}|${w}`) || 0;
       if (count >= target) {
         streak += 1;
@@ -284,6 +302,7 @@ export function derive(data, today = todayKey()) {
       st.streak = w.streak;
       st.bestStreak = w.best;
       st.weekCount = weekly.get(`${a.id}|${weekStart(today)}`) || 0;
+      st.weekTarget = weeklyTargetFor(a, weekStart(today));
     } else {
       st.streak = ss.streak;
       st.shields = ss.shields;

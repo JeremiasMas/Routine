@@ -14,6 +14,7 @@ const ASSETS = [
   './js/xp.js',
   './js/body.js',
   './js/strength.js',
+  './js/seed.js',
   './js/steps-import.js',
   './js/config.js',
   './js/utils.js',

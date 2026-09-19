@@ -2,6 +2,7 @@
 // (subidas de nivel, logros nuevos, día perfecto) para poder celebrarlos.
 import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js';
 import { waterGoalMl } from './body.js';
+import { buildSeedEntries } from './seed.js';
 import { derive } from './derive.js';
 import { todayKey, uid } from './utils.js';
 
@@ -17,7 +18,8 @@ function blankData() {
     createdAt: todayKey(),
     settings: { sound: true, celebrate: true, reduceMotion: false, ...DEFAULT_PROFILE },
     activities: structuredClone(DEFAULT_ACTIVITIES),
-    entries: {},
+    // Lo que ya venías haciendo antes de instalar la app.
+    entries: buildSeedEntries(),
     unlocked: {},
     deviceId: uid(),
   };

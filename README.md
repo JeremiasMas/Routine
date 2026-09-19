@@ -16,7 +16,7 @@ dependencias — se instala en el teléfono y funciona sin conexión.
 | 🇫🇷 Duolingo (francés) | todos los días | 30 XP | proporcional a la XP de Duolingo |
 | 🎹 Piano | lun · vie · sáb · dom | 30 min | proporcional a los minutos |
 | 🏋️ Gimnasio | lun · mié · vie | la rutina del día | series completadas sobre las planificadas |
-| 🥊 Muay Thai | mar · jue | 1h 30 por clase | racha semanal (2 clases) |
+| 🥊 Muay Thai | mar · jue | 1h 30 por clase | racha semanal (2 clases desde sep. 2026, 1 antes) |
 | ✍️ Escritura en Substack | 1 vez por semana | 1 publicación | racha semanal |
 | 📏 Composición corporal | 1 vez por semana | 1 medición | medirte, no el resultado |
 
@@ -115,6 +115,41 @@ día (una por reloj, una por teléfono y una agregada), así que toma **el máxi
 día** en lugar de sumarlas — sumar contaría los pasos dos o tres veces. También acepta
 un CSV común con columnas de fecha y pasos.
 
+### Historial previo a la app 📜
+
+Lo que ya venías haciendo antes de instalarla no arranca en cero. En
+`js/seed.js` el historial anterior se declara por tramos —"tantas veces por
+semana, estos días, desde tal fecha hasta tal otra"— y se expande a registros
+reales en una instalación nueva:
+
+```js
+// Muay Thai: una clase por semana desde agosto de 2025…
+{ activityId: 'muaythai', from: '2025-08-05', to: '2026-09-06', weekdays: [2], value: 90 },
+// …y dos por semana desde principios de septiembre de 2026.
+{ activityId: 'muaythai', from: '2026-09-07', to: '2026-09-18', weekdays: [2, 4], value: 90 },
+```
+
+Son 61 clases y 91 horas y media que llegan como nivel 11, racha de 59 semanas
+y el logro *Nak Muay* ya desbloqueado. Si alguna fecha no coincide, editá el
+tramo: los registros se regeneran solos.
+
+### Metas con vigencia
+
+Los objetivos cambian, y el pasado se juzga con el que regía entonces. El muay
+thai pasó de una clase por semana a dos, así que la actividad lleva
+`weeklyTargetHistory`:
+
+```js
+weeklyTargetHistory: [
+  { from: '2025-08-04', target: 1 },
+  { from: '2026-09-07', target: 2 },
+],
+```
+
+Sin esto, subir la vara hoy convertiría un año entero de constancia en
+cincuenta y seis semanas incumplidas y la racha se caería a dos. Con esto, la
+racha son las 59 semanas que de verdad entrenaste.
+
 ## Cómo funciona la XP
 
 La regla de oro: **cumplir la meta vale 100 XP, sea la actividad que sea.** Así 45
@@ -163,7 +198,7 @@ node tools/make-icons.mjs && python3 -m http.server 8080
 ### Tests
 
 ```bash
-npm test            # 68 tests: XP, rachas, fuerza, composición corporal e importación
+npm test            # 76 tests: XP, rachas, fuerza, cuerpo, historial e importación
 ```
 
 ## Tus datos
@@ -185,6 +220,7 @@ js/
   xp.js                 Matemática pura: XP, niveles, 1RM  (con tests)
   body.js               Grasa corporal, IMC y meta de agua  (con tests)
   strength.js           Fuerza relativa y niveles por ejercicio  (con tests)
+  seed.js               Historial previo a la app  (con tests)
   steps-import.js       Lectura del CSV de Samsung Health  (con tests)
   derive.js             Deriva niveles, rachas y récords del historial (con tests)
   state.js              Persistencia y detección de eventos de juego

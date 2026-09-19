@@ -63,6 +63,12 @@ export const DEFAULT_ACTIVITIES = [
     presets: [60, 75, 90, 120],
     streakMode: 'weekly',
     weeklyTarget: 2,
+    // El objetivo cambió en el tiempo: un año de una clase por semana no debe
+    // figurar como incumplido solo porque hoy la meta sean dos.
+    weeklyTargetHistory: [
+      { from: '2025-08-04', target: 1 },
+      { from: '2026-09-07', target: 2 },
+    ],
     days: [2, 4],        // martes y jueves
     streakUnitLabel: 'semanas',
     motto: 'El arte de las ocho extremidades.',
