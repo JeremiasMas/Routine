@@ -94,6 +94,9 @@ export function formatNumber(n) {
 
 /** Formatea un valor según la unidad de la actividad (min -> 1h 30m). */
 export function formatValue(value, unit) {
+  if (unit === 'ml') {
+    return value >= 1000 ? `${formatNumber(Math.round(value / 100) / 10)} L` : `${formatNumber(value)} ml`;
+  }
   if (unit === 'min' && value >= 60) {
     const h = Math.floor(value / 60);
     const m = Math.round(value % 60);

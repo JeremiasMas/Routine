@@ -19,6 +19,8 @@ const SHIELD_EVERY = 7;     // se gana uno cada 7 días de racha
 export function entryValue(activity, entry) {
   if (!entry) return 0;
   if (activity.kind === 'gym') return completedSets(entry.exercises);
+  // Una medición corporal cuenta como hecha si tiene al menos peso o cintura.
+  if (activity.kind === 'body') return (Number(entry.weight) > 0 || Number(entry.waist) > 0) ? 1 : 0;
   return Number(entry.value) || 0;
 }
 
@@ -69,6 +71,7 @@ function emptyActivityState(activity) {
     total: 0,
     volume: 0,
     activeDays: 0,
+    goalDays: 0,
     best: 0,
     bestDate: null,
     history: [],          // [{date, value, xp, met}]
@@ -172,7 +175,8 @@ export function derive(data, today = todayKey()) {
         st.total += value;
         st.volume += entryVolume(raw);
         st.activeDays += 1;
-        st.history.push({ date, value, xp, met, goal, volume: entryVolume(raw) });
+        if (met) st.goalDays += 1;
+        st.history.push({ date, value, xp, met, goal, volume: entryVolume(raw), entry: raw });
         st.byDate.set(date, { value, xp, met, goal, entry: raw });
         dayXp += xp;
         if (value > st.best) {
@@ -248,6 +252,7 @@ export function derive(data, today = todayKey()) {
   const bests = {};
   const sessions = {};
   const activeDays = {};
+  const goalDays = {};
   const weeklyStreaks = {};
   let personalRecords = 0;
   let bestDailyStreak = 0;
@@ -279,6 +284,7 @@ export function derive(data, today = todayKey()) {
     bests[a.id] = st.best;
     sessions[a.id] = st.activeDays;
     activeDays[a.id] = st.activeDays;
+    goalDays[a.id] = st.goalDays;
     personalRecords += st.prCount;
     minActivityLevel = Math.min(minActivityLevel, st.level.level);
     activityXp += st.xp;
@@ -287,7 +293,7 @@ export function derive(data, today = todayKey()) {
 
   // ---- Logros ----
   const summary = {
-    totals, volumes, bests, sessions, activeDays, weeklyStreaks, perfectDays, personalRecords,
+    totals, volumes, bests, sessions, activeDays, goalDays, weeklyStreaks, perfectDays, personalRecords,
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
   };

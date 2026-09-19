@@ -68,3 +68,61 @@ export function barChart(points, { color = 'var(--accent)', height = 110, labelE
     el('div', { class: 'bars', style: `height:${height}px` }, cols),
     el('div', { class: 'bars__axis' }, axis));
 }
+
+/** Gráfico de línea simple en SVG, para series que suben y bajan poco. */
+export function lineChart(points, { color = 'var(--accent)', height = 120, suffix = '' } = {}) {
+  const values = points.filter((p) => p.value != null);
+  if (values.length < 2) {
+    return el('div', { class: 'empty', text: 'Necesitás al menos dos mediciones para ver la tendencia.' });
+  }
+  const min = Math.min(...values.map((p) => p.value));
+  const max = Math.max(...values.map((p) => p.value));
+  const span = max - min || 1;
+  const pad = span * 0.18;
+  const lo = min - pad;
+  const hi = max + pad;
+  const W = 300;
+  const H = 100;
+  const x = (i) => (i / (values.length - 1)) * W;
+  const y = (v) => H - ((v - lo) / (hi - lo)) * H;
+  const d = values.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const area = `${d} L${W},${H} L0,${H} Z`;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', String(height));
+  svg.setAttribute('aria-hidden', 'true');
+
+  const fill = document.createElementNS(ns, 'path');
+  fill.setAttribute('d', area);
+  fill.setAttribute('fill', color);
+  fill.setAttribute('opacity', '.14');
+
+  const line = document.createElementNS(ns, 'path');
+  line.setAttribute('d', d);
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', color);
+  line.setAttribute('stroke-width', '2');
+  line.setAttribute('stroke-linejoin', 'round');
+  line.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.append(fill, line);
+
+  for (const [i, p] of values.entries()) {
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('cx', x(i));
+    dot.setAttribute('cy', y(p.value));
+    dot.setAttribute('r', '2.5');
+    dot.setAttribute('fill', color);
+    dot.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.append(dot);
+  }
+
+  return el('div', {},
+    svg,
+    el('div', { class: 'bars__axis' },
+      el('span', { style: 'text-align:left', text: `${values[0].label} · ${formatNumber(values[0].value)}${suffix}` }),
+      el('span', { style: 'text-align:right', text: `${values[values.length - 1].label} · ${formatNumber(values[values.length - 1].value)}${suffix}` })));
+}

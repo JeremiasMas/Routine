@@ -238,8 +238,8 @@ test('el día perfecto solo exige lo que ese día toca', () => {
   // Martes: datos, pasos, duolingo y muay thai. Sin piano ni gimnasio.
   const martes = derive(build(todas, {
     [MAR]: {
-      datos: { value: 45 }, pasos: { value: 10000 },
-      duolingo: { value: 30 }, muaythai: { value: 60 },
+      datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 },
+      duolingo: { value: 30 }, muaythai: { value: 90 },
     },
   }), MAR);
   assert.equal(martes.perfectDays, 1, 'el martes no hace falta piano ni gimnasio');
@@ -247,11 +247,11 @@ test('el día perfecto solo exige lo que ese día toca', () => {
   // El mismo registro un lunes NO alcanza: faltan piano y gimnasio.
   const lunes = derive(build(todas, {
     [LUN]: {
-      datos: { value: 45 }, pasos: { value: 10000 },
-      duolingo: { value: 30 }, muaythai: { value: 60 },
+      datos: { value: 45 }, pasos: { value: 10000 }, agua: { value: 2150 },
+      duolingo: { value: 30 }, muaythai: { value: 90 },
     },
   }), LUN);
-  assert.equal(lunes.perfectDays, 0);
+  assert.equal(lunes.perfectDays, 0, 'el lunes faltarían piano y gimnasio');
 });
 
 test('las sesiones planificadas coinciden con la rutina real', () => {
@@ -259,4 +259,48 @@ test('las sesiones planificadas coinciden con la rutina real', () => {
   assert.equal(plannedSets(templateForDay(3)), 42, 'miércoles: 14 ejercicios × 3');
   assert.equal(plannedSets(templateForDay(5)), 27, 'viernes: 9 ejercicios × 3');
   assert.equal(templateForDay(2), null, 'los martes no hay gimnasio');
+});
+
+
+// ---------------------------------------------------------------------------
+// Agua y composición corporal
+// ---------------------------------------------------------------------------
+
+test('el agua cuenta los días que cumpliste la meta', () => {
+  const agua = acts(['agua'])[0];
+  const entries = {};
+  for (const [i, valor] of [2200, 1000, 2150, 2500].entries()) {
+    entries[addDays(HOY, -3 + i)] = { agua: { value: valor } };
+  }
+  const s = derive(build([agua], entries), HOY);
+  assert.equal(s.goalDays.agua, 3, 'tres de los cuatro días llegaron a la meta');
+  assert.equal(s.byActivity.get('agua').total, 7850);
+});
+
+test('una medición corporal cuenta como registro hecho', () => {
+  const cuerpo = acts(['cuerpo'])[0];
+  const s = derive(build([cuerpo], {
+    [HOY]: { cuerpo: { weight: 61.5, waist: 85, neck: 38 } },
+  }), HOY);
+  const st = s.byActivity.get('cuerpo');
+  assert.equal(st.total, 1);
+  assert.ok(st.xp >= 100, `medirte una vez por semana vale la meta completa (${st.xp} XP con el bonus de racha)`);
+});
+
+test('una medición vacía no cuenta', () => {
+  const cuerpo = acts(['cuerpo'])[0];
+  const s = derive(build([cuerpo], { [HOY]: { cuerpo: { note: 'me olvidé la cinta' } } }), HOY);
+  assert.equal(s.byActivity.get('cuerpo').xp, 0);
+});
+
+test('el muay thai pide 1:30 por sesión', () => {
+  const mt = acts(['muaythai'])[0];
+  assert.equal(mt.goal, 90);
+  const s = derive(build([mt], { [HOY]: { muaythai: { value: 90 } } }), HOY);
+  assert.equal(s.byActivity.get('muaythai').xp, 100);
+});
+
+test('ya no existe el día 4 del gimnasio', () => {
+  assert.equal(GYM_TEMPLATES.length, 3);
+  assert.ok(!GYM_TEMPLATES.some((t) => t.id === 'dia-4'));
 });

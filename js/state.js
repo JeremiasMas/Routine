@@ -1,6 +1,7 @@
 // Persistencia en localStorage + detección de eventos de juego
 // (subidas de nivel, logros nuevos, día perfecto) para poder celebrarlos.
-import { DEFAULT_ACTIVITIES, SCHEMA_VERSION } from './config.js';
+import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js';
+import { waterGoalMl } from './body.js';
 import { derive } from './derive.js';
 import { todayKey, uid } from './utils.js';
 
@@ -14,7 +15,7 @@ function blankData() {
   return {
     version: SCHEMA_VERSION,
     createdAt: todayKey(),
-    settings: { sound: true, celebrate: true, reduceMotion: false },
+    settings: { sound: true, celebrate: true, reduceMotion: false, ...DEFAULT_PROFILE },
     activities: structuredClone(DEFAULT_ACTIVITIES),
     entries: {},
     unlocked: {},
@@ -36,7 +37,26 @@ function migrate(raw) {
     if (!next.activities.some((a) => a.id === def.id)) next.activities.push(structuredClone(def));
   }
   next.version = SCHEMA_VERSION;
+  syncDerivedGoals(next);
   return next;
+}
+
+/**
+ * Metas que no se escriben a mano: la de agua sale de tu último peso
+ * (35 ml por kilo), así se actualiza sola cada vez que te medís.
+ */
+function syncDerivedGoals(d) {
+  const agua = d.activities.find((a) => a.autoGoal === 'water');
+  if (!agua) return;
+  let peso = Number(d.settings?.weight) || 0;
+  for (const date of Object.keys(d.entries || {}).sort()) {
+    const w = Number(d.entries[date]?.cuerpo?.weight) || 0;
+    if (w > 0) peso = w;
+  }
+  if (peso > 0) {
+    agua.goal = waterGoalMl(peso);
+    d.settings.weight = peso;
+  }
 }
 
 export function load() {
@@ -93,6 +113,7 @@ export function mutate(fn) {
   const before = snapshot(getState());
   const beforePerfect = getState().perfectDays;
   fn(getData());
+  syncDerivedGoals(getData());
   cache = derive(getData());
   const after = getState();
 
@@ -133,6 +154,19 @@ export function setEntry(dateKey, activityId, entry) {
 
 export function getEntry(dateKey, activityId) {
   return getData().entries?.[dateKey]?.[activityId] || null;
+}
+
+/**
+ * Carga muchos días de una vez (importación de pasos) en una sola operación,
+ * para no recalcular ni celebrar día por día.
+ */
+export function bulkSetEntries(activityId, days) {
+  return mutate((d) => {
+    for (const { date, value, ...resto } of days) {
+      if (!d.entries[date]) d.entries[date] = {};
+      d.entries[date][activityId] = { value, ...resto, importedAt: new Date().toISOString() };
+    }
+  });
 }
 
 export function updateActivity(id, patch) {

@@ -1,7 +1,9 @@
 // Hojas de registro: número simple, sesión de gimnasio y publicación semanal.
 import { el, formatValue, formatNumber, relativeDay, uid, keyToDate } from '../utils.js';
 import { openSheet } from './sheet.js';
-import { getEntry, setEntry, getState } from '../state.js';
+import { chip, stat } from './components.js';
+import { getEntry, setEntry, getState, getData } from '../state.js';
+import { bodySummary, bodyDelta, waterGoalMl } from '../body.js';
 import { previewXp, completedSets, goalFor } from '../derive.js';
 import { gymVolume, estimatedOneRepMax } from '../xp.js';
 import {
@@ -13,6 +15,7 @@ import {
 export function openLogger(activity, dateKey, onSaved) {
   const title = `${activity.icon} ${activity.name} · ${relativeDay(dateKey)}`;
   if (activity.kind === 'gym') return openSheet(title, gymForm(activity, dateKey, onSaved));
+  if (activity.kind === 'body') return openSheet(title, bodyForm(activity, dateKey, onSaved));
   return openSheet(title, numberForm(activity, dateKey, onSaved));
 }
 
@@ -287,6 +290,114 @@ function gymForm(activity, dateKey, onSaved) {
     }, '+ Ejercicio'),
     summary,
     ctrl.node);
+}
+
+/** ---------- Composición corporal: peso y circunferencias ---------- */
+function bodyForm(activity, dateKey, onSaved) {
+  const existing = getEntry(dateKey, activity.id);
+  const state = getState();
+  const perfil = getData().settings;
+  const formula = perfil.bodyFormula || '3';
+
+  // La medición anterior sirve de punto de partida y de comparación.
+  const historial = state.byActivity.get(activity.id)?.history || [];
+  const anteriores = historial.filter((h) => h.date < dateKey);
+  const previa = anteriores.length ? anteriores[anteriores.length - 1].entry : null;
+  const base = existing || previa || {};
+
+  const campos = {};
+  const campo = (key, label, sufijo, paso = '0.1') => {
+    const input = el('input', {
+      type: 'number', inputmode: 'decimal', min: '0', step: paso,
+      value: existing?.[key] ?? '', placeholder: base?.[key] ? String(base[key]) : sufijo,
+      'aria-label': `${label} en ${sufijo}`,
+    });
+    input.addEventListener('input', update);
+    campos[key] = input;
+    return el('div', { class: 'field' }, el('label', { text: `${label} (${sufijo})` }), input);
+  };
+
+  const num = (key) => {
+    const v = Number(campos[key]?.value);
+    return v > 0 ? v : (Number(base?.[key]) || 0);
+  };
+
+  const panel = el('div', { class: 'card', style: 'margin-top:4px' });
+  const nota = el('textarea', { rows: '2', placeholder: 'Nota (opcional)' });
+  if (existing?.note) nota.value = existing.note;
+
+  function medicion() {
+    return {
+      weight: num('weight'),
+      waist: num('waist'),
+      neck: num('neck'),
+      hip: formula === '4' ? num('hip') : undefined,
+      height: Number(perfil.height) || 0,
+    };
+  }
+
+  const ctrl = footer(activity, dateKey,
+    () => {
+      const m = medicion();
+      if (!(m.weight > 0 || m.waist > 0)) return null;
+      return { ...m, note: nota.value.trim() || undefined };
+    },
+    () => ((num('weight') > 0 || num('waist') > 0) ? 1 : 0),
+    onSaved, existing);
+
+  function update() {
+    const actual = bodySummary(medicion(), perfil);
+    const anterior = previa ? bodySummary(previa, perfil) : null;
+    const delta = bodyDelta(actual, anterior);
+    panel.innerHTML = '';
+
+    if (actual.fatPct == null && !actual.weight) {
+      panel.append(el('p', { class: 'hint', text: 'Cargá al menos el peso y la cintura para ver el cálculo.' }));
+    } else {
+      panel.append(el('div', { class: 'stat-grid' },
+        stat(actual.fatPct != null ? `${formatNumber(actual.fatPct)}%` : '—', 'Grasa corporal'),
+        stat(actual.mass ? `${formatNumber(actual.mass.lean)} kg` : '—', 'Masa magra'),
+        stat(actual.mass ? `${formatNumber(actual.mass.fat)} kg` : '—', 'Grasa'),
+        stat(actual.bmi != null ? formatNumber(actual.bmi) : '—', 'IMC')));
+
+      if (delta && (delta.fatPct || delta.weight || delta.waist)) {
+        const flecha = (v, unidad, invertir = true) => {
+          if (v == null || v === 0) return null;
+          const baja = v < 0;
+          const color = (baja === invertir) ? 'var(--ok)' : 'var(--muted)';
+          return chip(`${baja ? '▼' : '▲'} ${formatNumber(Math.abs(v))} ${unidad}`, '', `color:${color}`);
+        };
+        panel.append(el('div', { class: 'quest__meta', style: 'margin-top:10px' },
+          el('span', { class: 'row__sub', text: 'vs. la anterior:' }),
+          flecha(delta.fatPct, '% grasa'),
+          flecha(delta.weight, 'kg'),
+          flecha(delta.waist, 'cm cintura'),
+          delta.lean ? chip(`${delta.lean > 0 ? '▲' : '▼'} ${formatNumber(Math.abs(delta.lean))} kg magra`, '', `color:${delta.lean > 0 ? 'var(--ok)' : 'var(--muted)'}`) : null));
+      }
+
+      if (actual.weight > 0) {
+        const metaAgua = waterGoalMl(actual.weight);
+        panel.append(el('p', { class: 'hint', style: 'margin-top:10px' },
+          `Con ${formatNumber(actual.weight)} kg tu meta de agua pasa a ser ${formatValue(metaAgua, 'ml')} por día.`));
+      }
+    }
+    ctrl.update();
+  }
+
+  const form = el('div', { class: 'logger' },
+    el('p', { class: 'hint' },
+      `Medite siempre en las mismas condiciones (a la mañana, en ayunas) para que la comparación sirva. ` +
+      `Estatura: ${formatNumber(perfil.height)} cm — se cambia en Ajustes.`),
+    el('div', { class: 'field-row' }, campo('weight', 'Peso', 'kg'), campo('waist', 'Cintura', 'cm')),
+    formula === '4'
+      ? el('div', { class: 'field-row' }, campo('neck', 'Cuello', 'cm'), campo('hip', 'Cadera', 'cm'))
+      : campo('neck', 'Cuello', 'cm'),
+    panel,
+    el('div', { class: 'field' }, el('label', { text: 'Nota' }), nota),
+    ctrl.node);
+
+  update();
+  return form;
 }
 
 export { estimatedOneRepMax };

@@ -1,9 +1,12 @@
 // Ajustes: metas, actividades, copia de seguridad.
-import { el, formatValue, weekdayShort, scheduleLabel } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel } from '../utils.js';
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
-  removeActivity, exportData, importData, resetAll,
+  removeActivity, exportData, importData, resetAll, bulkSetEntries,
 } from '../state.js';
+import { parseStepsCsv, diffSteps } from '../steps-import.js';
+import { waterGoalMl } from '../body.js';
+import { stat } from '../ui/components.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { toast } from '../ui/feedback.js';
 
@@ -27,6 +30,40 @@ export function render({ navigate }) {
 
   root.append(el('div', { style: 'margin-top:10px' },
     el('button', { class: 'btn btn--block', onClick: () => editActivity(null, navigate) }, '+ Agregar actividad')));
+
+  // --- Perfil corporal ---
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Tu cuerpo' }), el('small', { text: 'alimenta los cálculos' })));
+  const estatura = el('input', { type: 'number', min: '100', max: '230', step: '0.5', value: String(data.settings.height || 160) });
+  const formula = el('select', {},
+    el('option', { value: '3', selected: (data.settings.bodyFormula || '3') === '3' }, 'Cintura, cuello y estatura'),
+    el('option', { value: '4', selected: data.settings.bodyFormula === '4' }, 'Cintura, cuello, cadera y estatura'));
+  const guardarPerfil = () => {
+    updateSettings({ height: Math.max(100, Number(estatura.value) || 160), bodyFormula: formula.value });
+    navigate();
+    toast('✅', 'Perfil actualizado.');
+  };
+  estatura.addEventListener('change', guardarPerfil);
+  formula.addEventListener('change', guardarPerfil);
+  root.append(el('div', { class: 'card' },
+    el('div', { class: 'field' }, el('label', { text: 'Estatura (cm)' }), estatura),
+    el('div', { class: 'field' }, el('label', { text: 'Fórmula de grasa corporal' }), formula),
+    el('p', { class: 'hint' },
+      `Método de circunferencias de la Marina de EE.UU. La versión de 3 medidas es la que se usa para hombres; la de 4, que suma la cadera, para mujeres. ` +
+      `Con tu último peso (${formatNumber(data.settings.weight || 61.5)} kg) la meta de agua es ${formatValue(waterGoalMl(data.settings.weight || 61.5), 'ml')} por día y se actualiza sola cada vez que te medís.`)));
+
+  // --- Pasos desde Samsung Health ---
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Pasos' }), el('small', { text: 'Samsung Health' })));
+  root.append(el('div', { class: 'card' },
+    el('p', { class: 'hint' },
+      'Samsung Health no tiene una conexión en vivo para aplicaciones web: su SDK es solo para apps Android del programa de socios, y Health Connect no se puede leer desde el navegador. Lo que sí funciona es traer los datos de su exportación oficial, que podés repetir cuando quieras.'),
+    el('ol', { class: 'hint', style: 'margin:10px 0 0;padding-left:18px;line-height:1.7' },
+      el('li', {}, 'Samsung Health → ⚙ Ajustes → ', el('b', {}, 'Descargar datos personales'), '.'),
+      el('li', {}, 'Descomprimí el ZIP que te llega.'),
+      el('li', {}, 'Elegí acá el archivo ', el('code', {}, 'com.samsung.shealth.step_daily_trend….csv'), '.')),
+    el('div', { class: 'btn-row', style: 'margin-top:12px' },
+      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos de un CSV'))));
 
   // --- Preferencias ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Preferencias' })));
@@ -130,6 +167,70 @@ function editActivity(activity, navigate) {
   }
 
   openSheet(isNew ? 'Nueva actividad' : `Editar ${a.name}`, body);
+}
+
+/** Importa pasos de uno o más CSV, mostrando antes qué va a cambiar. */
+function importarPasos(navigate) {
+  const input = el('input', { type: 'file', accept: '.csv,text/csv', multiple: true });
+  input.addEventListener('change', async () => {
+    const archivos = [...(input.files || [])];
+    if (!archivos.length) return;
+
+    const porDia = new Map();
+    const errores = [];
+    let descartadas = 0;
+    for (const archivo of archivos) {
+      try {
+        const r = parseStepsCsv(await archivo.text());
+        if (r.error) { errores.push(`${archivo.name}: ${r.error}`); continue; }
+        descartadas += r.skipped;
+        for (const { date, steps } of r.days) porDia.set(date, Math.max(porDia.get(date) || 0, steps));
+      } catch (err) {
+        errores.push(`${archivo.name}: ${err.message}`);
+      }
+    }
+
+    const dias = [...porDia.entries()].map(([date, steps]) => ({ date, steps }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (!dias.length) {
+      openSheet('No se pudo importar', el('div', {},
+        el('p', { class: 'hint' }, errores.join(' · ') || 'No encontré días con pasos en esos archivos.'),
+        el('button', { class: 'btn btn--block', style: 'margin-top:14px', onClick: closeSheet }, 'Entendido')));
+      return;
+    }
+
+    const cambios = diffSteps(dias, getData().entries);
+    const muestra = dias.length > 6 ? [...dias.slice(0, 3), null, ...dias.slice(-3)] : dias;
+    openSheet('Revisá antes de importar', el('div', {},
+      el('div', { class: 'stat-grid' },
+        stat(cambios.total, 'Días'),
+        stat(cambios.nuevos, 'Nuevos'),
+        stat(cambios.cambiados, 'Se pisan'),
+        stat(cambios.iguales, 'Ya estaban')),
+      el('div', { class: 'section-title' },
+        el('h2', { text: 'Qué se va a cargar' }),
+        el('small', { text: `${shortDate(dias[0].date)} – ${shortDate(dias[dias.length - 1].date)}` })),
+      el('div', { class: 'list' }, muestra.map((d) => d === null
+        ? el('div', { class: 'row', style: 'justify-content:center;color:var(--muted)' }, '⋯')
+        : el('div', { class: 'row' },
+            el('div', { class: 'row__main', text: shortDate(d.date) }),
+            el('div', { class: 'row__value', text: formatNumber(d.steps) })))),
+      descartadas ? el('p', { class: 'hint', style: 'margin-top:10px', text: `Se descartaron ${descartadas} filas que no tenían fecha o número de pasos válidos.` }) : null,
+      errores.length ? el('p', { class: 'hint', style: 'margin-top:10px;color:var(--danger)', text: errores.join(' · ') }) : null,
+      cambios.cambiados
+        ? el('p', { class: 'hint', style: 'margin-top:10px' }, `Ojo: ${cambios.cambiados} ${cambios.cambiados === 1 ? 'día ya tenía' : 'días ya tenían'} pasos cargados a mano y se van a reemplazar por los de Samsung Health.`)
+        : null,
+      el('div', { class: 'btn-row', style: 'margin-top:16px' },
+        el('button', { class: 'btn btn--primary btn--block', style: '--c:#34d399',
+          onClick: () => {
+            bulkSetEntries('pasos', dias.map((d) => ({ date: d.date, value: d.steps, source: 'samsung-health' })));
+            closeSheet();
+            navigate();
+            toast('👟', `<b>${cambios.total} días</b> de pasos importados.`, 4000);
+          } }, `Importar ${cambios.total} días`),
+        el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'))));
+  });
+  input.click();
 }
 
 function doExport() {

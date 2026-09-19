@@ -58,9 +58,9 @@ export const DEFAULT_ACTIVITIES = [
     color: '#f59e0b',
     kind: 'number',
     unit: 'min',
-    goal: 60,
+    goal: 90,
     step: 15,
-    presets: [30, 45, 60, 90],
+    presets: [60, 75, 90, 120],
     streakMode: 'weekly',
     weeklyTarget: 2,
     days: [2, 4],        // martes y jueves
@@ -92,6 +92,34 @@ export const DEFAULT_ACTIVITIES = [
     presets: [10, 20, 30, 50],
     streakMode: 'daily',
     motto: 'Petit à petit, l’oiseau fait son nid.',
+  },
+  {
+    id: 'agua',
+    name: 'Agua',
+    icon: '💧',
+    color: '#22d3ee',
+    kind: 'number',
+    unit: 'ml',
+    goal: 2150,          // 35 ml/kg; se recalcula solo con tu último peso
+    step: 250,
+    presets: [250, 500, 750, 1000],
+    streakMode: 'daily',
+    autoGoal: 'water',   // la meta la deriva el peso, no se toca a mano
+    motto: 'La hidratación es la mitad del rendimiento.',
+  },
+  {
+    id: 'cuerpo',
+    name: 'Composición corporal',
+    icon: '📏',
+    color: '#f472b6',
+    kind: 'body',
+    unit: 'mediciones',
+    goal: 1,
+    step: 1,
+    streakMode: 'weekly',
+    weeklyTarget: 1,
+    streakUnitLabel: 'semanas',
+    motto: 'Lo que se mide, se puede mejorar.',
   },
   {
     id: 'substack',
@@ -175,14 +203,6 @@ export const GYM_TEMPLATES = [
       { name: 'Elevaciones de talón' },
     ],
   },
-  {
-    id: 'dia-4',
-    day: 6,
-    name: 'Día 4 complementario',
-    short: 'Día 4',
-    optional: true,
-    exercises: [], // lo armás vos: se agregan ejercicios a mano y quedan guardados
-  },
 ];
 
 /** Series y repeticiones por defecto de cada ejercicio de la rutina. */
@@ -203,6 +223,16 @@ export function plannedSets(template) {
   if (!template || !template.exercises.length) return 0;
   return template.exercises.reduce((n, ex) => n + (ex.sets || DEFAULT_SETS), 0);
 }
+
+/**
+ * Datos personales que alimentan los cálculos: la estatura no cambia, el peso
+ * sale de la última medición y la fórmula elige entre las dos versiones del
+ * método de la Marina (la de 3 medidas o la de 4, que suma la cadera).
+ */
+export const DEFAULT_PROFILE = {
+  height: 160,
+  bodyFormula: '3',
+};
 
 /** Rangos por nivel de actividad. */
 export const TIERS = [
@@ -300,6 +330,12 @@ export const ACHIEVEMENTS = [
   { id: 'all-lvl-5', name: 'Polifacético', icon: '🎯', xp: 300, target: 1,
     desc: 'Llevá todas tus actividades a nivel 5.',
     progress: (s) => (s.minActivityLevel >= 5 ? 1 : 0) },
+  { id: 'water-30', name: 'Bien hidratado', icon: '💧', xp: 150, target: 30,
+    desc: '30 días cumpliendo la meta de agua.',
+    progress: (s) => s.goalDays.agua || 0 },
+  { id: 'body-8', name: 'Bajo control', icon: '📏', xp: 150, target: 8,
+    desc: '8 mediciones de composición corporal.',
+    progress: (s) => s.sessions.cuerpo || 0 },
   { id: 'player-10', name: 'Doble dígito', icon: '🏆', xp: 200, target: 10,
     desc: 'Alcanzá el nivel 10 de jugador.',
     progress: (s) => s.playerLevel },

@@ -1,9 +1,11 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
 import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural, scheduleLabel } from '../utils.js';
 import { getState } from '../state.js';
-import { ring, chip, xpBar, stat, barChart } from '../ui/components.js';
+import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
 import { xpToNextLevel } from '../xp.js';
+import { bodySummary, bodyDelta } from '../body.js';
+import { getData } from '../state.js';
 
 export function render({ params, navigate, celebrate }) {
   const state = getState();
@@ -42,6 +44,11 @@ export function render({ params, navigate, celebrate }) {
     el('button', { class: 'btn btn--primary btn--block', style: `--c:${a.color}`,
       onClick: () => openLogger(a, state.today, (events) => { celebrate(events); navigate(); }) },
       `Registrar ${relativeDay(state.today).toLowerCase()}`)));
+
+  if (a.kind === 'body') {
+    root.append(bodySection(st));
+    return root;
+  }
 
   // --- Números ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Tus números' })));
@@ -112,5 +119,78 @@ export function render({ params, navigate, celebrate }) {
   root.append(el('p', { class: 'hint', style: 'margin-top:14px' },
     `Cada nivel de ${a.name} cuesta más que el anterior: el próximo pide ${formatNumber(xpToNextLevel(st.level.level))} XP.`));
 
+  return root;
+}
+
+/** Composición corporal: tendencia de grasa, peso y medidas. */
+function bodySection(st) {
+  const perfil = getData().settings;
+  const mediciones = st.history
+    .map((h) => ({ date: h.date, ...bodySummary(h.entry, perfil) }))
+    .filter((m) => m.weight > 0 || m.fatPct != null);
+  const root = el('div', {});
+
+  if (!mediciones.length) {
+    root.append(el('div', { class: 'empty' },
+      'Todavía no te mediste. Necesitás una cinta métrica y dos minutos: peso, cintura y cuello.'));
+    return root;
+  }
+
+  const ultima = mediciones[mediciones.length - 1];
+  const previa = mediciones.length > 1 ? mediciones[mediciones.length - 2] : null;
+  const delta = bodyDelta(ultima, previa);
+
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Última medición' }), el('small', { text: relativeDay(ultima.date) })));
+  root.append(el('div', { class: 'stat-grid' },
+    stat(ultima.fatPct != null ? `${formatNumber(ultima.fatPct)}%` : '—', 'Grasa corporal'),
+    stat(`${formatNumber(ultima.weight)} kg`, 'Peso'),
+    stat(ultima.mass ? `${formatNumber(ultima.mass.lean)} kg` : '—', 'Masa magra'),
+    stat(ultima.bmi != null ? formatNumber(ultima.bmi) : '—', 'IMC')));
+
+  if (delta) {
+    const fila = (label, valor, unidad, mejorBajando = true) => {
+      if (valor == null || valor === 0) return null;
+      const baja = valor < 0;
+      const bien = baja === mejorBajando;
+      return el('div', { class: 'row' },
+        el('div', { class: 'row__main', text: label }),
+        el('div', { class: 'row__value', style: `color:${bien ? 'var(--ok)' : 'var(--muted)'}` },
+          `${baja ? '▼' : '▲'} ${formatNumber(Math.abs(valor))} ${unidad}`));
+    };
+    const filas = [
+      fila('Grasa corporal', delta.fatPct, '%'),
+      fila('Peso', delta.weight, 'kg'),
+      fila('Cintura', delta.waist, 'cm'),
+      fila('Masa magra', delta.lean, 'kg', false),
+    ].filter(Boolean);
+    if (filas.length) {
+      root.append(el('div', { class: 'section-title' },
+        el('h2', { text: 'Desde la anterior' }), el('small', { text: relativeDay(previa.date) })));
+      root.append(el('div', { class: 'list' }, filas));
+    }
+  }
+
+  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Grasa corporal' })));
+  root.append(el('div', { class: 'card' },
+    lineChart(mediciones.map((m) => ({ label: shortDate(m.date), value: m.fatPct })),
+      { color: '#f472b6', suffix: '%' })));
+
+  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Peso' })));
+  root.append(el('div', { class: 'card' },
+    lineChart(mediciones.map((m) => ({ label: shortDate(m.date), value: m.weight || null })),
+      { color: '#7dd3fc', suffix: ' kg' })));
+
+  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Historial de medidas' })));
+  root.append(el('div', { class: 'list' }, [...mediciones].reverse().map((m) => el('div', { class: 'row' },
+    el('div', { class: 'row__main' },
+      el('div', { text: relativeDay(m.date) }),
+      el('div', { class: 'row__sub', text: `cintura ${formatNumber(m.waist)} · cuello ${formatNumber(m.neck)}${m.hip ? ` · cadera ${formatNumber(m.hip)}` : ''} cm` })),
+    el('div', { style: 'text-align:right' },
+      el('div', { class: 'row__value', text: m.fatPct != null ? `${formatNumber(m.fatPct)}%` : '—' }),
+      el('div', { class: 'row__sub', text: `${formatNumber(m.weight)} kg` }))))));
+
+  root.append(el('p', { class: 'hint', style: 'margin-top:14px' },
+    'El porcentaje sale del método de circunferencias de la Marina de EE.UU. Tiene un margen de error de ±3 puntos, así que lo que importa es la tendencia, no el número exacto de una medición suelta.'));
   return root;
 }
