@@ -293,8 +293,10 @@ node tools/make-icons.mjs && python3 -m http.server 8080
 ### Instalarla en el teléfono
 
 1. Publicala en **GitHub Pages**: en el repositorio, *Settings → Pages → Source:
-   GitHub Actions*. El workflow incluido (`.github/workflows/pages.yml`) la despliega
-   en cada push a `main`.
+   **GitHub Actions***. Es un clic, una sola vez, y hay que hacerlo a mano: el
+   token de Actions no tiene permiso para crear el sitio por su cuenta. Después
+   de eso, el workflow incluido (`.github/workflows/pages.yml`) la despliega en
+   cada push a `main`.
 2. Abrí la URL en el teléfono → menú del navegador → **"Agregar a pantalla de inicio"**.
 3. Queda como una app: pantalla completa, ícono propio y funciona sin señal.
 

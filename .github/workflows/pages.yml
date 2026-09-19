@@ -28,11 +28,10 @@ jobs:
           node-version: '22'
       - name: Generar los íconos PNG del manifest
         run: npm run icons
+      # Requiere haber activado Pages una vez en Settings → Pages → Source:
+      # "GitHub Actions". El token de Actions no puede crear el sitio solo
+      # (la API de creación pide permisos de admin que GITHUB_TOKEN no tiene).
       - uses: actions/configure-pages@v5
-        with:
-          # Crea el sitio de Pages si todavía no existe, en vez de fallar
-          # pidiendo que alguien lo habilite a mano en Settings.
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
