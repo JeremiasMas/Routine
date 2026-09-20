@@ -112,6 +112,10 @@ function emptyActivityState(activity) {
     records: new Map(),      // ejercicio -> {weight, reps, e1rm, date}
     lastSets: new Map(),     // ejercicio -> últimas series cargadas
     ultimaCalibracion: new Map(), // ejercicio -> fecha de la última serie pesada
+    maxGap: 0,           // el hueco más largo que después retomaste
+    shieldSaveBest: 0,   // la racha más larga que un escudo salvó
+    noShieldStreak: 0,   // la racha más larga lograda sin gastar escudos
+    sourceTotals: {},    // por fuente, en las actividades múltiples
     lastByTemplate: new Map(), // plantilla -> últimos ejercicios de esa rutina
     prCount: 0,
     weekCount: 0,
@@ -230,6 +234,15 @@ export function derive(data, today = todayKey()) {
           st.valueToday = value;
           st.xpToday = xp;
         }
+        // Hueco entre este registro y el anterior: sólo cuenta si volviste.
+        if (st.ultimoActivo) {
+          st.maxGap = Math.max(st.maxGap, daysBetween(st.ultimoActivo, date) - 1);
+        }
+        st.ultimoActivo = date;
+        // Cuánto aportó cada fuente (lecciones de Duolingo, episodios del podcast).
+        for (const [fuente, cantidad] of Object.entries(raw?.sources || {})) {
+          st.sourceTotals[fuente] = (st.sourceTotals[fuente] || 0) + (Number(cantidad) || 0);
+        }
       }
 
       // Récords personales del gimnasio (en orden cronológico).
@@ -278,11 +291,19 @@ export function derive(data, today = todayKey()) {
         if (met) {
           // Cumplir en un día libre también suma: hacer de más nunca penaliza.
           ss.streak += 1;
+          ss.limpia = (ss.limpia || 0) + 1;
           if (ss.streak % SHIELD_EVERY === 0) ss.shields = Math.min(MAX_SHIELDS, ss.shields + 1);
           st.bestStreak = Math.max(st.bestStreak, ss.streak);
+          st.noShieldStreak = Math.max(st.noShieldStreak, ss.limpia);
         } else if (date < today && scheduled) {
-          if (ss.shields > 0) ss.shields -= 1; // la racha sobrevive
-          else ss.streak = 0;
+          if (ss.shields > 0) {
+            ss.shields -= 1;                 // la racha sobrevive
+            st.shieldSaveBest = Math.max(st.shieldSaveBest, ss.streak);
+            ss.limpia = 0;                   // pero deja de ser una racha "limpia"
+          } else {
+            ss.streak = 0;
+            ss.limpia = 0;
+          }
         }
       }
 
@@ -366,6 +387,78 @@ export function derive(data, today = todayKey()) {
   }
   if (!Number.isFinite(minActivityLevel)) minActivityLevel = 0;
 
+  // ---- Combinaciones del mismo día y constancia fina ----
+  const valorDe = (fecha, id) => byActivity.get(id)?.byDate.get(fecha);
+  const combos = { dobleSesion: 0, cuerpoYMente: 0, diaCompleto: 0, domingoProductivo: 0 };
+  let sinFaltarBest = 0;
+  let sinFaltarActual = 0;
+
+  for (let i = 0; i <= span; i++) {
+    const date = addDays(start, i);
+    const dow = keyToDate(date).getDay();
+    const dia = daily.get(date);
+
+    // Días densos: hacer varias cosas el mismo día no valía nada extra.
+    if (valorDe(date, 'gym')?.value > 0 && valorDe(date, 'muaythai')?.value > 0) combos.dobleSesion += 1;
+    if (valorDe(date, 'datos')?.met && valorDe(date, 'gym')?.value > 0 && valorDe(date, 'pasos')?.met) {
+      combos.cuerpoYMente += 1;
+    }
+    if (dow === 1 && dia?.perfect) combos.diaCompleto += 1;
+    if (dow === 0 && valorDe(date, 'piano')?.value > 0
+        && valorDe(date, 'substack')?.value > 0 && valorDe(date, 'pasos')?.met) {
+      combos.domingoProductivo += 1;
+    }
+
+    // Días seguidos sin ninguno en cero.
+    if (dia && dia.xp > 0) {
+      sinFaltarActual += 1;
+      sinFaltarBest = Math.max(sinFaltarBest, sinFaltarActual);
+    } else if (date < today) sinFaltarActual = 0;
+  }
+
+  // Semanas enteras cumpliendo la meta de pasos los siete días.
+  let relojSuizo = 0;
+  let relojActual = 0;
+  const pasosSt = byActivity.get('pasos');
+  if (pasosSt) {
+    for (let w = weekStart(start); w <= weekStart(today); w = addDays(w, 7)) {
+      if (addDays(w, 6) > today) break;   // la semana en curso todavía no cuenta
+      let completa = true;
+      for (let d = 0; d < 7 && completa; d++) completa = Boolean(pasosSt.byDate.get(addDays(w, d))?.met);
+      relojActual = completa ? relojActual + 1 : 0;
+      relojSuizo = Math.max(relojSuizo, relojActual);
+    }
+  }
+
+  // Un mes peor y el siguiente mejor: recuperarse también es un logro.
+  const porMes = new Map();
+  for (const [fecha, info] of daily) {
+    const mes = fecha.slice(0, 7);
+    const m = porMes.get(mes) || { xp: 0, dias: 0 };
+    m.xp += info.xp;
+    m.dias += 1;
+    porMes.set(mes, m);
+  }
+  const meses = [...porMes.entries()].sort().map(([, m]) => m.xp / Math.max(1, m.dias));
+  let remontadas = 0;
+  for (let i = 2; i < meses.length; i++) {
+    if (meses[i - 1] < meses[i - 2] && meses[i] > meses[i - 1]) remontadas += 1;
+  }
+
+  // Reparto de la XP del último mes: una sola actividad no debería taparlo todo.
+  const desde30 = addDays(today, -30);
+  let xpMes = 0;
+  let xpMesMayor = 0;
+  for (const st of byActivity.values()) {
+    const suya = st.history.filter((h) => h.date >= desde30).reduce((n, h) => n + h.xp, 0);
+    xpMes += suya;
+    xpMesMayor = Math.max(xpMesMayor, suya);
+  }
+  const concentracionMes = xpMes > 0 ? xpMesMayor / xpMes : 1;
+
+  const primerDia = dates.length ? dates[0] : today;
+  const diasDesdeElPrimero = daysBetween(primerDia, today);
+
   // ---- Composición corporal: el rango lo da el porcentaje medido ----
   const sexoPerfil = data.settings?.bodyFormula === '4' ? 'f' : 'm';
   let bodyFat = null;
@@ -431,6 +524,12 @@ export function derive(data, today = todayKey()) {
     totals, volumes, bests, sessions, activeDays, goalDays, weeklyStreaks, perfectDays, personalRecords,
     strengthRatios, strengthIntermediates, bodyFat,
     strengthBand: strengthOverall?.index || 0,
+    combos, relojSuizo, remontadas, sinFaltar: sinFaltarBest, diasDesdeElPrimero,
+    concentracionMes, xpMes,
+    maxGap: Math.max(0, ...[...byActivity.values()].map((st) => st.maxGap)),
+    shieldSaveBest: Math.max(0, ...[...byActivity.values()].map((st) => st.shieldSaveBest)),
+    noShieldStreak: Math.max(0, ...[...byActivity.values()].map((st) => st.noShieldStreak)),
+    sourceTotals: Object.fromEntries([...byActivity].map(([id, st]) => [id, st.sourceTotals])),
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
   };
