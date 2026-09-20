@@ -23,11 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Generar los íconos PNG del manifest
-        run: npm run icons
       # Requiere haber activado Pages una vez en Settings → Pages → Source:
       # "GitHub Actions". El token de Actions no puede crear el sitio solo
       # (la API de creación pide permisos de admin que GITHUB_TOKEN no tiene).

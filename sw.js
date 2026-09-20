@@ -8,6 +8,8 @@ const ASSETS = [
   './manifest.webmanifest',
   './css/styles.css',
   './icons/icon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
   './js/app.js',
   './js/state.js',
   './js/derive.js',
@@ -30,16 +32,10 @@ const ASSETS = [
   './js/views/settings.js',
 ];
 
-// Opcionales: los PNG se generan con `npm run icons` y pueden no existir.
-const OPTIONAL = ['./icons/icon-192.png', './icons/icon-512.png'];
-
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then(async (cache) => {
-        await cache.addAll(ASSETS);
-        await Promise.all(OPTIONAL.map((url) => cache.add(url).catch(() => {})));
-      })
+      .then((cache) => cache.addAll(ASSETS))
       .then(() => self.skipWaiting()),
   );
 });

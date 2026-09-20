@@ -294,9 +294,9 @@ siempre desde tu historial. Si cambiás una meta, todo tu progreso se reajusta s
 Es un sitio estático: no necesita build ni instalación de paquetes.
 
 ```bash
-npm start           # genera los íconos y abre http://localhost:8080
+npm start           # abre http://localhost:8080
 # o, sin npm:
-node tools/make-icons.mjs && python3 -m http.server 8080
+python3 -m http.server 8080
 ```
 
 > Hay que servirla por HTTP: abrir `index.html` con doble clic no funciona porque el
@@ -348,10 +348,15 @@ js/
   ui/                   Componentes, avisos, panel modal y formularios de registro
   views/                Hoy · Progreso · Logros · Ajustes
   app.js                Router y celebraciones
-tools/make-icons.mjs    Genera los PNG del manifest (no se versionan)
 sw.js                   Service worker (modo offline)
 tests/                  node --test, sin dependencias
 ```
+
+## Créditos
+
+El ícono de la diana viene de [SVG Repo](https://www.svgrepo.com/show/466442/target-2.svg)
+(colección *Flat Color*), recoloreado para el fondo oscuro de la app: los
+anillos, que venían en negro, van en claro.
 
 ## Ideas para más adelante
 
