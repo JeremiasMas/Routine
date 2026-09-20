@@ -101,10 +101,13 @@ export function playerTitleFor(level) {
 export function gymVolume(exercises = []) {
   let volume = 0;
   for (const ex of exercises) {
+    // En los de mancuerna se anota el peso de una sola, pero las dos manos
+    // mueven peso: contarlo una vez subestima el trabajo a la mitad.
+    const manos = ex.db ? 2 : 1;
     for (const set of ex.sets || []) {
       const weight = Number(set.weight) || 0;
       const reps = Number(set.reps) || 0;
-      volume += weight * reps;
+      volume += weight * reps * manos;
     }
   }
   return Math.round(volume);

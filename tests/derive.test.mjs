@@ -544,3 +544,21 @@ test('fallar una misión no vale lo mismo que fallar todas', () => {
   assert.equal(perfecto.bonusXp, 50);
   assert.equal(perfecto.daily.get(LUN).almost, false);
 });
+
+test('el récord de un ejercicio de mancuerna queda marcado como tal', () => {
+  // Se guarda el peso de una, igual que se anota: mezclarlo con el total
+  // haría que un récord de 10 kg pareciera de 20 sin que nada lo aclare.
+  const gym = DEFAULT_ACTIVITIES.filter((a) => a.id === 'gym');
+  const entries = {
+    '2026-09-18': { gym: { exercises: [
+      { name: 'Vuelo lateral con mancuerna vertical', db: true, sets: [{ weight: 10, reps: 8 }] },
+      { name: 'Press militar', sets: [{ weight: 40, reps: 8 }] },
+    ] } },
+  };
+  const st = derive({ activities: gym, entries, unlocked: {}, settings: { weight: 61.5 } }, '2026-09-20')
+    .byActivity.get('gym');
+  const porNombre = Object.fromEntries(st.recordList.map((r) => [r.name, r]));
+  assert.equal(porNombre['Vuelo lateral con mancuerna vertical'].db, true);
+  assert.equal(porNombre['Vuelo lateral con mancuerna vertical'].weight, 10, 'el peso anotado, no el doble');
+  assert.equal(porNombre['Press militar'].db, false);
+});

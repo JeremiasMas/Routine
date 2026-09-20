@@ -209,20 +209,20 @@ export const GYM_TEMPLATES = [
     name: 'Hombros / Tríceps / Antebrazos',
     short: 'Hombros · Tríceps',
     exercises: [
-      { name: 'Vuelo lateral con mancuerna vertical' },
-      { name: 'Vuelo lateral con mancuerna horizontal' },
-      { name: 'Vuelo posterior' },
+      { name: 'Vuelo lateral con mancuerna vertical', db: true },
+      { name: 'Vuelo lateral con mancuerna horizontal', db: true },
+      { name: 'Vuelo posterior', db: true },
       { name: 'Pullover en camilla inclinada' },
-      { name: 'Encogimientos de trapecio' },
+      { name: 'Encogimientos de trapecio', db: true },
       { name: 'Press militar' },
       { name: 'Arnold con polea' },
       { name: 'Tríceps supino' },
       { name: 'Tríceps con soga' },
       { name: 'Tríceps trasnuca' },
       { name: 'French press' },
-      { name: 'Dumbbell standing pronation wrist' },
-      { name: 'Dumbbell over bench palms up curl' },
-      { name: 'Dumbbell standing wrist curl' },
+      { name: 'Dumbbell standing pronation wrist', db: true },
+      { name: 'Dumbbell over bench palms up curl', db: true },
+      { name: 'Dumbbell standing wrist curl', db: true },
     ],
   },
   {
@@ -233,7 +233,7 @@ export const GYM_TEMPLATES = [
     exercises: [
       { name: 'Pecho plano' },
       { name: 'Pecho inclinado' },
-      { name: 'Aperturas inclinadas' },
+      { name: 'Aperturas inclinadas', db: true },
       { name: 'Sentadilla con barra' },
       { name: 'Sillón de cuádriceps' },
       { name: 'Camilla de isquiotibiales' },
@@ -255,6 +255,25 @@ export function templateById(id) {
 /** Plantilla que toca en un día de la semana (0 = domingo). */
 export function templateForDay(weekday) {
   return GYM_TEMPLATES.find((t) => t.day === weekday) || null;
+}
+
+/**
+ * Ejercicios que se hacen con una mancuerna en cada mano. En esos se anota el
+ * peso de UNA —que es el número que está escrito en la mancuerna y el que uno
+ * compara con la vez anterior— y la app cuenta las dos para el tonelaje.
+ * Sin esta marca, anotar 12 o 24 quedaba a criterio de cada día y el tonelaje
+ * dejaba de ser comparable consigo mismo.
+ */
+export function esMancuerna(nombre, plantillas = GYM_TEMPLATES) {
+  const clave = (nombre || '').trim().toLowerCase();
+  if (!clave) return false;
+  for (const t of plantillas) {
+    for (const ex of t.exercises) {
+      if (ex.name.trim().toLowerCase() === clave) return Boolean(ex.db);
+    }
+  }
+  // Los que traen "mancuerna" o "dumbbell" en el nombre, aunque sean a mano.
+  return /\bmancuerna|\bdumbbell/.test(clave);
 }
 
 /** Series planificadas de una plantilla. */

@@ -264,6 +264,22 @@ sola.
 Es un APK de debug, firmado con la clave de debug: alcanza para instalarlo de
 costado y evita tener que guardar un keystore en el repo.
 
+### Mancuernas ⚖️
+
+En los ejercicios que se hacen con una mancuerna en cada mano se anota el peso
+de **una sola**: es el número escrito en la mancuerna y el que uno compara con
+la vez anterior. La app cuenta las dos para el tonelaje, porque las dos manos
+mueven peso.
+
+La columna del peso lo dice (`kg ×2 ↔`) y **se puede cambiar tocándola**: hay
+ejercicios que se hacen con barra o con mancuernas según el día, y eso no lo
+puede adivinar la app. Los que traen "mancuerna" o "dumbbell" en el nombre
+arrancan marcados.
+
+Esto no afecta tu nivel de fuerza: los movimientos que alimentan las tablas de
+fuerza (sentadilla, banca, press militar, remo, peso muerto rumano, dominadas)
+son todos de barra o de peso corporal, donde no hay ambigüedad.
+
 ### Temas 🎨
 
 Cuatro, en *Ajustes → Aspecto*: **Consola** (el azul original), **Brasa** (negro

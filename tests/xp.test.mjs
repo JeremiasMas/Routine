@@ -188,3 +188,21 @@ test('cada nivel sigue costando más que el anterior', async () => {
     assert.ok(xpToNextLevel(i + 1) > xpToNextLevel(i), `nivel ${i} no progresa`);
   }
 });
+
+test('en los de mancuerna el tonelaje cuenta las dos manos', () => {
+  // Se anota el peso de una sola mancuerna, que es el número escrito en ella
+  // y el que se compara con la vez anterior. Pero las dos manos mueven peso.
+  const conMancuerna = [{ name: 'Vuelo lateral', db: true, sets: [{ weight: 10, reps: 12 }] }];
+  const conBarra = [{ name: 'Press militar', sets: [{ weight: 10, reps: 12 }] }];
+  assert.equal(gymVolume(conBarra), 120);
+  assert.equal(gymVolume(conMancuerna), 240, 'diez kilos en cada mano son veinte kilos');
+});
+
+test('una sesión mezclada suma cada ejercicio como corresponde', () => {
+  const sesion = [
+    { name: 'Sentadilla con barra', sets: [{ weight: 80, reps: 5 }] },            // 400
+    { name: 'Vuelo lateral', db: true, sets: [{ weight: 8, reps: 15 }] },          // 240
+    { name: 'Dominadas', bw: true, sets: [{ weight: 0, reps: 8 }] },               // 0
+  ];
+  assert.equal(gymVolume(sesion), 640);
+});

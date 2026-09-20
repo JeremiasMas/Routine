@@ -62,7 +62,7 @@ function renderTopbar() {
   host.innerHTML = '';
   host.append(el('div', { class: 'player' },
     el('div', { class: 'player__badge' },
-      ring(p.pct, { size: 60, stroke: 5, color: 'var(--gold)' }),
+      ring(p.pct, { size: 60, stroke: 5, color: 'var(--player)' }),
       el('div', { class: 'player__lvl' },
         el('b', { text: String(p.level) }),
         el('span', { text: 'nivel' }))),

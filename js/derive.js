@@ -278,7 +278,7 @@ export function derive(data, today = todayKey()) {
             // calcula sobre el valor sin redondear, porque el redondeo del 1RM
             // por sí solo alcanzaba para simular una mejora.
             const ratio = pesoCorporal > 0 ? (carga * (1 + reps / 30)) / pesoCorporal : 0;
-            const marca = { name: ex.name.trim(), weight: extra, reps, e1rm, load: Math.round(carga * 10) / 10, ratio, bw: esPesoCorporal, date };
+            const marca = { name: ex.name.trim(), weight: extra, reps, e1rm, load: Math.round(carga * 10) / 10, ratio, bw: esPesoCorporal, db: ex.db === true, date };
             const prev = st.records.get(name);
             const mejora = prev && (esPesoCorporal
               ? marca.ratio > prev.ratio + 0.002

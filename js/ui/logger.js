@@ -8,7 +8,7 @@ import { previewXp, completedSets, goalFor } from '../derive.js';
 import { gymVolume, estimatedOneRepMax } from '../xp.js';
 import {
   GYM_TEMPLATES, templateById, templateForDay,
-  DEFAULT_SETS, DEFAULT_REP_RANGE,
+  DEFAULT_SETS, DEFAULT_REP_RANGE, esMancuerna,
 } from '../config.js';
 import { colorDe } from '../theme.js';
 
@@ -146,7 +146,7 @@ function gymForm(activity, dateKey, onSaved) {
       ? template.exercises
       : (lastByTemplate.get(id) || []); // el Día 4 aprende de la última vez
     exercises = base.length
-      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, sets: seedSets(ex.name), sube: sugerenciaDeCarga(ex.name) }))
+      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, db: ex.db ?? esMancuerna(ex.name), sets: seedSets(ex.name), sube: sugerenciaDeCarga(ex.name) }))
       : [{ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }];
   }
   loadTemplate(templateId, { keepExisting: true });
@@ -164,6 +164,7 @@ function gymForm(activity, dateKey, onSaved) {
       .map((ex) => ({
         name: (ex.name || '').trim(),
         bw: ex.bw || undefined,   // hace falta para calcular la carga real
+        db: ex.db || undefined,   // y esto para contar las dos mancuernas
         sets: (ex.sets || [])
           .filter((s) => Number(s.reps) > 0)
           .map((s) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) })),
@@ -236,7 +237,7 @@ function gymForm(activity, dateKey, onSaved) {
       ex.sets.forEach((set, si) => {
         const weight = el('input', {
           type: 'number', inputmode: 'decimal', min: '0', step: '2.5',
-          placeholder: ex.bw ? '+kg' : 'kg', value: set.weight ?? '',
+          placeholder: ex.bw ? '+kg' : (ex.db ? 'kg c/u' : 'kg'), value: set.weight ?? '',
         });
         const reps = el('input', {
           type: 'number', inputmode: 'numeric', min: '0', step: '1',
@@ -270,7 +271,7 @@ function gymForm(activity, dateKey, onSaved) {
       el('div', { class: 'exercise__body' },
         el('div', { class: 'set-row', style: 'margin:8px 0 4px' },
           el('span', {}),
-          el('span', { class: 'set-row__n', text: ex.bw ? 'peso extra' : 'peso' }),
+          etiquetaDePeso(ex, refresh),
           el('span', { class: 'set-row__n', text: 'reps' }),
           el('span', {})),
         setsWrap,
@@ -284,9 +285,10 @@ function gymForm(activity, dateKey, onSaved) {
       if (!on) return;
       const hechas = ex.sets.filter((x) => Number(x.reps) > 0);
       const pesos = [...new Set(hechas.map((x) => Number(x.weight) || 0))];
+      const sufijo = ex.db ? ' c/u' : '';
       const carga = pesos.length === 1
-        ? (pesos[0] > 0 ? `${pesos[0]} kg` : 'peso corporal')
-        : `${Math.min(...pesos)}–${Math.max(...pesos)} kg`;
+        ? (pesos[0] > 0 ? `${pesos[0]} kg${sufijo}` : 'peso corporal')
+        : `${Math.min(...pesos)}–${Math.max(...pesos)} kg${sufijo}`;
       resumen.textContent = `✓ ${hechas.length} series · ${carga} × ${hechas.map((x) => x.reps).join(', ')}`;
     }
     // Tocar el encabezado vuelve a abrirlo para corregir.
@@ -384,6 +386,24 @@ function multiForm(activity, dateKey, onSaved) {
     ...bloques,
     resumen,
     ctrl.node);
+}
+
+/**
+ * La cabecera de la columna del peso. En los de mancuerna aclara que va el de
+ * una sola; tocándola se cambia, porque hay ejercicios que uno hace con barra
+ * o con mancuernas según el día y sólo vos sabés cuál fue.
+ */
+function etiquetaDePeso(ex, refresh) {
+  if (ex.bw) return el('span', { class: 'set-row__n', text: 'peso extra' });
+  if (ex.db === undefined) ex.db = esMancuerna(ex.name);
+  return el('button', {
+    type: 'button',
+    class: `set-row__n set-row__peso${ex.db ? ' is-db' : ''}`,
+    title: ex.db
+      ? 'Peso de UNA mancuerna. Tocá para cambiar a peso total.'
+      : 'Peso total. Tocá si lo hacés con una mancuerna en cada mano.',
+    onClick: () => { ex.db = !ex.db; refresh(); },
+  }, ex.db ? 'kg ×2 ↔' : 'peso');
 }
 
 /** ---------- Composición corporal: peso y circunferencias ---------- */
