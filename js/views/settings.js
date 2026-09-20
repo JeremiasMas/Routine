@@ -75,7 +75,12 @@ export function render({ navigate }) {
       el('li', {}, 'Samsung Health → ⚙ Ajustes → ', el('b', {}, 'Descargar datos personales'), '.'),
       el('li', {}, 'Elegí acá el ', el('b', {}, 'ZIP tal cual te llega'), ': la app busca sola el archivo de pasos adentro. (También acepta un CSV suelto.)')),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)'))));
+      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)')),
+    el('p', { class: 'hint', style: 'margin-top:12px' },
+      'Para una caminata suelta hay otro camino, sin esperar la exportación: el ',
+      el('b', {}, 'modo caminata'), ' en la pantalla de Pasos cuenta con el acelerómetro del teléfono ',
+      'mientras tenés la app abierta. Sirve para la caminata del día, no para el total: ',
+      'el navegador no recibe el sensor con la pantalla apagada.')));
 
   // --- Preferencias ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Preferencias' })));

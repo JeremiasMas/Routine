@@ -187,6 +187,39 @@ día (una por reloj, una por teléfono y una agregada), así que toma **el máxi
 día** en lugar de sumarlas — sumar contaría los pasos dos o tres veces. También acepta
 un CSV común con columnas de fecha y pasos.
 
+### Modo caminata 👣
+
+Lo único que el navegador sí da es el **acelerómetro crudo** (`devicemotion`), y
+caminar deja una firma muy clara en esa señal: un pico por pisada, entre 1,5 y 2,5
+por segundo. El modo caminata —en la pantalla de Pasos— detecta esos picos y cuenta.
+
+El detector (`js/pedometer.js`) es una función pura sobre la serie de muestras, sin
+DOM ni reloj, y por eso se puede probar con señales sintéticas. Lo que hace:
+
+- **Calibra medio segundo** el valor de la gravedad y después *reprocesa* esas
+  muestras, para no perder los primeros pasos de la caminata.
+- **Umbral adaptativo** sobre la amplitud reciente: el teléfono en el bolsillo sacude
+  diez veces más que en la mano, y un umbral fijo o pierde una cosa o cuenta ruido en
+  la otra.
+- **Intervalo mínimo de 250 ms** entre picos. Cada zancada deja dos golpes —el talón
+  al apoyar y el pie al despegar—; sin esto el contador casi se duplica.
+- **Cuatro picos rítmicos** antes de empezar a contar. Levantar el teléfono da uno o
+  dos picos grandes; caminar da muchos y parejos. Cuando llega el cuarto, los cuatro
+  se cobran juntos.
+- Los filtros se calculan **sobre el tiempo transcurrido**, no sobre el número de
+  muestras: los teléfonos entregan el sensor entre 16 y 60 ms y el resultado tiene que
+  ser el mismo.
+
+**El límite, que es duro:** el navegador no recibe el acelerómetro con la pantalla
+apagada ni con la app en segundo plano. Sirve para la caminata deliberada —abrís el
+panel, guardás el teléfono, caminás—, no para el total del día. Lo caminado se suma a
+lo que ya haya en el día (no lo pisa) y se guarda cada 30 segundos, así que si la app
+se cierra de golpe no se pierde.
+
+Para el total del día automático hace falta una app nativa que lea Health Connect o
+`Sensor.TYPE_STEP_COUNTER`; eso no se puede hacer desde la web, y la importación del
+ZIP sigue siendo el camino para eso.
+
 ### Historial previo a la app 📜
 
 Lo que ya venías haciendo antes de instalarla no arranca en cero. En

@@ -3,6 +3,7 @@ import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural,
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
+import { openWalk, walkDisponible } from '../ui/walk.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
 import { getData } from '../state.js';
@@ -69,6 +70,15 @@ export function render({ params, navigate, celebrate }) {
     el('button', { class: 'btn btn--primary btn--block', style: `--c:${a.color}`,
       onClick: () => openLogger(a, state.today, (events) => { celebrate(events); navigate(); }) },
       `Registrar ${relativeDay(state.today).toLowerCase()}`)));
+
+  // Los pasos se pueden contar en vivo con el acelerómetro, sin esperar a la
+  // exportación de Samsung Health.
+  if (a.id === 'pasos' && walkDisponible()) {
+    root.append(el('div', { style: 'margin-top:8px' },
+      el('button', { class: 'btn btn--block', onClick: () => openWalk(a, (events, pasos) => {
+        if (pasos > 0) celebrate(events, pasos); else navigate();
+      }) }, '👣 Modo caminata')));
+  }
 
   if (a.kind === 'body') {
     root.append(bodySection(st));
