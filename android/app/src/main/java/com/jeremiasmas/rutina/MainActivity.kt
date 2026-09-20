@@ -145,10 +145,11 @@ class MainActivity : AppCompatActivity() {
   }
 
   /**
-   * El intent que abre el selector. Se pide `*​/*` con los tipos aceptados como
-   * pista, en vez de filtrar por MIME: hay proveedores de archivos que no
-   * declaran bien el tipo de un .zip o un .csv y los dejan grises, imposibles
-   * de elegir. Mejor mostrar todo que esconder el archivo que se busca.
+   * El intent que abre el selector. Se aceptan todos los tipos, con los que
+   * pide la web como pista, en vez de filtrar por MIME: hay proveedores de
+   * archivos que no declaran bien el tipo de un .zip o un .csv y los dejan
+   * grises, imposibles de elegir. Mejor mostrar todo que esconder el archivo
+   * que se busca.
    */
   private fun intentDeArchivos(params: WebChromeClient.FileChooserParams?): Intent {
     val base = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT)
