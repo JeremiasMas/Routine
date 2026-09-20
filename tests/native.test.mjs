@@ -88,3 +88,53 @@ test('guardarArchivo avisa si la app no lo soporta', async () => {
   assert.equal(guardarArchivo('x.json', '{}'), false, 'una excepción no puede romper la exportación');
   delete globalThis.window;
 });
+
+test('lee las apps que escribieron pasos', async () => {
+  const { leerOrigenes } = await import('../js/native.js');
+  const r = leerOrigenes([
+    { paquete: 'Samsung Health\u0000com.sec.android.app.shealth', pasos: 9430 },
+    { paquete: 'Google Fit\u0000com.google.android.apps.fitness', pasos: 1200 },
+  ]);
+  assert.deepEqual(r, [
+    { nombre: 'Samsung Health', paquete: 'com.sec.android.app.shealth', pasos: 9430 },
+    { nombre: 'Google Fit', paquete: 'com.google.android.apps.fitness', pasos: 1200 },
+  ]);
+});
+
+test('una app sin nombre conocido se muestra igual', async () => {
+  const { leerOrigenes } = await import('../js/native.js');
+  const r = leerOrigenes([{ paquete: 'com.otra.app\u0000com.otra.app', pasos: 500 }]);
+  assert.equal(r[0].nombre, 'com.otra.app');
+  assert.deepEqual(leerOrigenes(null), []);
+  assert.deepEqual(leerOrigenes([{ paquete: '', pasos: 5 }]), [], 'sin paquete no sirve de nada');
+});
+
+test('detecta cuando dos apps cuentan los mismos pasos', async () => {
+  const { leerOrigenes, hayConflictoDeOrigenes } = await import('../js/native.js');
+  const dos = leerOrigenes([
+    { paquete: 'Samsung Health\u0000com.sec.android.app.shealth', pasos: 9430 },
+    { paquete: 'Google Fit\u0000com.google.android.apps.fitness', pasos: 1200 },
+  ]);
+  const c = hayConflictoDeOrigenes(dos);
+  assert.equal(c.cuantas, 2);
+  assert.equal(c.total, 10630);
+  assert.equal(c.mayor.nombre, 'Samsung Health');
+  assert.equal(c.sobrante, 1200, 'lo que infla el total respecto de la fuente principal');
+});
+
+test('una sola app no es un conflicto', async () => {
+  const { leerOrigenes, hayConflictoDeOrigenes } = await import('../js/native.js');
+  const una = leerOrigenes([{ paquete: 'Samsung Health\u0000com.sec.android.app.shealth', pasos: 9430 }]);
+  assert.equal(hayConflictoDeOrigenes(una), null);
+  assert.equal(hayConflictoDeOrigenes([]), null);
+  assert.equal(hayConflictoDeOrigenes(null), null);
+});
+
+test('una app que hoy no aportó nada no cuenta como conflicto', async () => {
+  const { leerOrigenes, hayConflictoDeOrigenes } = await import('../js/native.js');
+  const r = leerOrigenes([
+    { paquete: 'Samsung Health\u0000com.sec.android.app.shealth', pasos: 9430 },
+    { paquete: 'Google Fit\u0000com.google.android.apps.fitness', pasos: 0 },
+  ]);
+  assert.equal(hayConflictoDeOrigenes(r), null, 'con 0 pasos no infla nada');
+});

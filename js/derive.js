@@ -112,6 +112,8 @@ function emptyActivityState(activity) {
     records: new Map(),      // ejercicio -> {weight, reps, e1rm, date}
     lastSets: new Map(),     // ejercicio -> últimas series cargadas
     ultimaCalibracion: new Map(), // ejercicio -> fecha de la última serie pesada
+    ultimaVez: new Map(),         // ejercicio -> última fecha entrenado
+    sesionesDeEjercicio: new Map(), // ejercicio -> cuántas veces lo hiciste
     maxGap: 0,           // el hueco más largo que después retomaste
     shieldSaveBest: 0,   // la racha más larga que un escudo salvó
     noShieldStreak: 0,   // la racha más larga lograda sin gastar escudos
@@ -253,6 +255,12 @@ export function derive(data, today = todayKey()) {
           if (!name) continue;
           // Lo último que levantaste en este ejercicio, para precargarlo.
           if (ex.sets?.length) st.lastSets.set(name, ex.sets);
+          // Cuándo y cuántas veces: sin esto no se puede distinguir un
+          // ejercicio estancado de uno que simplemente dejaste de hacer.
+          if (ex.sets?.some((x) => Number(x.reps) > 0)) {
+            st.ultimaVez.set(name, date);
+            st.sesionesDeEjercicio.set(name, (st.sesionesDeEjercicio.get(name) || 0) + 1);
+          }
 
           const esPesoCorporal = ex.bw === true || usaPesoCorporal(liftDeEjercicio(ex.name));
           for (const set of ex.sets || []) {

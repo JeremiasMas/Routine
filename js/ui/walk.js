@@ -3,6 +3,7 @@ import { el, formatNumber, todayKey } from '../utils.js';
 import { openSheet } from './sheet.js';
 import { getEntry, setEntry } from '../state.js';
 import { Pedometro, hayAcelerometro, pedirPermiso, CALIBRACION_MS } from '../pedometer.js';
+import { colorDe } from '../theme.js';
 
 /** Cada cuánto se guardan los pasos contados, por si la app se cierra de golpe. */
 const AUTOGUARDADO_MS = 30000;
@@ -33,7 +34,7 @@ export function openWalk(activity, onSaved) {
     'Dejá la pantalla encendida y la app abierta: el navegador no recibe el acelerómetro en segundo plano. ' +
     'Si bloqueás el teléfono, la cuenta se frena hasta que volvés.');
 
-  const cerrar = el('button', { class: 'btn btn--primary btn--block', style: `--c:${activity.color}` },
+  const cerrar = el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(activity)}` },
     'Terminar y guardar');
 
   const cuerpo = el('div', { class: 'walk' },

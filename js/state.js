@@ -5,6 +5,7 @@ import { waterGoalMl } from './body.js';
 import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive } from './derive.js';
 import { todayKey, uid, daysBetween } from './utils.js';
+import { fusionar } from './merge.js';
 
 const STORAGE_KEY = 'routine-rpg';
 const listeners = new Set();
@@ -237,12 +238,48 @@ export function markExported() {
   return mutate((d) => { d.settings.lastExportAt = todayKey(); });
 }
 
-export function importData(json) {
+/** Valida y devuelve el contenido de un archivo de copia. */
+export function parseBackup(json) {
   const parsed = typeof json === 'string' ? JSON.parse(json) : json;
   if (!parsed || typeof parsed !== 'object' || !parsed.entries) {
     throw new Error('El archivo no tiene el formato esperado.');
   }
-  data = migrate(parsed);
+  return parsed;
+}
+
+/** Qué pasaría al fusionar, sin tocar nada. */
+export function previewMerge(json) {
+  return fusionar(getData(), parseBackup(json)).resumen;
+}
+
+/**
+ * Une el archivo con lo que ya hay. El historial se suma; la configuración de
+ * este dispositivo se respeta. Es lo que hace falta ahora que los datos pueden
+ * vivir en dos lados (la app de Android y el navegador).
+ */
+export function mergeData(json) {
+  const entrante = parseBackup(json);
+  const { entries, unlocked, actividadesNuevas, resumen } = fusionar(getData(), entrante);
+  data.entries = entries;
+  data.unlocked = unlocked;
+  for (const act of actividadesNuevas) data.activities.push(act);
+  // El acumulado previo es un piso, no un registro: se queda el más alto.
+  for (const [id, prev] of Object.entries(entrante.carryOver || {})) {
+    const actual = data.carryOver?.[id];
+    if (!actual || (Number(prev?.total) || 0) > (Number(actual.total) || 0)) {
+      data.carryOver = { ...(data.carryOver || {}), [id]: prev };
+    }
+  }
+  data = migrate(data);
+  cache = null;
+  persist();
+  listeners.forEach((l) => l(getState(), { levelUps: [], achievements: [], playerLevelUp: null }));
+  return resumen;
+}
+
+/** Reemplaza todo por el archivo. Es una restauración, no una fusión. */
+export function importData(json) {
+  data = migrate(parseBackup(json));
   cache = null;
   persist();
   listeners.forEach((l) => l(getState(), { levelUps: [], achievements: [], playerLevelUp: null }));

@@ -1,6 +1,6 @@
 // Arranque, navegación y celebraciones.
 import { el, formatNumber, plural } from './utils.js';
-import { load, getState, invalidate } from './state.js';
+import { load, getState, invalidate, getData } from './state.js';
 import { ring, xpBar, chip } from './ui/components.js';
 import { openSheet, closeSheet } from './ui/sheet.js';
 import { toast, confetti, sounds } from './ui/feedback.js';
@@ -10,6 +10,8 @@ import * as stats from './views/stats.js';
 import * as awards from './views/awards.js';
 import * as settings from './views/settings.js';
 import { conectar as conectarNativo, alCambiar as alCambiarNativo } from './native.js';
+import { copiaAutomatica } from './backup.js';
+import { aplicarTema } from './theme.js';
 
 const TABS = [
   { hash: '#/', icon: '⚔️', label: 'Hoy' },
@@ -168,6 +170,7 @@ function watchDayChange() {
 
 function boot() {
   load();
+  aplicarTema(getData().settings?.tema);
   // El puente se engancha antes de pintar: si la app de Android ya mandó los
   // pasos, la primera pantalla ya los muestra.
   conectarNativo();
@@ -181,6 +184,11 @@ function boot() {
   window.addEventListener('hashchange', navigate);
   navigate();
   watchDayChange();
+
+  // Una copia cada tanto, sin que haya que acordarse. Sólo adentro de la app,
+  // que es la única que sabe escribir un archivo sin pedir permiso.
+  const copia = copiaAutomatica();
+  if (copia) toast('💾', 'Copia de seguridad guardada en Descargas.');
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {

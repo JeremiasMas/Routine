@@ -4,9 +4,11 @@ import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
+  previewMerge, mergeData, parseBackup,
 } from '../state.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades } from '../native.js';
+import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe } from '../theme.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades, hayConflictoDeOrigenes, usarSoloOrigen } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -87,6 +89,11 @@ export function render({ navigate }) {
       'mientras tenés la app abierta. Sirve para la caminata del día, no para el total: ',
       'el navegador no recibe el sensor con la pantalla apagada.')));
 
+  // --- Aspecto ---
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Aspecto' }), el('small', { text: 'tema' })));
+  root.append(selectorDeTema(navigate));
+
   // --- Preferencias ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Preferencias' })));
   root.append(el('div', { class: 'card' },
@@ -112,7 +119,7 @@ export function render({ navigate }) {
     el('p', { class: 'hint' }, 'Todo se guarda solamente en este dispositivo, en el navegador. Exportá de vez en cuando para no perder el progreso si borrás los datos del navegador o cambiás de teléfono.'),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn', onClick: doExport }, '⬇ Exportar'),
-      el('button', { class: 'btn', onClick: doImport }, '⬆ Importar'),
+      el('button', { class: 'btn', onClick: () => doImport(navigate) }, '⬆ Importar'),
       el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo'))));
 
   root.append(el('p', { class: 'hint', style: 'margin-top:18px;text-align:center' },
@@ -151,7 +158,7 @@ function editActivity(activity, navigate) {
   const diaBtns = [1, 2, 3, 4, 5, 6, 0].map((d) => {
     const btn = el('button', {
       type: 'button', class: `presets-day${diasSel.has(d) ? ' is-active' : ''}`,
-      style: `--c:${a.color}`, 'aria-pressed': diasSel.has(d) ? 'true' : 'false',
+      style: `--c:${colorDe(a)}`, 'aria-pressed': diasSel.has(d) ? 'true' : 'false',
       onClick: () => {
         if (diasSel.has(d)) diasSel.delete(d); else diasSel.add(d);
         btn.classList.toggle('is-active', diasSel.has(d));
@@ -301,20 +308,74 @@ function doExport() {
   toast('⬇', 'Copia de seguridad descargada.');
 }
 
-function doImport() {
+function doImport(navigate) {
   const input = el('input', { type: 'file', accept: 'application/json,.json' });
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) return;
+    let texto;
     try {
-      importData(await file.text());
-      toast('⬆', 'Progreso restaurado.');
-      location.hash = '#/';
+      texto = await file.text();
+      parseBackup(texto);
     } catch (err) {
-      toast('⚠️', `No se pudo importar: ${err.message}`, 5000);
+      toast('⚠️', `No se pudo leer el archivo: ${err.message}`, 5000);
+      return;
     }
+    mostrarPreviaDeImportacion(texto, navigate);
   });
   input.click();
+}
+
+/**
+ * Antes de tocar nada, qué va a pasar. Fusionar es lo normal —los datos pueden
+ * estar repartidos entre la app y el navegador— y reemplazar queda como lo que
+ * es: una restauración desde cero.
+ */
+function mostrarPreviaDeImportacion(texto, navigate) {
+  const r = previewMerge(texto);
+  const linea = (n, singular, plural_) => (n > 0
+    ? el('li', {}, el('b', { text: formatNumber(n) }), ` ${n === 1 ? singular : plural_}`)
+    : null);
+
+  const detalle = el('ul', { class: 'hint', style: 'margin:10px 0 0;padding-left:18px;line-height:1.8' },
+    linea(r.diasNuevos, 'día que no tenías', 'días que no tenías'),
+    linea(r.registrosNuevos, 'registro nuevo en días que ya tenías', 'registros nuevos en días que ya tenías'),
+    linea(r.reemplazados, 'registro que el archivo tiene más actualizado', 'registros que el archivo tiene más actualizados'),
+    linea(r.actividadesNuevas, 'actividad que no existía acá', 'actividades que no existían acá'));
+
+  const cuerpo = el('div', {},
+    r.total > 0
+      ? el('p', { class: 'hint' }, 'Se va a sumar a lo que ya tenés. Nada de lo que está cargado acá se pierde: cuando un registro está en los dos lados, queda el más reciente.')
+      : el('p', { class: 'hint' }, 'El archivo no trae nada que no tengas ya. Fusionar no va a cambiar nada.'),
+    r.total > 0 ? detalle : null,
+    r.conservados > 0
+      ? el('p', { class: 'hint', style: 'margin-top:10px' },
+          `${formatNumber(r.conservados)} ${r.conservados === 1 ? 'registro de acá es más nuevo y se queda' : 'registros de acá son más nuevos y se quedan'}.`)
+      : null,
+    el('div', { class: 'btn-row', style: 'margin-top:16px' },
+      el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'),
+      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => {
+        const res = mergeData(texto);
+        closeSheet();
+        location.hash = '#/';
+        navigate?.();
+        toast('⬆', res.total > 0
+          ? `Fusionado: ${formatNumber(res.total)} ${res.total === 1 ? 'registro' : 'registros'}.`
+          : 'No había nada nuevo que sumar.');
+      } }, 'Fusionar')),
+    el('details', { style: 'margin-top:14px' },
+      el('summary', { class: 'hint', style: 'cursor:pointer', text: 'O reemplazar todo por el archivo' }),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'Borra lo que tengas acá y deja exactamente lo que trae el archivo. Sirve para restaurar un teléfono nuevo, no para juntar dos copias.'),
+      el('button', { class: 'btn btn--danger', style: 'margin-top:10px', onClick: () => {
+        importData(texto);
+        closeSheet();
+        location.hash = '#/';
+        navigate?.();
+        toast('⬆', 'Progreso restaurado.');
+      } }, 'Reemplazar todo')));
+
+  openSheet('Revisá antes de importar', cuerpo);
 }
 
 function doReset(navigate) {
@@ -343,6 +404,33 @@ function tarjetaNativa(navigate) {
         el('div', { style: 'font-weight:700', text: 'Health Connect' }),
         el('div', { class: 'hint', text: msg.texto }))));
 
+  // Si hay dos apps escribiendo pasos, Health Connect las suma y el total no
+  // coincide con lo que ves en Samsung Health. Es la causa más común.
+  const conflicto = hayConflictoDeOrigenes(nativo.origenes);
+  if (conflicto) {
+    card.append(el('div', { class: 'aviso', style: 'margin-top:12px' },
+      el('div', { style: 'font-weight:700' }, '⚠️ Hay ', String(conflicto.cuantas), ' apps contando tus pasos'),
+      el('p', { class: 'hint', style: 'margin-top:6px' },
+        'Health Connect suma lo que escribe cada una, así que el total queda más alto que el de Samsung Health. ',
+        `Hoy suman ${formatNumber(conflicto.total)} pasos entre todas; `,
+        `${conflicto.mayor.nombre} sola aporta ${formatNumber(conflicto.mayor.pasos)}.`),
+      el('div', { class: 'list', style: 'margin-top:10px' },
+        nativo.origenes.map((o) => el('div', { class: 'row' },
+          el('div', { class: 'row__main' },
+            el('div', { text: o.nombre }),
+            el('div', { class: 'row__sub', text: o.paquete })),
+          el('div', { class: 'row__value', text: formatNumber(o.pasos) })))),
+      el('p', { class: 'hint', style: 'margin-top:10px' }, 'Elegí de cuál querés contar:'),
+      el('div', { class: 'btn-row', style: 'margin-top:8px;flex-wrap:wrap' },
+        nativo.origenes.map((o) => el('button', {
+          class: `btn${nativo.diagnostico?.origenElegido === o.paquete ? ' btn--primary' : ''}`,
+          onClick: () => usarSoloOrigen(o.paquete),
+        }, `Sólo ${o.nombre}`)),
+        nativo.diagnostico?.origenElegido
+          ? el('button', { class: 'btn', onClick: () => usarSoloOrigen('') }, 'Sumar todas')
+          : null)));
+  }
+
   if (msg.ok) {
     card.append(el('p', { class: 'hint', style: 'margin-top:10px' },
       hoy != null
@@ -369,11 +457,43 @@ function tarjetaNativa(navigate) {
         el('div', { text: `Permiso de pasos: ${d.permiso ? 'concedido' : 'falta'}` }),
         el('div', { text: `Sensor de pasos del sistema: ${d.sensorDePasos ? 'sí' : 'no'}` }),
         el('div', { text: `Días recibidos: ${dias}` }),
+        el('div', { text: `Contando de: ${nativo.diagnostico?.origenElegido || 'todas las apps'}` }),
+        ...(nativo.origenes || []).map((o) => el('div', { text: `· ${o.nombre}: ${formatNumber(o.pasos)} hoy` })),
         (() => {
           const c = capacidades();
           return el('div', { text: `WebView: Chrome ${c.chrome || '—'} · ZIP ${c.zip ? 'sí' : 'NO'} · guardar ${c.guardar ? 'sí' : 'NO'}` });
         })())));
   }
 
+  return card;
+}
+
+
+/** Elegir tema: se ve el cambio al tocarlo, sin recargar ni confirmar. */
+function selectorDeTema(navigate) {
+  const actual = getData().settings?.tema || TEMA_POR_DEFECTO;
+  const card = el('div', { class: 'card' });
+  const lista = el('div', { class: 'temas' });
+
+  for (const tema of TEMAS) {
+    const opcion = el('button', {
+      class: `tema${tema.id === actual ? ' tema--activo' : ''}`,
+      'aria-pressed': tema.id === actual ? 'true' : 'false',
+      onClick: () => {
+        aplicarTema(tema.id);
+        updateSettings({ tema: tema.id });
+        navigate?.();
+      },
+    },
+      el('span', { class: 'tema__muestra', style: `background:${tema.muestra[0]}` },
+        el('i', { style: `background:${tema.muestra[1]}` }),
+        el('i', { style: `background:${tema.muestra[2]}` })),
+      el('span', { class: 'tema__texto' },
+        el('b', { text: tema.nombre }),
+        el('small', { text: tema.desc })));
+    lista.append(opcion);
+  }
+
+  card.append(lista);
   return card;
 }

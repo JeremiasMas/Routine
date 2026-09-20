@@ -248,7 +248,13 @@ Del lado web, `js/native.js` escucha el evento `rutina-pasos` que manda la app:
 
 En *Ajustes → Pasos* aparece el estado de la conexión y un desplegable de
 diagnóstico (versión de la app, teléfono, estado de Health Connect, permiso, días
-recibidos) para cuando algo no anda.
+recibidos, qué soporta el WebView) para cuando algo no anda.
+
+**Si el número no coincide con Samsung Health**, la causa habitual es que haya más
+de una app escribiendo pasos: Health Connect suma lo que escribe cada una, así que
+dos midiendo la misma caminata la cuentan dos veces. La app lee el total **por
+aplicación de origen**, avisa cuando hay más de una y te deja elegir contar de una
+sola.
 
 **El APK lo compila GitHub Actions**, no hace falta Android Studio. Cada push a
 `main` que toque `android/` deja el último APK en el release `apk`:
@@ -257,6 +263,52 @@ recibidos) para cuando algo no anda.
 
 Es un APK de debug, firmado con la clave de debug: alcanza para instalarlo de
 costado y evita tener que guardar un keystore en el repo.
+
+### Temas 🎨
+
+Cuatro, en *Ajustes → Aspecto*: **Consola** (el azul original), **Brasa** (negro
+puro y rojo encendido), **Sangre fría** (gris oscuro, rojo profundo) y **Carmín**
+(negro cálido, rojo vivo y dorado). Cada uno sólo redefine variables de CSS:
+ninguna pantalla sabe qué tema está puesto.
+
+Los temas rojos además **remapean el color de cada disciplina** a una gama cálida.
+El color de cada actividad sigue distinguiéndolas —que es para lo que está— pero
+sin dejar islas azules en una pantalla que no lo es.
+
+### Dónde estás 📊
+
+En *Progreso*, un análisis por disciplina que sale de datos ya cargados: nada
+estimado a ojo. Para cada una, la tendencia de las últimas cuatro semanas contra
+las cuatro previas, y qué porcentaje de los días que tocaban cumpliste — que no
+es lo mismo que cuánto hiciste: se puede entrenar mucho en ráfagas y tener una
+constancia mala.
+
+Lo específico de cada una:
+
+- **Gimnasio.** Qué movimiento conviene empujar, medido en **cuánto sube el nivel
+  general por kilo de esfuerzo**. El salto más barato no es el que más rinde: a un
+  movimiento al que le falta poco suele faltarle poco porque ya está por terminar
+  su banda, y subirlo casi no mueve el promedio. Además marca los **ejercicios
+  trabados**: los que seguís haciendo y hace más de un mes que no dan un récord
+  (distinto de uno que abandonaste, que no es un problema sino una decisión).
+- **Cuerpo.** Ajusta una recta sobre las mediciones recientes y proyecta cuándo
+  llegás al 13%. Con menos de tres mediciones o menos de tres semanas no proyecta
+  nada, porque con dos puntos cualquier ruido parece una tendencia.
+- **Francés.** El reparto entre Duolingo y el podcast, y por qué importa: una
+  fuente entrena el oído y la otra te hace producir.
+
+### Copias de seguridad 💾
+
+Importar **fusiona** en vez de reemplazar. Desde que la app de Android tiene su
+propio almacenamiento, el historial puede vivir en dos lugares a la vez, y
+reemplazar convertía cualquier despiste en pérdida de datos. Ahora, para cada día
+y cada actividad, gana el registro modificado más tarde —lo único que se puede
+decidir sin preguntar—, la configuración de este dispositivo no se toca, y antes
+de tocar nada te muestra qué va a cambiar. Reemplazar sigue estando, para lo que
+sirve: restaurar un teléfono nuevo.
+
+Adentro de la app, además, se guarda una copia en Descargas **una vez por semana,
+sola**. En el navegador no se puede: una descarga necesita un gesto tuyo.
 
 ### Historial previo a la app 📜
 

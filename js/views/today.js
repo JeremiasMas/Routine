@@ -8,6 +8,7 @@ import { isScheduled, goalFor } from '../derive.js';
 import { templateForDay, templateById } from '../config.js';
 import { ring, chip, xpBar } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
+import { colorDe } from '../theme.js';
 
 let viewDate = todayKey();
 
@@ -91,7 +92,7 @@ export function render({ navigate, celebrate }) {
             el('span', { style: `color:${hecho >= meta ? 'var(--ok)' : 'var(--muted)'}`, text: `${formatNumber(hecho)}/${meta}` })),
           el('div', { style: 'margin-top:6px' },
             el('div', { class: 'xpbar' },
-              el('div', { class: 'xpbar__fill', style: `width:${Math.min(100, (hecho / meta) * 100)}%;background:${a.color}` }))));
+              el('div', { class: 'xpbar__fill', style: `width:${Math.min(100, (hecho / meta) * 100)}%;background:${colorDe(a)}` }))));
       })));
   }
 
@@ -144,7 +145,7 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
 
   const card = el('button', {
     class: `quest${met ? ' is-done' : ''}${off ? ' quest--off' : ''}`,
-    style: `--c:${activity.color}`,
+    style: `--c:${colorDe(activity)}`,
     onClick: () => openLogger(activity, dateKey, (events) => { celebrate(events); navigate(); }),
   },
     el('span', { class: 'quest__icon', text: activity.icon }),
@@ -152,10 +153,10 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
       el('div', { class: 'quest__head' },
         el('span', { class: 'quest__name', text: activity.name }),
         rutina && !met ? chip(rutina.short) : null,
-        met ? el('span', { text: '✓', style: `color:${activity.color};font-weight:700` }) : null),
+        met ? el('span', { text: '✓', style: `color:${colorDe(activity)};font-weight:700` }) : null),
       meta),
     ring(pct, {
-      color: activity.color,
+      color: colorDe(activity),
       size: 48,
       children: st?.leveled === false
         // Un hábito no tiene nivel: el anillo muestra cuánto llevás del día.
@@ -181,7 +182,7 @@ function weekStrip(state) {
       return el('div', { style: 'flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end' },
         el('span', { style: 'font-size:.6rem;color:var(--muted)', text: xp ? formatNumber(xp) : '' }),
         el('div', {
-          style: `width:100%;border-radius:6px 6px 3px 3px;height:${Math.max(3, (xp / max) * 100)}%;background:${info?.perfect ? 'linear-gradient(180deg,#fbbf24,#f59e0b)' : xp ? 'linear-gradient(180deg,#7dd3fc,#818cf8)' : 'rgba(255,255,255,.07)'}`,
+          style: `width:100%;border-radius:6px 6px 3px 3px;height:${Math.max(3, (xp / max) * 100)}%;background:${info?.perfect ? 'linear-gradient(180deg,var(--gold),var(--fire))' : xp ? 'linear-gradient(180deg,var(--accent),var(--accent-2))' : 'rgba(255,255,255,.07)'}`,
           title: `${d}: ${xp} XP`,
         }),
         el('span', { style: `font-size:.6rem;color:${d === state.today ? 'var(--text)' : 'var(--muted)'}`, text: dayName(d) }));

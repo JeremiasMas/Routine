@@ -5,6 +5,7 @@ import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.j
 import { openLogger } from '../ui/logger.js';
 import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
+import { colorDe, colorDeRango } from '../theme.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
 import { getData } from '../state.js';
@@ -36,14 +37,14 @@ export function render({ params, navigate, celebrate }) {
           el('b', { style: 'font-size:1.2rem;display:block;line-height:1', text: String(st.level.level) }),
           el('span', { style: 'font-size:.5rem;letter-spacing:.12em;color:var(--muted)', text: 'NIVEL' }));
 
-  root.append(el('div', { class: 'card', style: `--c:${a.color}` },
+  root.append(el('div', { class: 'card', style: `--c:${colorDe(a)}` },
     el('div', { style: 'display:flex;gap:14px;align-items:center' },
-      ring(esHabito ? (st.doneToday ? 1 : 0) : st.level.pct, { size: 68, stroke: 6, color: st.tier?.color || a.color,
+      ring(esHabito ? (st.doneToday ? 1 : 0) : st.level.pct, { size: 68, stroke: 6, color: colorDeRango(st.tier, st.tier?.index) || colorDe(a),
         children: anilloCentro }),
       el('div', { style: 'flex:1;min-width:0' },
         el('h1', { style: 'font-size:1.2rem', text: `${a.icon} ${a.name}` }),
         el('div', { class: 'quest__meta', style: 'margin-top:6px' },
-          esHabito ? null : chip(st.tier.name, 'chip--tier', `--t:${st.tier.color}`),
+          esHabito ? null : chip(st.tier.name, 'chip--tier', `--t:${colorDeRango(st.tier, st.tier.index) || colorDe(a)}`),
           chip(`📅 ${a.streakMode === 'weekly' && !a.days?.length
             ? `${a.weeklyTarget}× por semana`
             : scheduleLabel(a.days)}`),
@@ -68,7 +69,7 @@ export function render({ params, navigate, celebrate }) {
     a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
   root.append(el('div', { style: 'margin-top:12px' },
-    el('button', { class: 'btn btn--primary btn--block', style: `--c:${a.color}`,
+    el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(a)}`,
       onClick: () => openLogger(a, state.today, (events) => { celebrate(events); navigate(); }) },
       `Registrar ${relativeDay(state.today).toLowerCase()}`)));
 
@@ -133,7 +134,7 @@ export function render({ params, navigate, celebrate }) {
     const d = st.byDate.get(date);
     return { label: shortDate(date), short: i % 7 === 0 ? shortDate(date) : '', value: d?.value || 0, met: d?.met };
   });
-  root.append(el('div', { class: 'card' }, barChart(points, { color: a.color, labelEvery: 1 }),
+  root.append(el('div', { class: 'card' }, barChart(points, { color: colorDe(a), labelEvery: 1 }),
     el('p', { class: 'hint', style: 'margin-top:8px', text: `Las barras tenues quedaron por debajo de la meta de ${formatValue(a.goal, a.unit)}.` })));
 
   // --- Fuerza relativa ---
@@ -162,7 +163,7 @@ export function render({ params, navigate, celebrate }) {
         el('span', { style: 'font-weight:650', text: s.lift }),
         el('span', { class: 'row__value', text: `${formatNumber(s.e1rm)} kg` })),
       el('div', { class: 'quest__meta', style: 'margin-top:4px' },
-        chip(s.nivel.name, 'chip--tier', `--t:${a.color}`),
+        chip(s.nivel.name, 'chip--tier', `--t:${colorDe(a)}`),
         chip(`${formatNumber(s.ratio)}× tu peso`),
         s.usaPesoCorporal ? chip(s.weight > 0 ? `+${formatNumber(s.weight)} kg de lastre` : 'sin lastre') : null),
       s.nivel.next
@@ -259,7 +260,7 @@ function patronSemanal(st, a) {
       filas.map((f) => el('div', { style: 'display:flex;align-items:center;gap:10px' },
         el('span', { style: 'width:28px;font-size:.74rem;color:var(--muted);text-transform:capitalize', text: weekdayShort(f.i) }),
         el('div', { style: 'flex:1;height:14px;border-radius:7px;background:rgba(255,255,255,.06);overflow:hidden' },
-          el('div', { style: `height:100%;width:${Math.max(3, (f.prom / max) * 100)}%;border-radius:7px;background:${f.i === flojo.i ? 'var(--muted)' : a.color};opacity:${f.i === flojo.i ? .55 : .9}` })),
+          el('div', { style: `height:100%;width:${Math.max(3, (f.prom / max) * 100)}%;border-radius:7px;background:${f.i === flojo.i ? 'var(--muted)' : colorDe(a)};opacity:${f.i === flojo.i ? .55 : .9}` })),
         el('span', {
           style: 'width:66px;text-align:right;font-size:.74rem;white-space:nowrap;font-variant-numeric:tabular-nums',
           // Sin la unidad: ya está en el título de la actividad y hace que el número parta en dos líneas.
@@ -368,12 +369,12 @@ function bodySection(st) {
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Grasa corporal' })));
   root.append(el('div', { class: 'card' },
     lineChart(mediciones.map((m) => ({ label: shortDate(m.date), value: m.fatPct })),
-      { color: '#f472b6', suffix: '%' })));
+      { color: 'var(--accent)', suffix: '%' })));
 
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Peso' })));
   root.append(el('div', { class: 'card' },
     lineChart(mediciones.map((m) => ({ label: shortDate(m.date), value: m.weight || null })),
-      { color: '#7dd3fc', suffix: ' kg' })));
+      { color: 'var(--gold)', suffix: ' kg' })));
 
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Historial de medidas' })));
   root.append(el('div', { class: 'list' }, [...mediciones].reverse().map((m) => el('div', { class: 'row' },

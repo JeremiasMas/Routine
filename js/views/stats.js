@@ -2,6 +2,8 @@
 import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween } from '../utils.js';
 import { getState } from '../state.js';
 import { stat, xpBar, chip, barChart } from '../ui/components.js';
+import { colorDe, colorDeRango } from '../theme.js';
+import { seccionAnalisis } from './analisis.js';
 
 export function render() {
   const state = getState();
@@ -15,6 +17,9 @@ export function render() {
     stat(state.perfectDays, 'Días perfectos')));
 
   // --- Mapa de calor del último año ---
+  const analisis = seccionAnalisis(state);
+  if (analisis) root.append(analisis);
+
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Tu año' }), el('small', { text: 'XP por día' })));
   root.append(el('div', { class: 'card' }, heatmap(state)));
@@ -27,7 +32,7 @@ export function render() {
     for (let d = 0; d < 7; d++) xp += state.daily.get(addDays(start, d))?.xp || 0;
     return { label: shortDate(start), short: i % 3 === 0 ? shortDate(start) : '', value: xp, met: true };
   });
-  root.append(el('div', { class: 'card' }, barChart(weeks, { color: '#a78bfa' })));
+  root.append(el('div', { class: 'card' }, barChart(weeks, { color: 'var(--accent-2)' })));
 
   // --- Ranking de actividades ---
   root.append(el('div', { class: 'section-title' },
@@ -36,13 +41,13 @@ export function render() {
     .filter((st) => st.leveled !== false)
     .sort((a, b) => b.xp - a.xp);
   root.append(el('div', { class: 'list' }, ranked.map((st) => el('a', {
-    class: 'row', href: `#/actividad/${st.id}`, style: `--c:${st.activity.color}`,
+    class: 'row', href: `#/actividad/${st.id}`, style: `--c:${colorDe(st.activity)}`,
   },
     el('span', { style: 'font-size:1.3rem', text: st.activity.icon }),
     el('div', { class: 'row__main' },
       el('div', { style: 'display:flex;gap:8px;align-items:center' },
         el('span', { text: st.activity.name }),
-        chip(st.tier.name, 'chip--tier', `--t:${st.activity.color}`)),
+        chip(st.tier.name, 'chip--tier', `--t:${colorDe(st.activity)}`)),
       el('div', { style: 'margin-top:6px' }, xpBar(st.level.pct)),
       el('div', { class: 'row__sub', style: 'margin-top:4px', text: `Nivel ${st.level.level} · ${formatNumber(st.xp)} XP · ${formatValue(st.total, st.activity.unit)} en total` })),
     el('span', { class: 'muted', text: '›' })))));
@@ -80,8 +85,8 @@ function heatmap(state) {
     const xp = info?.xp || 0;
     const intensity = xp > 0 ? 0.22 + Math.min(1, xp / max) * 0.78 : 0;
     const color = info?.perfect
-      ? '#fbbf24'
-      : xp > 0 ? `color-mix(in srgb, #38bdf8 ${Math.round(intensity * 100)}%, rgba(255,255,255,.06))` : '';
+      ? 'var(--gold)'
+      : xp > 0 ? `color-mix(in srgb, var(--heat) ${Math.round(intensity * 100)}%, rgba(255,255,255,.06))` : '';
     grid.append(el('div', {
       class: 'heatmap__cell',
       style: color ? `background:${color}` : '',
@@ -96,8 +101,8 @@ function heatmap(state) {
       el('span', { text: 'menos' }),
       ...[0.15, 0.4, 0.7, 1].map((i) => el('span', {
         class: 'heatmap__cell',
-        style: `background:color-mix(in srgb, #38bdf8 ${i * 100}%, rgba(255,255,255,.06))`,
+        style: `background:color-mix(in srgb, var(--heat) ${i * 100}%, rgba(255,255,255,.06))`,
       })),
-      el('span', { class: 'heatmap__cell', style: 'background:#fbbf24' }),
+      el('span', { class: 'heatmap__cell', style: 'background:var(--gold)' }),
       el('span', { text: 'día perfecto' })));
 }

@@ -10,6 +10,7 @@ import {
   GYM_TEMPLATES, templateById, templateForDay,
   DEFAULT_SETS, DEFAULT_REP_RANGE,
 } from '../config.js';
+import { colorDe } from '../theme.js';
 
 /** Abre el registrador correcto para la actividad. */
 export function openLogger(activity, dateKey, onSaved) {
@@ -22,7 +23,7 @@ export function openLogger(activity, dateKey, onSaved) {
 
 function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getContext = () => null) {
   const preview = el('span', { class: 'xp-preview' });
-  const save = el('button', { class: 'btn btn--primary btn--block', style: `--c:${activity.color}` }, 'Guardar');
+  const save = el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(activity)}` }, 'Guardar');
   const remove = existing
     ? el('button', { class: 'btn btn--danger', onClick: () => { setEntry(dateKey, activity.id, null); onSaved?.(null); } }, 'Borrar')
     : null;
@@ -67,7 +68,7 @@ function numberForm(activity, dateKey, onSaved) {
 
   const bump = (delta) => { input.value = String(Math.max(0, value() + delta)); ctrl.update(); syncPresets(); };
   const presetButtons = (activity.presets || []).map((p) => el('button', {
-    type: 'button', style: `--c:${activity.color}`, dataset: { preset: String(p) },
+    type: 'button', style: `--c:${colorDe(activity)}`, dataset: { preset: String(p) },
     onClick: () => { input.value = String(p); ctrl.update(); syncPresets(); },
   }, formatValue(p, activity.unit)));
   const presets = el('div', { class: 'presets' }, presetButtons);
@@ -173,11 +174,11 @@ function gymForm(activity, dateKey, onSaved) {
   // --- Selector de rutina ---
   const chips = el('div', { class: 'presets', style: 'margin-bottom:12px' },
     GYM_TEMPLATES.map((t) => el('button', {
-      type: 'button', dataset: { tpl: t.id }, style: `--c:${activity.color}`,
+      type: 'button', dataset: { tpl: t.id }, style: `--c:${colorDe(activity)}`,
       onClick: () => { loadTemplate(t.id); refresh(); },
     }, t.short)),
     el('button', {
-      type: 'button', dataset: { tpl: 'libre' }, style: `--c:${activity.color}`,
+      type: 'button', dataset: { tpl: 'libre' }, style: `--c:${colorDe(activity)}`,
       onClick: () => { loadTemplate(null); refresh(); },
     }, 'Libre'));
 
@@ -359,7 +360,7 @@ function multiForm(activity, dateKey, onSaved) {
     input.addEventListener('input', sincronizar);
     const paso = (delta) => { input.value = String(Math.max(0, (Number(input.value) || 0) + delta)); sincronizar(); };
     const presets = (fuente.presets || []).map((n) => el('button', {
-      type: 'button', dataset: { n: String(n) }, style: `--c:${activity.color}`,
+      type: 'button', dataset: { n: String(n) }, style: `--c:${colorDe(activity)}`,
       onClick: () => { input.value = String(n); sincronizar(); },
     }, `${n} ${n === 1 ? fuente.unitLabel.replace(/e?s$/, '') : fuente.unitLabel}`));
 

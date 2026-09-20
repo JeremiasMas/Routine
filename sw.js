@@ -21,6 +21,10 @@ const ASSETS = [
   './js/zip.js',
   './js/pedometer.js',
   './js/native.js',
+  './js/merge.js',
+  './js/backup.js',
+  './js/theme.js',
+  './js/analisis.js',
   './js/config.js',
   './js/utils.js',
   './js/ui/components.js',
@@ -31,6 +35,7 @@ const ASSETS = [
   './js/views/today.js',
   './js/views/activity.js',
   './js/views/stats.js',
+  './js/views/analisis.js',
   './js/views/awards.js',
   './js/views/settings.js',
 ];

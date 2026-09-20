@@ -19,6 +19,9 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
@@ -40,6 +43,7 @@ class MainActivity : AppCompatActivity() {
   private var webLista = false
   private var ultimoEnvio: String? = null
   private var elegirArchivoCallback: ValueCallback<Array<Uri>>? = null
+  private var origenElegido: String? = null
 
   /**
    * Un WebView no abre el selector de archivos por su cuenta: si la app no
@@ -71,6 +75,18 @@ class MainActivity : AppCompatActivity() {
 
     web = WebView(this)
     setContentView(web)
+
+    // Desde Android 15 la app se dibuja de punta a punta por defecto, así que
+    // sin esto la web queda abajo de la barra de estado y del gesto de inicio.
+    // Se descuentan los márgenes del sistema como padding de la vista.
+    WindowCompat.getInsetsController(window, web).isAppearanceLightStatusBars = false
+    ViewCompat.setOnApplyWindowInsetsListener(web) { vista, insets ->
+      val barras = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      )
+      vista.setPadding(barras.left, barras.top, barras.right, barras.bottom)
+      insets
+    }
     web.settings.javaScriptEnabled = true
     web.settings.domStorageEnabled = true
     web.settings.databaseEnabled = true
@@ -98,10 +114,14 @@ class MainActivity : AppCompatActivity() {
     web.webViewClient = object : WebViewClient() {
       override fun onPageFinished(view: WebView?, url: String?) {
         webLista = true
+        // La web no tiene que volver a descontar los márgenes: ya los
+        // descontamos acá, y sumarlos dos veces deja un hueco enorme arriba.
+        view?.evaluateJavascript("document.documentElement.dataset.insets='nativo'", null)
         ultimoEnvio = null   // página nueva: hay que volver a mandarle los pasos
         refrescar()
       }
     }
+    origenElegido = getPreferences(MODE_PRIVATE).getString("origen", null)
     web.loadUrl(WEB)
 
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -122,16 +142,21 @@ class MainActivity : AppCompatActivity() {
     lifecycleScope.launch {
       permisoDado = Pasos.permisoDado(this@MainActivity)
       val estado = Pasos.estado(this@MainActivity, permisoDado)
+      var origenes: Map<String, Long> = emptyMap()
       val dias = if (estado == Pasos.Estado.LISTO) {
         try {
-          Pasos.porDia(this@MainActivity)
+          origenes = Pasos.porOrigen(this@MainActivity)
+          Pasos.porDia(this@MainActivity, origenElegido)
         } catch (e: Exception) {
           emptyMap()
         }
       } else {
         emptyMap()
       }
-      enviar(Pasos.comoJson(estado, dias, diagnostico(estado)))
+      val conNombre = origenes.mapKeys { (paquete, _) ->
+        "${Pasos.nombreDeApp(paquete)}\u0000$paquete"
+      }
+      enviar(Pasos.comoJson(estado, dias, diagnostico(estado), conNombre))
     }
   }
 
@@ -172,6 +197,7 @@ class MainActivity : AppCompatActivity() {
     // último reinicio, no por día— pero saber si existe ayuda a diagnosticar.
     val sm = getSystemService(SENSOR_SERVICE) as? SensorManager
     j.put("sensorDePasos", sm?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null)
+    j.put("origenElegido", origenElegido ?: "")
     return j
   }
 
@@ -222,6 +248,20 @@ class MainActivity : AppCompatActivity() {
           Toast.makeText(this@MainActivity, "No se pudo guardar: ${e.message}", Toast.LENGTH_LONG).show()
         }
         false
+      }
+    }
+
+    /**
+     * Contar sólo lo que escribe una app. Con dos fuentes midiendo la misma
+     * caminata, el total sale inflado.
+     */
+    @JavascriptInterface
+    fun usarSoloOrigen(paquete: String?) {
+      runOnUiThread {
+        origenElegido = paquete?.takeIf { it.isNotBlank() }
+        getPreferences(MODE_PRIVATE).edit().putString("origen", origenElegido).apply()
+        ultimoEnvio = null
+        this@MainActivity.refrescar()
       }
     }
 

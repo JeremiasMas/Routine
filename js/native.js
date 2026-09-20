@@ -98,7 +98,34 @@ export function capacidades() {
 }
 
 /** Último estado recibido, para que las pantallas lo puedan mostrar. */
-export const nativo = { estado: null, dias: {}, diagnostico: null, cargados: 0 };
+export const nativo = { estado: null, dias: {}, diagnostico: null, cargados: 0, origenes: [] };
+
+/**
+ * Qué apps escribieron pasos hoy. Health Connect suma lo que escriben todas,
+ * así que si hay dos midiendo la misma caminata el total sale más alto que el
+ * que ves en Samsung Health. Saber quiénes son es lo que explica la diferencia.
+ *
+ * La app manda la clave como "Nombre\0paquete" para no tener que mantener la
+ * tabla de nombres en los dos lados.
+ */
+export function leerOrigenes(crudos) {
+  return (crudos || []).map((o) => {
+    const [nombre, paquete] = String(o.paquete ?? '').split('\u0000');
+    return { nombre: nombre || paquete || '?', paquete: paquete || nombre || '', pasos: Number(o.pasos) || 0 };
+  }).filter((o) => o.paquete);
+}
+
+/**
+ * ¿Hay más de una app aportando pasos hoy? Es la causa más común de que el
+ * número de la app no coincida con el de Samsung Health.
+ */
+export function hayConflictoDeOrigenes(origenes) {
+  const conPasos = (origenes || []).filter((o) => o.pasos > 0);
+  if (conPasos.length < 2) return null;
+  const total = conPasos.reduce((n, o) => n + o.pasos, 0);
+  const mayor = conPasos.reduce((a, b) => (b.pasos > a.pasos ? b : a));
+  return { total, mayor, cuantas: conPasos.length, sobrante: total - mayor.pasos };
+}
 
 const oyentes = new Set();
 export function alCambiar(fn) {
@@ -114,6 +141,7 @@ export function conectar() {
     nativo.estado = datos.estado || null;
     nativo.dias = datos.dias || {};
     nativo.diagnostico = datos.diagnostico || null;
+    nativo.origenes = leerOrigenes(datos.origenes);
 
     const aCargar = diasACargar(nativo.dias, getData().entries);
     nativo.cargados = aCargar.length;
@@ -141,3 +169,4 @@ export function guardarArchivo(nombre, contenido) {
 export function pedirPermiso() { window.RutinaNativa?.pedirPermiso?.(); }
 export function instalarHealthConnect() { window.RutinaNativa?.instalarHealthConnect?.(); }
 export function refrescar() { window.RutinaNativa?.refrescar?.(); }
+export function usarSoloOrigen(paquete) { window.RutinaNativa?.usarSoloOrigen?.(paquete || ''); }

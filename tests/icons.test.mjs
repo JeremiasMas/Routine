@@ -75,17 +75,27 @@ for (const tamano of [192, 512]) {
     assert.equal(img.alto, tamano);
   });
 
-  // Este es el que importa: una vez el rasterizador perdió el rectángulo de
-  // fondo y el ícono salió casi blanco. El archivo seguía siendo un PNG
-  // válido del tamaño correcto, así que sólo mirar los metadatos no alcanza.
-  test(`icon-${tamano}.png tiene fondo oscuro, no blanco`, () => {
+  // El ícono es sólo la diana, sin recuadro. Una vez el rasterizador escribió
+  // el PNG sin canal alfa y salió con un fondo blanco: el archivo seguía
+  // siendo válido y del tamaño correcto, así que mirar metadatos no alcanza.
+  test(`icon-${tamano}.png tiene el fondo transparente`, () => {
     const img = leerPng(ruta);
-    const medio = Math.floor(tamano / 2);
-    const arriba = img.en(medio, Math.floor(tamano * 0.08));
-    const abajo = img.en(medio, Math.floor(tamano * 0.92));
-    assert.ok(luz(arriba) < 80, `el borde superior salió claro (luz ${Math.round(luz(arriba))})`);
-    assert.ok(luz(abajo) < 80, `el borde inferior salió claro (luz ${Math.round(luz(abajo))})`);
-    assert.ok(arriba.a > 200, 'el fondo no puede ser transparente');
+    const borde = Math.floor(tamano * 0.03);
+    for (const [x, y] of [[borde, borde], [tamano - borde - 1, borde],
+                          [borde, tamano - borde - 1], [tamano - borde - 1, tamano - borde - 1]]) {
+      assert.equal(img.en(x, y).a, 0, `la esquina (${x}, ${y}) no es transparente`);
+    }
+  });
+
+  test(`icon-${tamano}.png tiene dibujo, no está vacío`, () => {
+    // Un PNG entero transparente también pasaría la prueba de arriba.
+    const img = leerPng(ruta);
+    let opacos = 0;
+    for (let y = 0; y < tamano; y += 2) {
+      for (let x = 0; x < tamano; x += 2) if (img.en(x, y).a > 200) opacos += 1;
+    }
+    const total = Math.ceil(tamano / 2) ** 2;
+    assert.ok(opacos / total > 0.05, `sólo el ${Math.round(100 * opacos / total)}% del ícono tiene dibujo`);
   });
 
   test(`icon-${tamano}.png conserva la diana y la flecha`, () => {

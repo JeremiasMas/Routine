@@ -1,11 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Rutina RPG">
-  <defs>
-    <linearGradient id="fondo-a" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1b2450"/>
-      <stop offset="100%" stop-color="#0b1020"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#fondo-a)"/>
+  <!-- Sin fondo: el ícono es sólo la diana, transparente. -->
   <!-- Diana original de SVG Repo, escalada de 24 a 512. Los anillos venían en
        negro: acá van en claro porque el fondo de la app es oscuro. -->
   <g transform="translate(69 69) scale(15.6)">

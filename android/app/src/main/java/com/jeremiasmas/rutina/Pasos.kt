@@ -4,8 +4,12 @@ import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
+import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -50,7 +54,40 @@ object Pasos {
    * Se pide agregado por período y no registro por registro: así el total del
    * día lo calcula Health Connect, que sabe qué registros se pisan entre sí.
    */
-  suspend fun porDia(context: Context): Map<String, Long> {
+  /**
+   * Qué aplicaciones escribieron pasos hoy, y cuánto puso cada una.
+   *
+   * Health Connect suma lo que escriben todas las apps. Si además de Samsung
+   * Health hay otra midiendo lo mismo, el total sale más alto que el que ves
+   * en Samsung Health, y la diferencia no se explica sola. Esto la explica.
+   */
+  suspend fun porOrigen(context: Context): Map<String, Long> {
+    val cliente = HealthConnectClient.getOrCreate(context)
+    val hoy = LocalDate.now()
+    val rango = TimeRangeFilter.between(hoy.atStartOfDay(), LocalDateTime.now())
+    val paquetes = cliente.readRecords(
+      ReadRecordsRequest(recordType = StepsRecord::class, timeRangeFilter = rango)
+    ).records.map { it.metadata.dataOrigin.packageName }.filter { it.isNotBlank() }.toSet()
+
+    val salida = LinkedHashMap<String, Long>()
+    for (paquete in paquetes) {
+      val total = cliente.aggregate(
+        AggregateRequest(
+          metrics = setOf(StepsRecord.COUNT_TOTAL),
+          timeRangeFilter = rango,
+          dataOriginFilter = setOf(DataOrigin(paquete)),
+        )
+      )[StepsRecord.COUNT_TOTAL] ?: continue
+      salida[paquete] = total
+    }
+    return salida
+  }
+
+  /**
+   * Total por día. Si hay una app elegida se cuenta sólo esa: con dos fuentes
+   * midiendo la misma caminata, sumarlas cuenta los pasos dos veces.
+   */
+  suspend fun porDia(context: Context, soloDe: String? = null): Map<String, Long> {
     val cliente = HealthConnectClient.getOrCreate(context)
     val hoy = LocalDate.now()
     val desde = hoy.minusDays((DIAS - 1).toLong())
@@ -61,6 +98,7 @@ object Pasos {
         LocalDateTime.now(),
       ),
       timeRangeSlicer = Period.ofDays(1),
+      dataOriginFilter = if (soloDe.isNullOrBlank()) emptySet() else setOf(DataOrigin(soloDe)),
     )
     val salida = LinkedHashMap<String, Long>()
     for (tramo in cliente.aggregateGroupByPeriod(pedido)) {
@@ -71,12 +109,35 @@ object Pasos {
   }
 
   /** Lo que la app le manda a la web. */
-  fun comoJson(estado: Estado, dias: Map<String, Long>, extra: JSONObject? = null): String {
+  fun comoJson(
+    estado: Estado,
+    dias: Map<String, Long>,
+    extra: JSONObject? = null,
+    origenes: Map<String, Long> = emptyMap(),
+  ): String {
     val json = JSONObject()
     json.put("estado", estado.name.lowercase())
     json.put("fuente", "health-connect")
     json.put("dias", JSONObject().also { d -> dias.forEach { (k, v) -> d.put(k, v) } })
+    json.put(
+      "origenes",
+      JSONArray().also { arr ->
+        origenes.entries.sortedByDescending { it.value }.forEach { (paquete, total) ->
+          arr.put(JSONObject().put("paquete", paquete).put("pasos", total))
+        }
+      },
+    )
     if (extra != null) json.put("diagnostico", extra)
     return json.toString()
+  }
+
+  /** Nombre legible de las apps que suelen escribir pasos. */
+  fun nombreDeApp(paquete: String): String = when (paquete) {
+    "com.sec.android.app.shealth" -> "Samsung Health"
+    "com.google.android.apps.fitness" -> "Google Fit"
+    "com.google.android.apps.healthdata" -> "Health Connect"
+    "com.fitbit.FitbitMobile" -> "Fitbit"
+    "com.jeremiasmas.rutina" -> "esta app"
+    else -> paquete
   }
 }

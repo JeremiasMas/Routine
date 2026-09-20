@@ -43,7 +43,7 @@ export function toast(icon, html, ms = 3200) {
 }
 
 let confettiRunning = false;
-export function confetti(colors = ['#7dd3fc', '#a78bfa', '#fbbf24', '#34d399', '#fb7185']) {
+export function confetti(colors = ['var(--accent)', 'var(--gold)', 'var(--fire)', 'var(--ok)', 'var(--danger)']) {
   const canvas = document.getElementById('confetti');
   if (!canvas || confettiRunning) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
