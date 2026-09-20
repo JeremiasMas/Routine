@@ -220,6 +220,44 @@ Para el total del día automático hace falta una app nativa que lea Health Conn
 `Sensor.TYPE_STEP_COUNTER`; eso no se puede hacer desde la web, y la importación del
 ZIP sigue siendo el camino para eso.
 
+### La app de Android 🤖
+
+El modo caminata tiene un techo que no se puede levantar desde la web: con la
+pantalla apagada el navegador no entrega el acelerómetro. Para el total del día
+hace falta una pieza nativa, y está en `android/`.
+
+La app **no cuenta pasos**: los lee de **Health Connect**, que es por donde Samsung
+Health los comparte. Eso tiene dos ventajas sobre contarlos por nuestra cuenta: es
+exactamente el mismo número que ves en Samsung Health, y el problema de que el reloj
+y el teléfono cuenten lo mismo ya viene resuelto —Health Connect deduplica.
+
+Por dentro es la misma web metida en un `WebView` más un puente
+(`addJavascriptInterface`). La web se carga de GitHub Pages en vez de venir
+empaquetada, así que **cada push actualiza la app** sin recompilar ni reinstalar
+nada; el service worker se sigue encargando del modo offline.
+
+Del lado web, `js/native.js` escucha el evento `rutina-pasos` que manda la app:
+
+- **Pisa lo cargado a mano**, porque Health Connect es el número real.
+- **Nunca toca un día que no vino en la lectura**, para no borrar lo que anotaste
+  por culpa de una lectura vacía.
+- **No reescribe si el número no cambió**: cada escritura recalcula todo y
+  dispararía celebraciones repetidas al volver a la app.
+- Adentro de la app **el modo caminata se esconde**: sumaría encima del total del
+  sistema y contaría doble.
+
+En *Ajustes → Pasos* aparece el estado de la conexión y un desplegable de
+diagnóstico (versión de la app, teléfono, estado de Health Connect, permiso, días
+recibidos) para cuando algo no anda.
+
+**El APK lo compila GitHub Actions**, no hace falta Android Studio. Cada push a
+`main` que toque `android/` deja el último APK en el release `apk`:
+
+    https://github.com/JeremiasMas/Routine/releases/tag/apk
+
+Es un APK de debug, firmado con la clave de debug: alcanza para instalarlo de
+costado y evita tener que guardar un keystore en el repo.
+
 ### Historial previo a la app 📜
 
 Lo que ya venías haciendo antes de instalarla no arranca en cero. En
