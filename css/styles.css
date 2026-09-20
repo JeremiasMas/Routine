@@ -44,6 +44,9 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   padding-bottom: calc(76px + var(--inset-bottom, env(safe-area-inset-bottom)));
+  /* Y a los costados, para las pantallas curvas y el modo horizontal. */
+  padding-left: var(--inset-left, env(safe-area-inset-left));
+  padding-right: var(--inset-right, env(safe-area-inset-right));
 }
 
 
