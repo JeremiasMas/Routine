@@ -44,6 +44,10 @@ class MainActivity : AppCompatActivity() {
   private var ultimoEnvio: String? = null
   private var elegirArchivoCallback: ValueCallback<Array<Uri>>? = null
   private var origenElegido: String? = null
+  private var margenes = Margenes(0, 0, 0, 0)
+
+  /** Los márgenes del sistema, en píxeles de CSS. */
+  data class Margenes(val top: Int, val bottom: Int, val left: Int, val right: Int)
 
   /**
    * Un WebView no abre el selector de archivos por su cuenta: si la app no
@@ -77,16 +81,28 @@ class MainActivity : AppCompatActivity() {
     setContentView(web)
 
     // Desde Android 15 la app se dibuja de punta a punta por defecto, así que
-    // sin esto la web queda abajo de la barra de estado y del gesto de inicio.
-    // Se descuentan los márgenes del sistema como padding de la vista.
+    // sin esto la web queda abajo de la barra de estado y de la de navegación.
+    //
+    // En vez de achicar el WebView se le pasan las medidas a la web, que las
+    // usa como margen. Achicarlo dejaría ver el fondo de la ventana detrás de
+    // las barras, que es de un color fijo y desentona con el tema elegido;
+    // así el fondo de la app llega hasta el borde y sólo el contenido se corre.
     WindowCompat.getInsetsController(window, web).isAppearanceLightStatusBars = false
     ViewCompat.setOnApplyWindowInsetsListener(web) { vista, insets ->
       val barras = insets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
       )
-      vista.setPadding(barras.left, barras.top, barras.right, barras.bottom)
+      val d = vista.resources.displayMetrics.density
+      margenes = Margenes(
+        (barras.top / d).toInt(), (barras.bottom / d).toInt(),
+        (barras.left / d).toInt(), (barras.right / d).toInt(),
+      )
+      avisarMargenes()
       insets
     }
+    // La primera pasada de márgenes puede haber ocurrido antes de enganchar el
+    // oyente: sin esto, no llega ninguna hasta que algo más la dispare.
+    ViewCompat.requestApplyInsets(web)
     web.settings.javaScriptEnabled = true
     web.settings.domStorageEnabled = true
     web.settings.databaseEnabled = true
@@ -116,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         webLista = true
         // La web no tiene que volver a descontar los márgenes: ya los
         // descontamos acá, y sumarlos dos veces deja un hueco enorme arriba.
-        view?.evaluateJavascript("document.documentElement.dataset.insets='nativo'", null)
+        avisarMargenes()
         ultimoEnvio = null   // página nueva: hay que volver a mandarle los pasos
         refrescar()
       }
@@ -160,6 +176,21 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
+  /**
+   * Le pasa a la web cuánto miden las barras del sistema. La web las usa como
+   * margen; si todavía no cargó, se vuelve a avisar cuando termine.
+   */
+  private fun avisarMargenes() {
+    if (!webLista) return
+    val css = "var r=document.documentElement.style;" +
+      "r.setProperty('--inset-top','${margenes.top}px');" +
+      "r.setProperty('--inset-bottom','${margenes.bottom}px');" +
+      "r.setProperty('--inset-left','${margenes.left}px');" +
+      "r.setProperty('--inset-right','${margenes.right}px');" +
+      "document.documentElement.dataset.insets='nativo';"
+    web.evaluateJavascript(css, null)
+  }
+
   /** Le pasa los pasos a la web, salvo que sean los mismos de la última vez. */
   private fun enviar(json: String) {
     if (!webLista || json == ultimoEnvio) return
@@ -198,6 +229,7 @@ class MainActivity : AppCompatActivity() {
     val sm = getSystemService(SENSOR_SERVICE) as? SensorManager
     j.put("sensorDePasos", sm?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null)
     j.put("origenElegido", origenElegido ?: "")
+    j.put("margenes", "${margenes.top}/${margenes.bottom}")
     return j
   }
 
