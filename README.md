@@ -227,6 +227,15 @@ Sin esto, subir la vara hoy convertiría un año entero de constancia en
 cincuenta y seis semanas incumplidas y la racha se caería a dos. Con esto, la
 racha son las 59 semanas que de verdad entrenaste.
 
+### Patrón semanal
+
+El detalle de cada actividad muestra el promedio por día de la semana de las
+últimas doce semanas, con cuántas veces cumpliste la meta ese día y cuál es el
+más flojo. Un promedio general esconde que un día puntual arrastre al resto:
+sobre 180 días reales de pasos, el martes llegaba a la meta el 23% de las veces
+contra el 62-84% del resto de los días. Aparece sólo cuando hay al menos tres
+semanas de datos.
+
 ## Cómo funciona la XP
 
 La regla de oro: **cumplir la meta vale 100 XP, sea la actividad que sea.** Así 45

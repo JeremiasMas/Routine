@@ -1,5 +1,5 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
-import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural, scheduleLabel } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort } from '../utils.js';
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
@@ -187,6 +187,10 @@ export function render({ params, navigate, celebrate }) {
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' }, 'El valor de la derecha es tu 1RM estimado (fórmula de Epley).'));
   }
 
+  // --- Patrón semanal ---
+  const patron = patronSemanal(st, a);
+  if (patron) root.append(patron);
+
   // --- Historial ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Historial' })));
   const recent = [...st.history].reverse().slice(0, 20);
@@ -205,6 +209,54 @@ export function render({ params, navigate, celebrate }) {
     `Cada nivel de ${a.name} cuesta más que el anterior: el próximo pide ${formatNumber(xpToNextLevel(st.level.level))} XP.`));
 
   return root;
+}
+
+/**
+ * Promedio por día de la semana. Un promedio general esconde que un día
+ * puntual arrastra al resto: acá se ve cuál es el flojo.
+ */
+function patronSemanal(st, a) {
+  const DIAS_MIRADOS = 84;   // doce semanas
+  const desde = addDays(st.history.length ? st.history[st.history.length - 1].date : '', -DIAS_MIRADOS);
+  const recientes = st.history.filter((h) => h.date >= desde && h.value > 0);
+  if (recientes.length < 21) return null;   // sin datos suficientes no dice nada
+
+  const porDia = Array.from({ length: 7 }, () => ({ suma: 0, n: 0, met: 0 }));
+  for (const h of recientes) {
+    const d = porDia[keyToDate(h.date).getDay()];
+    d.suma += h.value;
+    d.n += 1;
+    if (h.met) d.met += 1;
+  }
+
+  const orden = [1, 2, 3, 4, 5, 6, 0];
+  const filas = orden.map((i) => ({ i, ...porDia[i], prom: porDia[i].n ? porDia[i].suma / porDia[i].n : 0 }))
+    .filter((f) => f.n > 0);
+  if (filas.length < 4) return null;
+
+  const max = Math.max(...filas.map((f) => f.prom));
+  const flojo = filas.reduce((peor, f) => (f.prom < peor.prom ? f : peor), filas[0]);
+  const fuerte = filas.reduce((mejor, f) => (f.prom > mejor.prom ? f : mejor), filas[0]);
+
+  return el('div', {},
+    el('div', { class: 'section-title' },
+      el('h2', { text: 'Por día de la semana' }),
+      el('small', { text: 'últimas 12 semanas' })),
+    el('div', { class: 'card', style: 'display:grid;gap:8px' },
+      filas.map((f) => el('div', { style: 'display:flex;align-items:center;gap:10px' },
+        el('span', { style: 'width:28px;font-size:.74rem;color:var(--muted);text-transform:capitalize', text: weekdayShort(f.i) }),
+        el('div', { style: 'flex:1;height:14px;border-radius:7px;background:rgba(255,255,255,.06);overflow:hidden' },
+          el('div', { style: `height:100%;width:${Math.max(3, (f.prom / max) * 100)}%;border-radius:7px;background:${f.i === flojo.i ? 'var(--muted)' : a.color};opacity:${f.i === flojo.i ? .55 : .9}` })),
+        el('span', {
+          style: 'width:66px;text-align:right;font-size:.74rem;white-space:nowrap;font-variant-numeric:tabular-nums',
+          // Sin la unidad: ya está en el título de la actividad y hace que el número parta en dos líneas.
+          text: a.unit === 'min' ? formatValue(Math.round(f.prom), a.unit) : formatNumber(Math.round(f.prom)),
+        }),
+        el('span', { style: `width:38px;text-align:right;font-size:.7rem;color:${f.met / f.n >= 0.6 ? 'var(--ok)' : 'var(--muted)'}`, text: `${Math.round((f.met / f.n) * 100)}%` }))),
+      el('p', { class: 'hint', style: 'margin-top:4px' },
+        flojo.prom < fuerte.prom * 0.85
+          ? `Tu día más flojo es el ${weekdayShort(flojo.i)}: ${formatValue(Math.round(flojo.prom), a.unit)} de promedio contra ${formatValue(Math.round(fuerte.prom), a.unit)} el ${weekdayShort(fuerte.i)}. El porcentaje de la derecha es cuántas veces cumpliste la meta ese día.`
+          : `Estás parejo toda la semana. El porcentaje de la derecha es cuántas veces cumpliste la meta ese día.`)));
 }
 
 /** Cabecera del gimnasio: el nivel lo da la fuerza, no las sesiones. */
