@@ -4,6 +4,7 @@ import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
 import { openWalk, walkDisponible } from '../ui/walk.js';
+import { enApp } from '../native.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
 import { getData } from '../state.js';
@@ -73,7 +74,9 @@ export function render({ params, navigate, celebrate }) {
 
   // Los pasos se pueden contar en vivo con el acelerómetro, sin esperar a la
   // exportación de Samsung Health.
-  if (a.id === 'pasos' && walkDisponible()) {
+  // Con la app de Android el conteo lo hace el sistema todo el día, así que
+  // el modo caminata sólo sobra: sumaría encima del total real.
+  if (a.id === 'pasos' && walkDisponible() && !enApp()) {
     root.append(el('div', { style: 'margin-top:8px' },
       el('button', { class: 'btn btn--block', onClick: () => openWalk(a, (events, pasos) => {
         if (pasos > 0) celebrate(events, pasos); else navigate();

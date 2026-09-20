@@ -9,6 +9,7 @@ import * as activity from './views/activity.js';
 import * as stats from './views/stats.js';
 import * as awards from './views/awards.js';
 import * as settings from './views/settings.js';
+import { conectar as conectarNativo, alCambiar as alCambiarNativo } from './native.js';
 
 const TABS = [
   { hash: '#/', icon: '⚔️', label: 'Hoy' },
@@ -167,6 +168,16 @@ function watchDayChange() {
 
 function boot() {
   load();
+  // El puente se engancha antes de pintar: si la app de Android ya mandó los
+  // pasos, la primera pantalla ya los muestra.
+  conectarNativo();
+  alCambiarNativo((estado, cargados) => {
+    navigate();
+    if (cargados.length) {
+      const dias = cargados.length === 1 ? 'un día' : `${cargados.length} días`;
+      toast('👟', `Pasos actualizados desde Samsung Health (${dias}).`);
+    }
+  });
   window.addEventListener('hashchange', navigate);
   navigate();
   watchDayChange();

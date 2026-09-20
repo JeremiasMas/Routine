@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- El mismo fondo que la web, para que no haya un flash blanco al abrir. -->
+  <color name="fondo">#0b1020</color>
+</resources>

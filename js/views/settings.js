@@ -1,11 +1,12 @@
 // Ajustes: metas, actividades, copia de seguridad.
-import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey } from '../utils.js';
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
 } from '../state.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -68,6 +69,10 @@ export function render({ navigate }) {
   // --- Pasos desde Samsung Health ---
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Pasos' }), el('small', { text: 'Samsung Health' })));
+
+  // Adentro de la app de Android los pasos llegan solos por Health Connect.
+  if (enApp()) root.append(tarjetaNativa(navigate));
+
   root.append(el('div', { class: 'card' },
     el('p', { class: 'hint' },
       'Samsung Health no tiene una conexión en vivo para aplicaciones web: su SDK es solo para apps Android del programa de socios, y Health Connect no se puede leer desde el navegador. Lo que sí funciona es traer los datos de su exportación oficial, que podés repetir cuando quieras.'),
@@ -312,4 +317,51 @@ function doReset(navigate) {
       el('button', { class: 'btn btn--block', onClick: () => closeSheet() }, 'Mejor no'),
       el('button', { class: 'btn btn--danger', onClick: () => { resetAll(); closeSheet(); location.hash = '#/'; navigate(); toast('🧹', 'Empezás de cero.'); } }, 'Sí, borrar todo')));
   openSheet('¿Borrar todo el progreso?', body);
+}
+
+
+/**
+ * Estado del puente con Health Connect. Sólo aparece adentro de la app de
+ * Android: en Chrome no hay puente que mostrar.
+ */
+function tarjetaNativa(navigate) {
+  const msg = mensajeDeEstado(nativo.estado);
+  const dias = Object.keys(nativo.dias || {}).length;
+  const hoy = nativo.dias?.[todayKey()];
+
+  const card = el('div', { class: 'card' },
+    el('div', { style: 'display:flex;align-items:center;gap:10px' },
+      el('span', { style: 'font-size:1.3rem', text: msg.ok ? '✅' : '⚠️' }),
+      el('div', { style: 'flex:1;min-width:0' },
+        el('div', { style: 'font-weight:700', text: 'Health Connect' }),
+        el('div', { class: 'hint', text: msg.texto }))));
+
+  if (msg.ok) {
+    card.append(el('p', { class: 'hint', style: 'margin-top:10px' },
+      hoy != null
+        ? `Hoy llevás ${formatNumber(hoy)} pasos según Samsung Health. `
+        : 'Todavía no hay pasos registrados hoy. ',
+      dias > 0 ? `Se sincronizan los últimos ${dias} días con datos, cada vez que abrís la app.` : ''));
+    card.append(el('div', { class: 'btn-row', style: 'margin-top:12px' },
+      el('button', { class: 'btn', onClick: () => refrescarNativo() }, '🔄 Volver a leer')));
+  } else if (msg.accion) {
+    card.append(el('div', { class: 'btn-row', style: 'margin-top:12px' },
+      el('button', { class: 'btn btn--primary', style: '--c:#34d399',
+        onClick: () => (msg.accion === 'permiso' ? pedirPermiso() : instalarHealthConnect()) },
+        msg.boton)));
+  }
+
+  if (nativo.diagnostico) {
+    const d = nativo.diagnostico;
+    card.append(el('details', { style: 'margin-top:12px' },
+      el('summary', { class: 'hint', style: 'cursor:pointer', text: 'Diagnóstico' }),
+      el('div', { class: 'hint', style: 'margin-top:8px;line-height:1.7' },
+        el('div', { text: `Teléfono: ${d.telefono || '—'} (Android API ${d.android || '—'})` }),
+        el('div', { text: `Health Connect: estado ${d.sdkHealthConnect}` }),
+        el('div', { text: `Permiso de pasos: ${d.permiso ? 'concedido' : 'falta'}` }),
+        el('div', { text: `Sensor de pasos del sistema: ${d.sensorDePasos ? 'sí' : 'no'}` }),
+        el('div', { text: `Días recibidos: ${dias}` }))));
+  }
+
+  return card;
 }

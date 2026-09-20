@@ -20,6 +20,7 @@ const ASSETS = [
   './js/steps-import.js',
   './js/zip.js',
   './js/pedometer.js',
+  './js/native.js',
   './js/config.js',
   './js/utils.js',
   './js/ui/components.js',
