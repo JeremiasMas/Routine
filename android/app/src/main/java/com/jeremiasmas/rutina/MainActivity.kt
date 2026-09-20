@@ -1,15 +1,21 @@
 package com.jeremiasmas.rutina
 
 import android.annotation.SuppressLint
+import android.content.ContentValues
 import android.content.Intent
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -33,6 +39,24 @@ class MainActivity : AppCompatActivity() {
   private var permisoDado = false
   private var webLista = false
   private var ultimoEnvio: String? = null
+  private var elegirArchivoCallback: ValueCallback<Array<Uri>>? = null
+
+  /**
+   * Un WebView no abre el selector de archivos por su cuenta: si la app no
+   * implementa esto, cualquier <input type="file"> de la web no hace nada.
+   * Es lo que rompía importar la copia de seguridad y el ZIP de Samsung.
+   */
+  private val elegirArchivo = registerForActivityResult(
+    ActivityResultContracts.StartActivityForResult()
+  ) { resultado ->
+    val cb = elegirArchivoCallback
+    elegirArchivoCallback = null
+    // Si se cancela hay que devolver null igual: sin esto el input queda
+    // trabado para siempre y no vuelve a abrir nunca más.
+    cb?.onReceiveValue(
+      WebChromeClient.FileChooserParams.parseResult(resultado.resultCode, resultado.data)
+    )
+  }
 
   private val pedirPermiso = registerForActivityResult(
     PermissionController.createRequestPermissionResultContract()
@@ -52,6 +76,25 @@ class MainActivity : AppCompatActivity() {
     web.settings.databaseEnabled = true
     web.settings.mediaPlaybackRequiresUserGesture = false
     web.addJavascriptInterface(Puente(), "RutinaNativa")
+    web.webChromeClient = object : WebChromeClient() {
+      override fun onShowFileChooser(
+        vista: WebView?,
+        callback: ValueCallback<Array<Uri>>?,
+        params: FileChooserParams?,
+      ): Boolean {
+        elegirArchivoCallback?.onReceiveValue(null)   // cancelar uno anterior
+        elegirArchivoCallback = callback
+        return try {
+          elegirArchivo.launch(intentDeArchivos(params))
+          true
+        } catch (e: Exception) {
+          elegirArchivoCallback = null
+          callback?.onReceiveValue(null)
+          false
+        }
+      }
+    }
+
     web.webViewClient = object : WebViewClient() {
       override fun onPageFinished(view: WebView?, url: String?) {
         webLista = true
@@ -101,6 +144,21 @@ class MainActivity : AppCompatActivity() {
     )
   }
 
+  /**
+   * El intent que abre el selector. Se pide `*​/*` con los tipos aceptados como
+   * pista, en vez de filtrar por MIME: hay proveedores de archivos que no
+   * declaran bien el tipo de un .zip o un .csv y los dejan grises, imposibles
+   * de elegir. Mejor mostrar todo que esconder el archivo que se busca.
+   */
+  private fun intentDeArchivos(params: WebChromeClient.FileChooserParams?): Intent {
+    val base = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT)
+    val tipos = params?.acceptTypes?.filter { it.isNotBlank() && it.contains('/') }
+    base.type = "*/*"
+    if (!tipos.isNullOrEmpty()) base.putExtra(Intent.EXTRA_MIME_TYPES, tipos.toTypedArray())
+    base.addCategory(Intent.CATEGORY_OPENABLE)
+    return base
+  }
+
   private fun diagnostico(estado: Pasos.Estado): JSONObject {
     val j = JSONObject()
     j.put("version", BuildConfig.VERSION_NAME)
@@ -145,6 +203,27 @@ class MainActivity : AppCompatActivity() {
       }
     }
 
+    /**
+     * Guarda un archivo en Descargas. La web exporta con un blob y un
+     * <a download>, que en un WebView no descarga nada: adentro de la app la
+     * copia de seguridad pasa por acá.
+     */
+    @JavascriptInterface
+    fun guardarArchivo(nombre: String, contenido: String): Boolean {
+      return try {
+        val destino = escribirEnDescargas(nombre, contenido)
+        runOnUiThread {
+          Toast.makeText(this@MainActivity, "Guardado en $destino", Toast.LENGTH_LONG).show()
+        }
+        true
+      } catch (e: Exception) {
+        runOnUiThread {
+          Toast.makeText(this@MainActivity, "No se pudo guardar: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+        false
+      }
+    }
+
     @JavascriptInterface
     fun instalarHealthConnect() {
       runOnUiThread {
@@ -158,6 +237,31 @@ class MainActivity : AppCompatActivity() {
         }
       }
     }
+  }
+
+  /** Escribe en la carpeta de Descargas y devuelve dónde quedó. */
+  private fun escribirEnDescargas(nombre: String, contenido: String): String {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      // Desde Android 10 se escribe por MediaStore y no hace falta ningún
+      // permiso de almacenamiento.
+      val valores = ContentValues().apply {
+        put(MediaStore.Downloads.DISPLAY_NAME, nombre)
+        put(MediaStore.Downloads.MIME_TYPE, "application/json")
+        put(MediaStore.Downloads.IS_PENDING, 1)
+      }
+      val resolver = contentResolver
+      val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valores)
+        ?: throw IllegalStateException("Descargas no está disponible")
+      resolver.openOutputStream(uri).use { it!!.write(contenido.toByteArray()) }
+      valores.clear()
+      valores.put(MediaStore.Downloads.IS_PENDING, 0)
+      resolver.update(uri, valores, null, null)
+      return "Descargas/$nombre"
+    }
+    val carpeta = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    carpeta.mkdirs()
+    java.io.File(carpeta, nombre).writeText(contenido)
+    return "Descargas/$nombre"
   }
 
   companion object {

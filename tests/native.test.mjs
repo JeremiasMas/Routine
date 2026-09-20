@@ -66,3 +66,25 @@ test('una fecha con forma válida pero inexistente no crea un día fantasma', ()
   // Y el 29 de febrero de un año bisiesto sí es un día real.
   assert.deepEqual(diasACargar({ '2028-02-29': 9000 }, {}), [{ date: '2028-02-29', value: 9000 }]);
 });
+
+test('guardarArchivo avisa si la app no lo soporta', async () => {
+  const { guardarArchivo } = await import('../js/native.js');
+  globalThis.window = {};
+  assert.equal(guardarArchivo('x.json', '{}'), false, 'sin puente no se hace cargo nadie');
+
+  // Una app vieja, sin el método: la web tiene que volver al blob.
+  globalThis.window = { RutinaNativa: { disponible: () => true } };
+  assert.equal(guardarArchivo('x.json', '{}'), false);
+
+  let recibido = null;
+  globalThis.window = { RutinaNativa: { guardarArchivo: (n, c) => { recibido = [n, c]; return true; } } };
+  assert.equal(guardarArchivo('copia.json', '{"a":1}'), true);
+  assert.deepEqual(recibido, ['copia.json', '{"a":1}']);
+
+  // Si la app falla al guardar, la web no debe decir que guardó.
+  globalThis.window = { RutinaNativa: { guardarArchivo: () => false } };
+  assert.equal(guardarArchivo('x.json', '{}'), false);
+  globalThis.window = { RutinaNativa: { guardarArchivo: () => { throw new Error('sin espacio'); } } };
+  assert.equal(guardarArchivo('x.json', '{}'), false, 'una excepción no puede romper la exportación');
+  delete globalThis.window;
+});

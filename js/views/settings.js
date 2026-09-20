@@ -6,7 +6,7 @@ import {
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
 } from '../state.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo } from '../native.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -283,9 +283,16 @@ function importarPasos(navigate) {
 }
 
 function doExport() {
+  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  // Adentro de la app de Android el blob no descarga nada: lo guarda la app.
+  if (guardarArchivo(nombre, exportData())) {
+    markExported();
+    toast('⬇', 'Copia guardada en Descargas.');
+    return;
+  }
   const blob = new Blob([exportData()], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const link = el('a', { href: url, download: `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json` });
+  const link = el('a', { href: url, download: nombre });
   document.body.append(link);
   link.click();
   link.remove();
@@ -361,7 +368,11 @@ function tarjetaNativa(navigate) {
         el('div', { text: `Health Connect: estado ${d.sdkHealthConnect}` }),
         el('div', { text: `Permiso de pasos: ${d.permiso ? 'concedido' : 'falta'}` }),
         el('div', { text: `Sensor de pasos del sistema: ${d.sensorDePasos ? 'sí' : 'no'}` }),
-        el('div', { text: `Días recibidos: ${dias}` }))));
+        el('div', { text: `Días recibidos: ${dias}` }),
+        (() => {
+          const c = capacidades();
+          return el('div', { text: `WebView: Chrome ${c.chrome || '—'} · ZIP ${c.zip ? 'sí' : 'NO'} · guardar ${c.guardar ? 'sí' : 'NO'}` });
+        })())));
   }
 
   return card;

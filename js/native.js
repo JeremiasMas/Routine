@@ -80,6 +80,23 @@ export function mensajeDeEstado(estado) {
   }
 }
 
+/**
+ * Lo que el WebView soporta. Un WebView viejo puede no tener
+ * DecompressionStream, y entonces la importación del ZIP de Samsung falla sin
+ * que quede claro por qué.
+ */
+export function capacidades() {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const chrome = /Chrome\/(\d+)/.exec(ua)?.[1];
+  return {
+    chrome: chrome ? Number(chrome) : null,
+    webview: /; wv\)/.test(ua),
+    zip: typeof DecompressionStream === 'function',
+    archivos: typeof window !== 'undefined' && 'FileReader' in window,
+    guardar: typeof window?.RutinaNativa?.guardarArchivo === 'function',
+  };
+}
+
 /** Último estado recibido, para que las pantallas lo puedan mostrar. */
 export const nativo = { estado: null, dias: {}, diagnostico: null, cargados: 0 };
 
@@ -105,6 +122,20 @@ export function conectar() {
     }
     oyentes.forEach((fn) => fn(nativo, aCargar));
   });
+}
+
+/**
+ * Guarda un archivo usando la app. La web exporta con un blob y un
+ * <a download>, que adentro de un WebView no descarga nada.
+ * @returns {boolean} si la app se hizo cargo.
+ */
+export function guardarArchivo(nombre, contenido) {
+  if (typeof window.RutinaNativa?.guardarArchivo !== 'function') return false;
+  try {
+    return window.RutinaNativa.guardarArchivo(nombre, contenido) !== false;
+  } catch {
+    return false;
+  }
 }
 
 export function pedirPermiso() { window.RutinaNativa?.pedirPermiso?.(); }
