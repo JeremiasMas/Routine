@@ -11,8 +11,13 @@ android {
     applicationId = "com.jeremiasmas.rutina"
     minSdk = 26
     targetSdk = 35
-    versionCode = 1
-    versionName = "1.0"
+    // CI los pisa con el número de build, así se sabe qué versión tenés.
+    versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
+    versionName = (project.findProperty("versionName") as String?) ?: "1.0-local"
+  }
+
+  buildFeatures {
+    buildConfig = true
   }
 
   buildTypes {

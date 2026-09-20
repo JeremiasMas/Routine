@@ -103,6 +103,7 @@ class MainActivity : AppCompatActivity() {
 
   private fun diagnostico(estado: Pasos.Estado): JSONObject {
     val j = JSONObject()
+    j.put("version", BuildConfig.VERSION_NAME)
     j.put("android", Build.VERSION.SDK_INT)
     j.put("telefono", "${Build.MANUFACTURER} ${Build.MODEL}")
     j.put("sdkHealthConnect", HealthConnectClient.getSdkStatus(this))

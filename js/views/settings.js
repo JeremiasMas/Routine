@@ -356,6 +356,7 @@ function tarjetaNativa(navigate) {
     card.append(el('details', { style: 'margin-top:12px' },
       el('summary', { class: 'hint', style: 'cursor:pointer', text: 'Diagnóstico' }),
       el('div', { class: 'hint', style: 'margin-top:8px;line-height:1.7' },
+        el('div', { text: `App: versión ${d.version || '—'}` }),
         el('div', { text: `Teléfono: ${d.telefono || '—'} (Android API ${d.android || '—'})` }),
         el('div', { text: `Health Connect: estado ${d.sdkHealthConnect}` }),
         el('div', { text: `Permiso de pasos: ${d.permiso ? 'concedido' : 'falta'}` }),

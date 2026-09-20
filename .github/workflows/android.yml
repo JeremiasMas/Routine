@@ -2,10 +2,14 @@ name: APK de Android
 
 on:
   push:
+    branches: [main]
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   apk:
@@ -24,7 +28,7 @@ jobs:
       # instalarlo de costado y evita tener que guardar un keystore.
       - name: Compilar
         working-directory: android
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug -PversionName=1.0.${{ github.run_number }} -PversionCode=${{ github.run_number }}
 
       - name: Renombrar
         run: cp android/app/build/outputs/apk/debug/app-debug.apk rutina.apk
@@ -34,3 +38,16 @@ jobs:
           name: rutina-apk
           path: rutina.apk
           if-no-files-found: error
+
+      # Un release fijo con el último APK: desde el teléfono es un link, un
+      # toque y listo, sin ZIP y sin tener que iniciar sesión en GitHub.
+      - name: Publicar el último APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk --yes --cleanup-tag 2>/dev/null || true
+          gh release create apk rutina.apk \
+            --title "Rutina para Android (build ${{ github.run_number }})" \
+            --notes "APK de la versión 1.0.${{ github.run_number }}, compilado desde ${{ github.sha }}.
+
+          Para instalarlo: abrí este link desde el teléfono, bajá el archivo \`rutina.apk\` y tocalo. Android va a pedir permiso para instalar apps de esta fuente."
