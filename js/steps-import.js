@@ -21,6 +21,40 @@ export function splitCsvLine(line) {
   return out.map((f) => f.trim());
 }
 
+/**
+ * Cuál de los archivos del export trae los totales diarios, en orden de
+ * preferencia. Samsung incluye varios con "step" o "pedometer" en el nombre y
+ * no todos sirven:
+ *
+ *  - step_daily_trend / pedometer_day_summary → totales por día. Lo que queremos.
+ *  - pedometer_step_count → tramos de pocos minutos. Parsea bien pero cada fila
+ *    es un pedacito del día: tomarlo daría 50 pasos donde hubo 12.000.
+ *  - pedometer_recommendation → la meta sugerida (10.000), no lo que caminaste.
+ */
+const DATASETS_DIARIOS = ['step_daily_trend', 'pedometer_day_summary'];
+const DATASETS_EXCLUIDOS = ['pedometer_step_count', 'pedometer_recommendation'];
+
+/** ¿Este archivo podría traer pasos? Filtro grueso, por nombre. */
+export function esCsvDePasos(nombre) {
+  const base = nombre.split('/').pop().toLowerCase();
+  if (!base.endsWith('.csv')) return false;
+  if (DATASETS_EXCLUIDOS.some((x) => base.includes(x))) return false;
+  return /step|pedometer|paso/.test(base);
+}
+
+/**
+ * De todos los nombres de un export, elige cuáles leer: si están los totales
+ * diarios se usan sólo esos, y el resto ni se descomprime.
+ */
+export function elegirArchivosDePasos(nombres) {
+  const candidatos = (nombres || []).filter(esCsvDePasos);
+  for (const dataset of DATASETS_DIARIOS) {
+    const elegidos = candidatos.filter((n) => n.toLowerCase().includes(dataset));
+    if (elegidos.length) return elegidos;
+  }
+  return candidatos;   // un CSV suelto o un export con otros nombres
+}
+
 const COLUMNAS_FECHA = ['day_time', 'start_time', 'date', 'fecha', 'day', 'create_time'];
 const COLUMNAS_PASOS = ['step_count', 'total_step', 'count', 'steps', 'pasos'];
 

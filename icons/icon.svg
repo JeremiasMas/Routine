@@ -1,17 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Rutina RPG">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="fondo" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#1b2450"/>
       <stop offset="100%" stop-color="#0b1020"/>
     </linearGradient>
-    <linearGradient id="spark" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0%" stop-color="#38bdf8"/>
-      <stop offset="50%" stop-color="#a78bfa"/>
-      <stop offset="100%" stop-color="#fbbf24"/>
-    </linearGradient>
+
+    <!-- Flecha dibujada sobre un eje rotado 45°: la geometría queda trivial. -->
+    <g id="flecha">
+      <path d="M0 0 L88 42 L88 -42 Z"/>
+      <rect x="74" y="-16" width="126" height="32" rx="5"/>
+      <path d="M188 -36 L262 -36 L224 0 L262 36 L188 36 Z"/>
+    </g>
+
+    <!-- Los anillos se abren por donde entra la flecha. -->
+    <mask id="corredor">
+      <rect width="512" height="512" fill="#fff"/>
+      <g transform="translate(240 280) rotate(-45)" fill="#000" stroke="#000"
+         stroke-width="34" stroke-linejoin="round">
+        <use href="#flecha"/>
+      </g>
+    </mask>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <path d="M256 96c-8 0-15 5-18 12l-34 79-86 8c-16 1-23 21-11 32l65 57-19 84c-4 16 13 28 27 20l76-44 76 44c14 8 31-4 27-20l-19-84 65-57c12-11 5-31-11-32l-86-8-34-79c-3-7-10-12-18-12z" fill="url(#spark)"/>
-  <rect x="120" y="392" width="272" height="26" rx="13" fill="#0b1020" opacity=".65"/>
-  <rect x="128" y="398" width="176" height="14" rx="7" fill="url(#spark)"/>
+
+  <rect width="512" height="512" rx="112" fill="url(#fondo)"/>
+
+  <!-- Diana: en la referencia los anillos son negros; acá van en claro
+       porque el fondo de la app es oscuro. -->
+  <g mask="url(#corredor)" fill="none" stroke="#f1f5ff" stroke-width="40">
+    <circle cx="240" cy="280" r="158"/>
+    <circle cx="240" cy="280" r="96"/>
+  </g>
+  <circle cx="240" cy="280" r="50" fill="#fb4d54"/>
+
+  <g transform="translate(240 280) rotate(-45)" fill="#fb4d54">
+    <use href="#flecha"/>
+  </g>
 </svg>

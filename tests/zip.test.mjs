@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync, crc32 } from 'node:zlib';
-import { listarEntradas, leerEntrada, extraerTextos, esCsvDePasos } from '../js/zip.js';
-import { parseStepsCsv } from '../js/steps-import.js';
+import { listarEntradas, leerEntrada, extraerTextos } from '../js/zip.js';
+import { parseStepsCsv, esCsvDePasos, elegirArchivosDePasos } from '../js/steps-import.js';
 
 /** Arma un ZIP real (deflate) para no depender de un archivo binario en el repo. */
 function armarZip(archivos) {
@@ -89,7 +89,8 @@ test('reconoce cuál de los archivos es el de pasos', () => {
 });
 
 test('del ZIP entero saca sólo los pasos y los interpreta', async () => {
-  const textos = await extraerTextos(armarZip(EXPORT), esCsvDePasos);
+  const elegidos = new Set(elegirArchivosDePasos(Object.keys(EXPORT)));
+  const textos = await extraerTextos(armarZip(EXPORT), (n) => elegidos.has(n));
   assert.equal(textos.length, 1, 'ignora sueño y pulsaciones');
   assert.deepEqual(parseStepsCsv(textos[0].text).days, [
     { date: '2026-09-15', steps: 9430 },
@@ -104,5 +105,6 @@ test('un archivo que no es ZIP da un error claro', () => {
 
 test('un ZIP sin archivos de pasos devuelve vacío en vez de romper', async () => {
   const sinPasos = armarZip({ 'Samsung Health/sleep.csv': 'a,b\n1,2' });
-  assert.deepEqual(await extraerTextos(sinPasos, esCsvDePasos), []);
+  assert.deepEqual(elegirArchivosDePasos(['Samsung Health/sleep.csv']), []);
+  assert.deepEqual(await extraerTextos(sinPasos, () => false), []);
 });

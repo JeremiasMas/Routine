@@ -7,22 +7,54 @@ import { fileURLToPath } from 'node:url';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'icons');
 
-function starPoints(cx, cy, rOuter, rInner, points = 5, rot = -Math.PI / 2) {
-  return Array.from({ length: points * 2 }, (_, i) => {
-    const r = i % 2 === 0 ? rOuter : rInner;
-    const a = rot + (i * Math.PI) / points;
-    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-  });
+/**
+ * El logo: una diana con una flecha clavada en el centro. Es el mismo dibujo
+ * que icons/icon.svg, resuelto con geometría para poder rasterizarlo sin
+ * depender de un motor de SVG.
+ */
+
+/** Pasa un punto de la pantalla al eje de la flecha (rotado 45° hacia arriba). */
+function aEjeFlecha(x, y, cx, cy) {
+  const dx = x - cx;
+  const dy = y - cy;
+  const k = Math.SQRT1_2;
+  return { x: k * dx - k * dy, y: k * dx + k * dy };
 }
 
-function inside(poly, x, y) {
-  let hit = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, yi] = poly[i];
-    const [xj, yj] = poly[j];
-    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi) hit = !hit;
+function enTriangulo(p, a, b, c) {
+  const signo = (p1, p2, p3) => (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+  const d1 = signo(p, a, b);
+  const d2 = signo(p, b, c);
+  const d3 = signo(p, c, a);
+  const neg = d1 < 0 || d2 < 0 || d3 < 0;
+  const pos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(neg && pos);
+}
+
+function enPoligono(p, puntos) {
+  let dentro = false;
+  for (let i = 0, j = puntos.length - 1; i < puntos.length; j = i++) {
+    const [xi, yi] = puntos[i];
+    const [xj, yj] = puntos[j];
+    if ((yi > p.y) !== (yj > p.y) && p.x < ((xj - xi) * (p.y - yi)) / (yj - yi + 1e-12) + xi) {
+      dentro = !dentro;
+    }
   }
-  return hit;
+  return dentro;
+}
+
+/**
+ * ¿Este punto cae sobre la flecha? `margen` la engorda, que es como se
+ * consigue el corte de los anillos por donde la flecha entra.
+ */
+function enFlecha(p, margen = 0) {
+  const m = margen;
+  const punta = enTriangulo(p, { x: -m, y: 0 }, { x: 88 + m, y: 42 + m }, { x: 88 + m, y: -42 - m });
+  const astil = p.x >= 74 - m && p.x <= 200 + m && Math.abs(p.y) <= 16 + m;
+  const cola = enPoligono(p, [
+    [188 - m, -36 - m], [262 + m, -36 - m], [224 + m, 0], [262 + m, 36 + m], [188 - m, 36 + m],
+  ]);
+  return punta || astil || cola;
 }
 
 function chunk(tag, data) {
@@ -50,34 +82,46 @@ function crc32(buf) {
 }
 
 function render(size) {
-  const SS = 2; // supermuestreo para bordes suaves
-  const star = starPoints(size / 2, size * 0.44, size * 0.3, size * 0.135);
-  const [barY0, barY1] = [size * 0.76, size * 0.84];
-  const [barX0, barX1] = [size * 0.22, size * 0.78];
-  const fillX1 = barX0 + (barX1 - barX0) * 0.62;
-  const radius = size * 0.22;
-  const rows = [];
+  const SS = 2;                 // supermuestreo para bordes suaves
+  const k = size / 512;         // el diseño está pensado sobre 512
+  const cx = 240 * k;
+  const cy = 280 * k;
+  const radio = size * 0.22;    // esquinas redondeadas
+  const ROJO = [251, 77, 84];
+  const BLANCO = [241, 245, 255];
 
+  const rows = [];
   for (let y = 0; y < size; y++) {
     const row = Buffer.alloc(size * 4 + 1);
-    row[0] = 0; // filtro "none"
+    row[0] = 0;                 // filtro "none"
     for (let x = 0; x < size; x++) {
       let r = 0, g = 0, b = 0, a = 0;
       for (let sy = 0; sy < SS; sy++) {
         for (let sx = 0; sx < SS; sx++) {
           const fx = x + (sx + 0.5) / SS;
           const fy = y + (sy + 0.5) / SS;
-          const ox = fx < radius ? radius : fx > size - radius ? size - radius : fx;
-          const oy = fy < radius ? radius : fy > size - radius ? size - radius : fy;
-          if (Math.hypot(fx - ox, fy - oy) > radius) continue; // esquina redondeada
-          const t = fx / size;
-          const gradient = fy / size;
-          let color = [27 + (1 - gradient) * 10, 36 + (1 - gradient) * 14, 80 - gradient * 30];
-          const accent = [56 + 150 * t, 189 - 40 * t, 248 - 20 * t];
-          if (inside(star, fx, fy)) color = accent;
-          else if (fy >= barY0 && fy <= barY1 && fx >= barX0 && fx <= barX1) {
-            color = fx <= fillX1 ? accent : [12, 18, 40];
-          }
+
+          const ox = fx < radio ? radio : fx > size - radio ? size - radio : fx;
+          const oy = fy < radio ? radio : fy > size - radio ? size - radio : fy;
+          if (Math.hypot(fx - ox, fy - oy) > radio) continue;
+
+          const gradiente = fy / size;
+          let color = [
+            27 + (1 - gradiente) * 10,
+            36 + (1 - gradiente) * 14,
+            80 - gradiente * 30,
+          ];
+
+          const dist = Math.hypot(fx - cx, fy - cy) / k;   // en unidades del diseño
+          const local = aEjeFlecha(fx / k, fy / k, 240, 280);
+
+          // Anillos claros, recortados por donde pasa la flecha.
+          const enAnillo = Math.abs(dist - 158) <= 20 || Math.abs(dist - 96) <= 20;
+          if (enAnillo && !enFlecha(local, 17)) color = BLANCO;
+
+          if (dist <= 50) color = ROJO;                     // centro
+          if (enFlecha(local)) color = ROJO;                // flecha
+
           r += color[0]; g += color[1]; b += color[2]; a += 255;
         }
       }
@@ -91,8 +135,8 @@ function render(size) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8;  // bits por canal
-  ihdr[9] = 6;  // RGBA
+  ihdr[8] = 8;   // bits por canal
+  ihdr[9] = 6;   // RGBA
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),

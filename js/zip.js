@@ -80,10 +80,3 @@ export async function extraerTextos(buffer, filtro = () => true) {
   }
   return salida;
 }
-
-/** ¿Este nombre parece el CSV de pasos de Samsung Health? */
-export function esCsvDePasos(nombre) {
-  const base = nombre.split('/').pop().toLowerCase();
-  if (!base.endsWith('.csv')) return false;
-  return /step|pedometer|paso/.test(base);
-}

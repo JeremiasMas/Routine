@@ -5,8 +5,8 @@ import {
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
 } from '../state.js';
-import { parseStepsCsv, diffSteps } from '../steps-import.js';
-import { extraerTextos, esCsvDePasos } from '../zip.js';
+import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
+import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
@@ -207,9 +207,13 @@ function importarPasos(navigate) {
     /** Un ZIP puede traer varios CSV; un CSV suelto es uno solo. */
     async function textosDe(archivo) {
       if (!/\.zip$/i.test(archivo.name)) return [{ name: archivo.name, text: await archivo.text() }];
-      const dentro = await extraerTextos(await archivo.arrayBuffer(), esCsvDePasos);
-      if (!dentro.length) throw new Error('no encontré ningún archivo de pasos adentro del ZIP');
-      return dentro;
+      const buffer = await archivo.arrayBuffer();
+      // Primero se eligen los nombres y recién después se descomprime: un
+      // export trae miles de archivos y no tiene sentido abrirlos todos.
+      const nombres = listarEntradas(buffer).filter((e) => !e.name.endsWith('/')).map((e) => e.name);
+      const elegidos = new Set(elegirArchivosDePasos(nombres));
+      if (!elegidos.size) throw new Error('no encontré ningún archivo de pasos adentro del ZIP');
+      return extraerTextos(buffer, (n) => elegidos.has(n));
     }
 
     for (const archivo of archivos) {

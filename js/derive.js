@@ -384,6 +384,12 @@ export function derive(data, today = todayKey()) {
       st.nextTier = banda.next
         ? { name: banda.next.name, min: banda.next.index + 1, color: banda.color, index: banda.next.index }
         : null;
+    } else {
+      // Sin mediciones no hay banda, y el rango genérico de XP ("Novato") no
+      // significa nada acá: mejor decir que todavía no hay dato.
+      st.level = { ...st.level, level: 0, pct: 0 };
+      st.tier = { name: 'Sin medir', color: TIERS[0].color, index: 0, min: 0 };
+      st.nextTier = null;
     }
   }
 

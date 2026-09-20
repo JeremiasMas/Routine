@@ -162,7 +162,15 @@ test('un historial vacío no rompe nada', () => {
   assert.equal(s.player.xp, 0);
   assert.equal(s.globalStreak, 0);
   assert.equal(s.perfectDays, 0);
-  for (const st of s.byActivity.values()) assert.equal(st.level.level, 1);
+  for (const st of s.byActivity.values()) {
+    if (st.activity.rankBy === 'bodyfat') {
+      // Sin mediciones no hay banda de grasa, y el rango genérico no aplica.
+      assert.equal(st.level.level, 0);
+      assert.equal(st.tier.name, 'Sin medir');
+    } else {
+      assert.equal(st.level.level, 1, `${st.id} debería arrancar en nivel 1`);
+    }
+  }
 });
 
 test('la XP del jugador es la suma de actividades, bonus y logros', () => {
