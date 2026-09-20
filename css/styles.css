@@ -677,3 +677,15 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px;
 }
 .set-row__peso.is-db { color: var(--accent); }
+
+/* Los identificadores de app no tienen espacios y no cortan solos: sin esto
+   uno largo estira la fila y desborda la pantalla entera.
+   La clave es .row: como ítem de rejilla arranca con min-width:auto, o sea
+   que no baja del ancho de su contenido por más que los hijos sí puedan. */
+.row, .row__sub, .row__main, .aviso, .aviso .btn { overflow-wrap: anywhere; min-width: 0; }
+.aviso .btn { white-space: normal; text-align: left; }
+/* El identificador entero, a una línea: está para diagnosticar, no para leer. */
+.row__sub--id {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: .66rem; opacity: .7;
+}

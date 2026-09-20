@@ -111,8 +111,38 @@ export const nativo = { estado: null, dias: {}, diagnostico: null, cargados: 0, 
 export function leerOrigenes(crudos) {
   return (crudos || []).map((o) => {
     const [nombre, paquete] = String(o.paquete ?? '').split('\u0000');
-    return { nombre: nombre || paquete || '?', paquete: paquete || nombre || '', pasos: Number(o.pasos) || 0 };
+    const id = paquete || nombre || '';
+    return { nombre: nombreDeApp(id, nombre), paquete: id, pasos: Number(o.pasos) || 0 };
   }).filter((o) => o.paquete);
+}
+
+/**
+ * Nombre legible de la app que escribió los pasos.
+ *
+ * La app de Android ya traduce las que conoce, pero algunas fuentes traen un
+ * identificador con un hash pegado —el contador del propio teléfono es
+ * "com.android.healthconnect.phone.<hash>"— que ni significa nada ni entra en
+ * la pantalla. Se traduce acá, del lado web, para que el arreglo llegue sin
+ * tener que reinstalar la app.
+ */
+export function nombreDeApp(paquete, nombreNativo = '') {
+  // Si la app ya lo tradujo, se respeta.
+  if (nombreNativo && nombreNativo !== paquete) return nombreNativo;
+  const POR_PREFIJO = [
+    ['com.android.healthconnect.phone', 'Contador del teléfono'],
+    ['com.google.android.apps.fitness', 'Google Fit'],
+    ['com.sec.android.app.shealth', 'Samsung Health'],
+    ['com.samsung.android.wear', 'Reloj Samsung'],
+    ['com.fitbit', 'Fitbit'],
+    ['com.jeremiasmas.rutina', 'Esta app'],
+  ];
+  for (const [prefijo, nombre] of POR_PREFIJO) {
+    if (paquete.startsWith(prefijo)) return nombre;
+  }
+  // Uno desconocido: la última parte legible, sin el hash, y acotado.
+  const partes = paquete.split('.').filter((x) => x && !/^[0-9a-f]{12,}$/i.test(x));
+  const corto = partes[partes.length - 1] || paquete;
+  return corto.length > 24 ? `${corto.slice(0, 24)}…` : corto;
 }
 
 /**

@@ -418,7 +418,7 @@ function tarjetaNativa(navigate) {
         nativo.origenes.map((o) => el('div', { class: 'row' },
           el('div', { class: 'row__main' },
             el('div', { text: o.nombre }),
-            el('div', { class: 'row__sub', text: o.paquete })),
+            el('div', { class: 'row__sub row__sub--id', text: o.paquete })),
           el('div', { class: 'row__value', text: formatNumber(o.pasos) })))),
       el('p', { class: 'hint', style: 'margin-top:10px' }, 'Elegí de cuál querés contar:'),
       el('div', { class: 'btn-row', style: 'margin-top:8px;flex-wrap:wrap' },

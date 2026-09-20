@@ -132,12 +132,15 @@ object Pasos {
   }
 
   /** Nombre legible de las apps que suelen escribir pasos. */
-  fun nombreDeApp(paquete: String): String = when (paquete) {
-    "com.sec.android.app.shealth" -> "Samsung Health"
-    "com.google.android.apps.fitness" -> "Google Fit"
-    "com.google.android.apps.healthdata" -> "Health Connect"
-    "com.fitbit.FitbitMobile" -> "Fitbit"
-    "com.jeremiasmas.rutina" -> "esta app"
+  fun nombreDeApp(paquete: String): String = when {
+    paquete == "com.sec.android.app.shealth" -> "Samsung Health"
+    paquete == "com.google.android.apps.fitness" -> "Google Fit"
+    paquete == "com.google.android.apps.healthdata" -> "Health Connect"
+    paquete == "com.jeremiasmas.rutina" -> "Esta app"
+    paquete.startsWith("com.fitbit") -> "Fitbit"
+    paquete.startsWith("com.samsung.android.wear") -> "Reloj Samsung"
+    // El contador del propio teléfono viene con un hash pegado al final.
+    paquete.startsWith("com.android.healthconnect.phone") -> "Contador del teléfono"
     else -> paquete
   }
 }

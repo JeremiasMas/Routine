@@ -101,10 +101,13 @@ test('lee las apps que escribieron pasos', async () => {
   ]);
 });
 
-test('una app sin nombre conocido se muestra igual', async () => {
+test('una app sin nombre conocido se muestra de forma legible', async () => {
   const { leerOrigenes } = await import('../js/native.js');
   const r = leerOrigenes([{ paquete: 'com.otra.app\u0000com.otra.app', pasos: 500 }]);
-  assert.equal(r[0].nombre, 'com.otra.app');
+  // El identificador entero no entra en la pantalla y no dice nada: se muestra
+  // la última parte, y el completo queda abajo para diagnosticar.
+  assert.equal(r[0].nombre, 'app');
+  assert.equal(r[0].paquete, 'com.otra.app');
   assert.deepEqual(leerOrigenes(null), []);
   assert.deepEqual(leerOrigenes([{ paquete: '', pasos: 5 }]), [], 'sin paquete no sirve de nada');
 });
@@ -137,4 +140,23 @@ test('una app que hoy no aportó nada no cuenta como conflicto', async () => {
     { paquete: 'Google Fit\u0000com.google.android.apps.fitness', pasos: 0 },
   ]);
   assert.equal(hayConflictoDeOrigenes(r), null, 'con 0 pasos no infla nada');
+});
+
+test('traduce el contador del teléfono, que viene con un hash pegado', async () => {
+  const { nombreDeApp, leerOrigenes } = await import('../js/native.js');
+  const real = 'com.android.healthconnect.phone.jb98496fd0ce63719bc7266b1ea0b0d4';
+  assert.equal(nombreDeApp(real, real), 'Contador del teléfono');
+  // Si la app de Android ya lo tradujo, se respeta lo que mandó.
+  assert.equal(nombreDeApp('com.sec.android.app.shealth', 'Samsung Health'), 'Samsung Health');
+  const r = leerOrigenes([{ paquete: `${real}\u0000${real}`, pasos: 7693 }]);
+  assert.equal(r[0].nombre, 'Contador del teléfono');
+  assert.equal(r[0].paquete, real, 'el identificador entero se conserva para diagnosticar');
+});
+
+test('un identificador desconocido no se muestra entero', async () => {
+  const { nombreDeApp } = await import('../js/native.js');
+  const largo = 'com.otra.appdemuchisimonombrequenoentraenlapantalla';
+  const nombre = nombreDeApp(largo, largo);
+  assert.ok(nombre.length <= 25, `"${nombre}" tiene ${nombre.length} caracteres`);
+  assert.ok(!nombre.includes(' '), 'no debería inventar espacios');
 });
