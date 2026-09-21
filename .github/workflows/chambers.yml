@@ -1,0 +1,159 @@
+name: Chambers
+
+# Dos trabajos independientes:
+#   · tests  — corre las pruebas del scraper cuando se toca chambers/
+#   · vigilar — una vez por semana pregunta si salió una guía nueva y, sólo si
+#               salió, vuelve a bajar los rankings
+#
+# Nada de esto toca a la app de la rutina: sus workflows (test.yml, pages.yml)
+# siguen su camino.
+
+on:
+  push:
+    paths:
+      - 'chambers/**'
+      - '.github/workflows/chambers.yml'
+  pull_request:
+    paths:
+      - 'chambers/**'
+  schedule:
+    # Lunes a las 06:00 UTC. Sólo corre desde la rama por defecto del repo.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      paises:
+        description: 'Países, separados por coma (vacío = los de chambers/config/scraper.json)'
+        required: false
+        default: ''
+      guias:
+        description: 'Guías, separadas por coma (slug, nombre o id)'
+        required: false
+        default: ''
+      limite:
+        description: 'Cortar después de N tablas (para probar)'
+        required: false
+        default: ''
+      igual:
+        description: 'Bajar aunque no haya guía nueva'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test chambers/tests/*.test.mjs
+
+  vigilar:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Identificarse ante chambers
+        run: |
+          if [ -z "${{ vars.CHAMBERS_UA }}" ]; then
+            echo "Falta la variable de repositorio CHAMBERS_UA."
+            echo 'Ponela en Settings → Secrets and variables → Actions → Variables,'
+            echo 'con algo como: MiScraper/1.0 (+tu-mail@dominio)'
+            exit 1
+          fi
+
+      # La base viaja en la caché de Actions: es lo que permite comparar contra
+      # la corrida anterior. Para algo definitivo, guardala afuera (ver README).
+      - name: Recuperar la base de la semana pasada
+        uses: actions/cache/restore@v4
+        with:
+          path: chambers/datos
+          key: chambers-datos-${{ github.run_id }}
+          restore-keys: chambers-datos-
+
+      - name: ¿Salió una guía nueva?
+        id: revisar
+        env:
+          CHAMBERS_UA: ${{ vars.CHAMBERS_UA }}
+        run: |
+          set +e
+          node chambers/cli.mjs revisar ${{ inputs.guias && format('--guia {0}', inputs.guias) || '' }} > revision.json
+          codigo=$?
+          set -e
+          if [ "$codigo" = "10" ]; then
+            echo "novedades=true" >> "$GITHUB_OUTPUT"
+          elif [ "$codigo" = "0" ]; then
+            echo "novedades=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "revisar falló con código $codigo"; cat revision.json; exit $codigo
+          fi
+          {
+            echo 'resumen<<FIN'
+            node --input-type=module -e "import {readFileSync} from 'node:fs'; const r = JSON.parse(readFileSync('revision.json','utf8')); for (const g of r.revisadas) console.log('- ' + g.slug + ': ' + g.estado + (g.edicion ? ' (edición ' + g.edicion + ')' : ''));"
+            echo FIN
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bajar los rankings
+        if: steps.revisar.outputs.novedades == 'true' || inputs.igual
+        env:
+          CHAMBERS_UA: ${{ vars.CHAMBERS_UA }}
+        run: |
+          node chambers/cli.mjs scrapear \
+            ${{ inputs.paises && format('--pais {0}', inputs.paises) || '' }} \
+            ${{ inputs.guias && format('--guia {0}', inputs.guias) || '' }} \
+            ${{ inputs.limite && format('--limite {0}', inputs.limite) || '' }}
+          node chambers/cli.mjs exportar --formato csv  --salida chambers/datos/export/rankings.csv
+          node chambers/cli.mjs exportar --formato json --salida chambers/datos/export/rankings.json
+          node chambers/cli.mjs diff > chambers/datos/export/diff.json || true
+          node chambers/cli.mjs estado
+
+      - name: Guardar la base para la próxima
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: chambers/datos
+          key: chambers-datos-${{ github.run_id }}
+
+      - name: Dejar los datos como artefacto
+        if: steps.revisar.outputs.novedades == 'true' || inputs.igual
+        uses: actions/upload-artifact@v4
+        with:
+          name: chambers-${{ github.run_id }}
+          path: |
+            chambers/datos/chambers.sqlite
+            chambers/datos/export
+          retention-days: 90
+
+      - name: Avisar por issue
+        if: steps.revisar.outputs.novedades == 'true' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        env:
+          RESUMEN: ${{ steps.revisar.outputs.resumen }}
+        with:
+          script: |
+            const fs = require('fs');
+            let diff = 'sin diff (primera corrida)';
+            try {
+              const d = JSON.parse(fs.readFileSync('chambers/datos/export/diff.json', 'utf8'));
+              const sube = d.cambios.filter((c) => c.movimiento === 'sube').length;
+              const baja = d.cambios.filter((c) => c.movimiento === 'baja').length;
+              diff = `${d.tablas} tablas · ${d.altas.length} altas · ${d.bajas.length} bajas · ${d.cambios.length} cambios de banda (${sube} suben, ${baja} bajan)`;
+            } catch {}
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Chambers: hay guía nueva (${new Date().toISOString().slice(0, 10)})`,
+              body: [
+                '## Qué cambió en las portadas', process.env.RESUMEN || '(sin detalle)', '',
+                '## Qué cambió en los rankings', diff, '',
+                `Los datos quedaron en los [artefactos de la corrida](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              ].join('\n'),
+            });
