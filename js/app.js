@@ -67,7 +67,10 @@ function renderTopbar() {
         el('b', { text: String(p.level) }),
         el('span', { text: 'nivel' }))),
     el('div', { class: 'player__info' },
-      el('div', { class: 'player__title', text: p.title.name }),
+      el('div', { class: 'player__title', text: p.title.name },
+        p.title.nota
+          ? el('span', { class: 'player__nota', text: p.title.nota })
+          : null),
       el('div', { class: 'player__sub' },
         chip(`🔥 ${plural(state.globalStreak, 'día', 'días')}`, 'chip--fire'),
         chip(`⭐ ${state.perfectDays} perfectos`),
@@ -129,7 +132,13 @@ function celebrate(events, value, borrado) {
 
   // Si además subió el nivel de jugador, lo avisamos después.
   if (headline && playerLevelUp) {
-    setTimeout(() => toast('🏅', `<b>Nivel de jugador ${playerLevelUp.to}</b> · ${playerLevelUp.title.name}`, 4000), 3200);
+    const estrena = playerLevelUp.title.name !== playerLevelUp.from?.title?.name;
+    setTimeout(() => toast(
+      '🏅',
+      `<b>Nivel de jugador ${playerLevelUp.to}</b> · ${playerLevelUp.title.name}`
+        + (playerLevelUp.title.nota ? `<br><span class="toast__nota">${playerLevelUp.title.nota}</span>` : ''),
+      estrena ? 6000 : 4000,
+    ), 3200);
   }
 }
 

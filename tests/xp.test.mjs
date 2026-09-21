@@ -206,3 +206,40 @@ test('una sesión mezclada suma cada ejercicio como corresponde', () => {
   ];
   assert.equal(gymVolume(sesion), 640);
 });
+
+test('hay veinte rangos de jugador, uno cada tres niveles', async () => {
+  const { PLAYER_TITLES } = await import('../js/config.js');
+  assert.equal(PLAYER_TITLES.length, 20);
+  for (let i = 0; i < PLAYER_TITLES.length; i++) {
+    assert.equal(PLAYER_TITLES[i].min, 1 + i * 3, `el rango ${i + 1} no cae donde debería`);
+  }
+});
+
+test('cada rango tiene nombre y explicación', async () => {
+  const { PLAYER_TITLES } = await import('../js/config.js');
+  const nombres = new Set();
+  for (const t of PLAYER_TITLES) {
+    assert.ok(t.name?.length > 2, `nombre vacío en el nivel ${t.min}`);
+    assert.ok(t.nota?.length > 10, `${t.name} no dice por qué está ahí`);
+    assert.ok(!nombres.has(t.name), `${t.name} está repetido`);
+    nombres.add(t.name);
+  }
+});
+
+test('el rango de un nivel es el último alcanzado, no el siguiente', async () => {
+  const { playerTitleFor } = await import('../js/xp.js');
+  assert.equal(playerTitleFor(1).name, 'Leónidas');
+  assert.equal(playerTitleFor(3).name, 'Leónidas', 'hasta el 3 seguís en el primero');
+  assert.equal(playerTitleFor(4).name, 'Milcíades', 'el 4 estrena el segundo');
+  assert.equal(playerTitleFor(8).name, 'Temístocles');
+  assert.equal(playerTitleFor(58).name, 'Gengis Kan');
+  assert.equal(playerTitleFor(500).name, 'Gengis Kan', 'pasado el último no hay más');
+  assert.equal(playerTitleFor(0).name, 'Leónidas', 'antes del primero tampoco se rompe');
+});
+
+test('los rangos cubren toda la escalera sin huecos', async () => {
+  const { playerTitleFor } = await import('../js/xp.js');
+  const vistos = new Set();
+  for (let n = 1; n <= 60; n++) vistos.add(playerTitleFor(n).name);
+  assert.equal(vistos.size, 20, `sólo se alcanzan ${vistos.size} rangos en 60 niveles`);
+});
