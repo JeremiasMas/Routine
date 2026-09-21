@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { derive, entryValue, entryVolume, goalFor, isScheduled, completedSets } from '../js/derive.js';
-import { DEFAULT_ACTIVITIES, GYM_TEMPLATES, plannedSets, templateForDay } from '../js/config.js';
+import { DEFAULT_ACTIVITIES, GYM_TEMPLATES, plannedSets, templateForDay, DEFAULT_SETS } from '../js/config.js';
 import { addDays, keyToDate } from '../js/utils.js';
 
 const HOY = '2026-03-31';
@@ -264,10 +264,25 @@ test('el día perfecto solo exige lo que ese día toca', () => {
 });
 
 test('las sesiones planificadas coinciden con la rutina real', () => {
-  assert.equal(plannedSets(templateForDay(1)), 30, 'lunes: 10 ejercicios × 3');
-  assert.equal(plannedSets(templateForDay(3)), 42, 'miércoles: 14 ejercicios × 3');
-  assert.equal(plannedSets(templateForDay(5)), 27, 'viernes: 9 ejercicios × 3');
+  // La cifra sale de la plantilla, no escrita a mano: agregar un ejercicio a
+  // la rutina es algo normal y no tiene por qué romper una prueba.
+  for (const dia of [1, 3, 5]) {
+    const t = templateForDay(dia);
+    assert.ok(t, `falta la rutina del día ${dia}`);
+    assert.equal(plannedSets(t), t.exercises.length * DEFAULT_SETS,
+      `${t.name}: ${t.exercises.length} ejercicios × ${DEFAULT_SETS}`);
+    assert.ok(t.exercises.length >= 9, `${t.name} quedó con sólo ${t.exercises.length} ejercicios`);
+  }
   assert.equal(templateForDay(2), null, 'los martes no hay gimnasio');
+  assert.equal(templateForDay(0), null, 'los domingos tampoco');
+});
+
+test('ningún ejercicio está repetido dentro de una rutina', () => {
+  for (const t of GYM_TEMPLATES) {
+    const nombres = t.exercises.map((e) => e.name.trim().toLowerCase());
+    assert.equal(new Set(nombres).size, nombres.length,
+      `${t.name} tiene un ejercicio repetido: la precarga del peso se pisaría entre sí`);
+  }
 });
 
 
