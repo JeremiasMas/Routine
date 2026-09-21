@@ -174,13 +174,10 @@ function boot() {
   // El puente se engancha antes de pintar: si la app de Android ya mandó los
   // pasos, la primera pantalla ya los muestra.
   conectarNativo();
-  alCambiarNativo((estado, cargados) => {
-    navigate();
-    if (cargados.length) {
-      const dias = cargados.length === 1 ? 'un día' : `${cargados.length} días`;
-      toast('👟', `Pasos actualizados desde Samsung Health (${dias}).`);
-    }
-  });
+  // Sin aviso: la sincronización corre cada vez que abrís la app y relee un
+  // mes entero, así que el cartel aparecía siempre y no decía nada que el
+  // número de la pantalla no dijera mejor.
+  alCambiarNativo(() => navigate());
   window.addEventListener('hashchange', navigate);
   navigate();
   watchDayChange();
