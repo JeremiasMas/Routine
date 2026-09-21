@@ -22,6 +22,8 @@ const ASSETS = [
   './js/pedometer.js',
   './js/native.js',
   './js/merge.js',
+  './js/pausas.js',
+  './js/csv.js',
   './js/backup.js',
   './js/theme.js',
   './js/analisis.js',

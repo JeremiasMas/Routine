@@ -6,6 +6,7 @@ import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive } from './derive.js';
 import { todayKey, uid, daysBetween } from './utils.js';
 import { fusionar } from './merge.js';
+import { tramos, agregar, quitar } from './pausas.js';
 
 const STORAGE_KEY = 'routine-rpg';
 const listeners = new Set();
@@ -19,6 +20,8 @@ function blankData() {
     createdAt: todayKey(),
     settings: { sound: true, celebrate: true, reduceMotion: false, ...DEFAULT_PROFILE },
     activities: structuredClone(DEFAULT_ACTIVITIES),
+    // Tramos declarados libres: no suman ni rompen rachas.
+    pausas: [],
     // Lo que ya venías haciendo antes de instalar la app.
     entries: buildSeedEntries(),
     carryOver: structuredClone(ACUMULADO_PREVIO),
@@ -35,6 +38,7 @@ function migrate(raw) {
   next.entries = raw.entries || {};
   next.carryOver = raw.carryOver || structuredClone(ACUMULADO_PREVIO);
   next.unlocked = raw.unlocked || {};
+  next.pausas = tramos(raw.pausas);
   const known = new Map(DEFAULT_ACTIVITIES.map((a) => [a.id, a]));
   next.activities = (raw.activities?.length ? raw.activities : base.activities)
     .map((a) => ({ ...(known.get(a.id) || {}), ...a }));
@@ -205,6 +209,16 @@ export function removeActivity(id) {
   });
 }
 
+/** Declara un tramo de días libres. */
+export function agregarPausa(tramo) {
+  return mutate((d) => { d.pausas = agregar(d.pausas, tramo); });
+}
+
+/** Saca un tramo por su fecha de inicio. */
+export function quitarPausa(desde) {
+  return mutate((d) => { d.pausas = quitar(d.pausas, desde); });
+}
+
 export function updateSettings(patch) {
   return mutate((d) => Object.assign(d.settings, patch));
 }
@@ -259,9 +273,10 @@ export function previewMerge(json) {
  */
 export function mergeData(json) {
   const entrante = parseBackup(json);
-  const { entries, unlocked, actividadesNuevas, resumen } = fusionar(getData(), entrante);
+  const { entries, unlocked, actividadesNuevas, pausas, resumen } = fusionar(getData(), entrante);
   data.entries = entries;
   data.unlocked = unlocked;
+  data.pausas = pausas;
   for (const act of actividadesNuevas) data.activities.push(act);
   // El acumulado previo es un piso, no un registro: se queda el más alto.
   for (const [id, prev] of Object.entries(entrante.carryOver || {})) {

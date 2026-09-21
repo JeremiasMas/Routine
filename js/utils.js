@@ -134,3 +134,14 @@ export function plural(n, singular, plural_) {
 export function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
+
+/**
+ * Una fecha de verdad, no sólo con forma de fecha: '2026-13-99' tiene la forma
+ * correcta y no existe. Escribirla crea días fantasma que después nadie
+ * entiende de dónde salieron.
+ */
+export function esFechaValida(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}

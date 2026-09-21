@@ -12,6 +12,8 @@
  * ajustes quedan como están en este dispositivo.
  */
 
+import { tramos, agregar } from './pausas.js';
+
 /** Cuándo se tocó por última vez un registro. */
 export function marcaDeTiempo(entry) {
   const t = entry?.updatedAt || entry?.importedAt;
@@ -74,9 +76,14 @@ export function fusionar(local, entrante) {
   const idsLocales = new Set((local?.activities || []).map((a) => a.id));
   const actividadesNuevas = (entrante?.activities || []).filter((a) => a.id && !idsLocales.has(a.id));
 
+  // Los días libres se unen: declararlos en un dispositivo y perderlos al
+  // restaurar en el otro sería cortar una racha que ya estaba protegida.
+  const pausas = fusionarPausas(local?.pausas, entrante?.pausas);
+  resumen.pausasNuevas = pausas.length - (local?.pausas?.length || 0);
+
   resumen.actividadesNuevas = actividadesNuevas.length;
   resumen.total = resumen.diasNuevos + resumen.registrosNuevos + resumen.reemplazados;
-  return { entries, unlocked, actividadesNuevas, resumen };
+  return { entries, unlocked, actividadesNuevas, pausas, resumen };
 }
 
 function iguales(a, b) {
@@ -95,4 +102,11 @@ function orden(v) {
     return Object.fromEntries(Object.keys(v).sort().map((k) => [k, orden(v[k])]));
   }
   return v;
+}
+
+/** Une los tramos de días libres de las dos copias, fusionando lo que se toca. */
+function fusionarPausas(aca, alla) {
+  let salida = tramos(aca);
+  for (const t of tramos(alla)) salida = agregar(salida, t);
+  return salida;
 }

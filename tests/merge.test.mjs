@@ -103,3 +103,21 @@ test('una sesión de gimnasio entera sobrevive a la fusión', () => {
   const r = fusionar(copia({}), copia({ '2026-09-01': { gym: sesion } }));
   assert.deepEqual(r.entries['2026-09-01'].gym, sesion);
 });
+
+test('los días libres se unen al fusionar', () => {
+  // Declararlos en un teléfono y perderlos al restaurar en el otro cortaría
+  // una racha que ya estaba protegida.
+  const local = copia({}, { pausas: [{ desde: '2026-08-01', hasta: '2026-08-05' }] });
+  const otro = copia({}, { pausas: [{ desde: '2026-09-10', hasta: '2026-09-15' }] });
+  const r = fusionar(local, otro);
+  assert.equal(r.pausas.length, 2);
+  assert.deepEqual(r.pausas.map((t) => t.desde), ['2026-08-01', '2026-09-10']);
+});
+
+test('y los que se tocan quedan como uno solo', () => {
+  const local = copia({}, { pausas: [{ desde: '2026-08-01', hasta: '2026-08-05' }] });
+  const otro = copia({}, { pausas: [{ desde: '2026-08-04', hasta: '2026-08-09' }] });
+  const r = fusionar(local, otro);
+  assert.equal(r.pausas.length, 1);
+  assert.deepEqual([r.pausas[0].desde, r.pausas[0].hasta], ['2026-08-01', '2026-08-09']);
+});

@@ -4,10 +4,15 @@ import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
-  previewMerge, mergeData, parseBackup,
+  previewMerge, mergeData, parseBackup, agregarPausa, quitarPausa,
 } from '../state.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
 import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe } from '../theme.js';
+import { tramos, largo, esLibre } from '../pausas.js';
+import {
+  filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
+  COLUMNAS, COLUMNAS_GIMNASIO, COLUMNAS_CUERPO,
+} from '../csv.js';
 import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades, hayConflictoDeOrigenes, usarSoloOrigen } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
@@ -89,6 +94,11 @@ export function render({ navigate }) {
       'mientras tenés la app abierta. Sirve para la caminata del día, no para el total: ',
       'el navegador no recibe el sensor con la pantalla apagada.')));
 
+  // --- Días libres ---
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Días libres' }), el('small', { text: 'no rompen rachas' })));
+  root.append(tarjetaDePausas(navigate));
+
   // --- Aspecto ---
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Aspecto' }), el('small', { text: 'tema' })));
@@ -120,6 +130,7 @@ export function render({ navigate }) {
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn', onClick: doExport }, '⬇ Exportar'),
       el('button', { class: 'btn', onClick: () => doImport(navigate) }, '⬆ Importar'),
+      el('button', { class: 'btn', onClick: doExportCsv }, '📊 CSV'),
       el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo'))));
 
   root.append(el('p', { class: 'hint', style: 'margin-top:18px;text-align:center' },
@@ -496,4 +507,93 @@ function selectorDeTema(navigate) {
 
   card.append(lista);
   return card;
+}
+
+
+/**
+ * Declarar días que no cuentan. Los escudos cubren un despiste suelto, pero un
+ * viaje de una semana se los come y corta la racha igual, que es castigar por
+ * vivir. Lo que no hace es regalar XP: descansar no es entrenar.
+ */
+function tarjetaDePausas(navigate) {
+  const lista = tramos(getData().pausas);
+  const card = el('div', { class: 'card' });
+
+  card.append(el('p', { class: 'hint' },
+    'Un tramo declarado libre sale del cálculo: no suma XP ni corta rachas. ',
+    'Para un viaje o una gripe, que no son falta de constancia.'));
+
+  if (lista.length) {
+    card.append(el('div', { class: 'list', style: 'margin-top:12px' },
+      lista.slice().reverse().map((t) => el('div', { class: 'row' },
+        el('div', { class: 'row__main' },
+          el('div', { text: t.desde === t.hasta ? shortDate(t.desde) : `${shortDate(t.desde)} → ${shortDate(t.hasta)}` }),
+          el('div', { class: 'row__sub', text: `${largo(t)} ${largo(t) === 1 ? 'día' : 'días'}${t.motivo ? ` · ${t.motivo}` : ''}` })),
+        el('button', { class: 'icon-btn', 'aria-label': 'Quitar', onClick: () => {
+          quitarPausa(t.desde);
+          navigate?.();
+          toast('↩', 'Ese tramo vuelve a contar.');
+        } }, '🗑')))));
+  }
+
+  const desde = el('input', { type: 'date', value: todayKey() });
+  const hasta = el('input', { type: 'date', value: todayKey() });
+  const motivo = el('input', { type: 'text', placeholder: 'Motivo (opcional)', maxlength: '60' });
+
+  card.append(
+    el('div', { class: 'field-row', style: 'margin-top:12px' },
+      el('div', { class: 'field' }, el('label', { text: 'Desde' }), desde),
+      el('div', { class: 'field' }, el('label', { text: 'Hasta' }), hasta)),
+    el('div', { class: 'field' }, el('label', { text: 'Motivo' }), motivo),
+    el('div', { class: 'btn-row', style: 'margin-top:12px' },
+      el('button', { class: 'btn btn--primary', style: '--c:#f59e0b', onClick: () => {
+        if (!desde.value) return;
+        const fin = hasta.value && hasta.value >= desde.value ? hasta.value : desde.value;
+        agregarPausa({ desde: desde.value, hasta: fin, motivo: motivo.value });
+        motivo.value = '';
+        navigate?.();
+        toast('🌴', 'Esos días dejan de contar.');
+      } }, 'Declarar libres')));
+
+  return card;
+}
+
+
+/**
+ * Los datos en CSV, para analizarlos. La copia de seguridad es un JSON
+ * anidado pensado para restaurar; esto es formato largo, una fila por día y
+ * actividad, que es como lo espera cualquier herramienta de análisis.
+ *
+ * Van tres archivos porque son tres formas distintas: el día a día, las
+ * series del gimnasio y las mediciones. Meterlos en uno obligaría a dejar
+ * media tabla vacía en cada fila.
+ */
+function doExportCsv() {
+  const state = getState();
+  const libre = (fecha) => esLibre(getData().pausas, fecha);
+  const fecha = todayKey();
+  const archivos = [
+    [`rutina-diario-${fecha}.csv`, filasACsv(filasDeHistorial(state, { libre }), COLUMNAS)],
+    [`rutina-gimnasio-${fecha}.csv`, filasACsv(filasDeGimnasio(state), COLUMNAS_GIMNASIO)],
+    [`rutina-cuerpo-${fecha}.csv`, filasACsv(filasDeCuerpo(state), COLUMNAS_CUERPO)],
+  ].filter(([, contenido]) => contenido.split('\r\n').length > 2);   // con cabecera sola no sirve
+
+  if (!archivos.length) {
+    toast('📊', 'Todavía no hay nada que exportar.');
+    return;
+  }
+  for (const [nombre, contenido] of archivos) {
+    if (!guardarArchivo(nombre, contenido)) descargar(nombre, contenido, 'text/csv');
+  }
+  toast('📊', `${archivos.length} ${archivos.length === 1 ? 'archivo' : 'archivos'} listos.`);
+}
+
+/** Descarga un archivo en el navegador, cuando no está la app para guardarlo. */
+function descargar(nombre, contenido, tipo) {
+  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  const link = el('a', { href: url, download: nombre });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

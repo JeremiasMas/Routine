@@ -9,6 +9,7 @@
  * En Chrome, sin la app, nada de esto existe y la web funciona igual.
  */
 import { bulkSetEntries, getData } from './state.js';
+import { esFechaValida } from './utils.js';
 
 export const EVENTO = 'rutina-pasos';
 
@@ -34,7 +35,7 @@ export function diasACargar(dias, entries = {}) {
   for (const [date, raw] of Object.entries(dias || {})) {
     const value = Math.round(Number(raw));
     if (!Number.isFinite(value) || value <= 0) continue;
-    if (!esFecha(date)) continue;
+    if (!esFechaValida(date)) continue;
     const actual = entries[date]?.pasos;
     // Sin cambios no se escribe: cada escritura recalcula todo y dispara
     // celebraciones, y volver a la app no debería festejar lo mismo de nuevo.
@@ -42,16 +43,6 @@ export function diasACargar(dias, entries = {}) {
     salida.push({ date, value });
   }
   return salida;
-}
-
-/**
- * Una fecha de verdad, no sólo con forma de fecha: '2026-13-99' tiene la
- * forma correcta y no existe, y escribirla crearía un día fantasma.
- */
-function esFecha(s) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
 /** Traduce el estado que manda la app a algo que se pueda mostrar. */

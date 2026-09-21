@@ -9,6 +9,7 @@ import {
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
 import { bodySummary, bodyFatBand } from './body.js';
 import { descomponerProgreso } from './analisis.js';
+import { esLibre } from './pausas.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
@@ -199,6 +200,10 @@ export function derive(data, today = todayKey()) {
   for (let i = 0; i <= span; i++) {
     const date = addDays(start, i);
     const dayEntries = entries[date] || {};
+    // Un día declarado libre sale del cálculo: no suma ni rompe nada. Estar
+    // de viaje o con fiebre no es falta de constancia, y los escudos —que
+    // cubren un despiste suelto— se gastarían igual.
+    const diaLibre = esLibre(data.pausas, date);
     const pesado = Number(dayEntries.cuerpo?.weight) || 0;
     if (pesado > 0) pesoCorporal = pesado;
     pesoPorFecha.set(date, pesoCorporal);
@@ -212,7 +217,7 @@ export function derive(data, today = todayKey()) {
       const value = entryValue(a, raw);
       const goal = goalFor(a, raw);
       const met = value >= goal;
-      const scheduled = isScheduled(a, date);
+      const scheduled = isScheduled(a, date) && !diaLibre;
       const ss = streakState.get(a.id);
 
       if (raw !== undefined && value > 0) totalEntries += 1;
@@ -319,7 +324,7 @@ export function derive(data, today = todayKey()) {
           if (ss.streak % SHIELD_EVERY === 0) ss.shields = Math.min(MAX_SHIELDS, ss.shields + 1);
           st.bestStreak = Math.max(st.bestStreak, ss.streak);
           st.noShieldStreak = Math.max(st.noShieldStreak, ss.limpia);
-        } else if (date < today && scheduled) {
+        } else if (date < today && scheduled && !diaLibre) {
           if (ss.shields > 0) {
             ss.shields -= 1;                 // la racha sobrevive
             st.shieldSaveBest = Math.max(st.shieldSaveBest, ss.streak);
