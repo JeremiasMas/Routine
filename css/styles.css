@@ -689,3 +689,10 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: .66rem; opacity: .7;
 }
+
+/* Selector simple, con el mismo aire que los botones. */
+.select {
+  width: 100%; min-height: var(--tap); padding: 8px 12px;
+  border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel-strong); color: var(--text); font: inherit;
+}

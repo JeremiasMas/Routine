@@ -3,7 +3,7 @@ import { el, formatValue, formatNumber, shortDate, plural } from '../utils.js';
 import { chip } from '../ui/components.js';
 import {
   tendencia, constancia, proximosSaltos, mejorInversion,
-  estancados, proyeccionGrasa, repartoDeFuentes,
+  estancados, proyeccionGrasa, repartoDeFuentes, balances,
 } from '../analisis.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { bodySummary } from '../body.js';
@@ -135,6 +135,29 @@ function detalleGimnasio(st, state) {
     caja.append(el('p', { class: 'hint', style: 'margin-top:8px' },
       `Tu movimiento más atrasado sigue siendo ${general.weakest.lift}: `,
       'es el que más lejos está del resto, aunque llegar a su próxima categoría cueste más.'));
+  }
+
+  // Pares que conviene que vayan parejos.
+  const pares = balances(st.strength);
+  const desparejos = pares.filter((x) => x.desparejo);
+  if (desparejos.length) {
+    const peor = desparejos[0];
+    caja.append(el('div', { class: 'analisis__foco', style: 'margin-top:10px' },
+      el('div', { style: 'font-weight:700' }, '⚖️ Desbalanceado'),
+      el('p', { class: 'hint', style: 'margin-top:6px' },
+        el('b', { text: peor.fuerte.lift }), ' te lleva ',
+        el('b', { text: `${formatNumber(Math.round(peor.brecha * 10) / 10)} categorías` }),
+        ' de ventaja a ', el('b', { text: peor.flojo.lift }), '. ', peor.consejo),
+      el('div', { class: 'list', style: 'margin-top:8px' },
+        pares.map((x) => el('div', { class: 'row' },
+          el('div', { class: 'row__main' },
+            el('div', { text: x.nombre }),
+            el('div', { class: 'row__sub', text: `${x.fuerte.lift} por encima de ${x.flojo.lift}` })),
+          el('div', { class: 'row__value', style: x.desparejo ? 'color:var(--gold)' : '',
+            text: `${formatNumber(Math.round(x.brecha * 10) / 10)}` })))),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'La diferencia está en categorías de la escala, no en kilos: compara dónde está cada ',
+        'movimiento en su propia tabla, que es lo único comparable entre ejercicios distintos.')));
   }
 
   const trabados = estancados(st, state.today);

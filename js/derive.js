@@ -8,6 +8,7 @@ import {
 } from './xp.js';
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
 import { bodySummary, bodyFatBand } from './body.js';
+import { descomponerProgreso } from './analisis.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
@@ -112,6 +113,7 @@ function emptyActivityState(activity) {
     records: new Map(),      // ejercicio -> {weight, reps, e1rm, date}
     lastSets: new Map(),     // ejercicio -> últimas series cargadas
     ultimaCalibracion: new Map(), // ejercicio -> fecha de la última serie pesada
+    serieDeEjercicio: new Map(),  // ejercicio -> [{date, e1rm, ...}] por día
     ultimaVez: new Map(),         // ejercicio -> última fecha entrenado
     sesionesDeEjercicio: new Map(), // ejercicio -> cuántas veces lo hiciste
     maxGap: 0,           // el hueco más largo que después retomaste
@@ -190,12 +192,16 @@ export function derive(data, today = todayKey()) {
   // Peso corporal vigente en cada fecha: lo necesitan los ejercicios que se
   // hacen con el propio cuerpo (dominadas, fondos) para calcular la carga real.
   let pesoCorporal = Number(data.settings?.weight) || 0;
+  // El peso vigente en cada día del recorrido, para poder preguntar después
+  // cuánto pesabas cuando hiciste tal marca.
+  const pesoPorFecha = new Map();
 
   for (let i = 0; i <= span; i++) {
     const date = addDays(start, i);
     const dayEntries = entries[date] || {};
     const pesado = Number(dayEntries.cuerpo?.weight) || 0;
     if (pesado > 0) pesoCorporal = pesado;
+    pesoPorFecha.set(date, pesoCorporal);
     let dayXp = 0;
     let metCount = 0;
     let required = 0;
@@ -279,6 +285,16 @@ export function derive(data, today = todayKey()) {
             // por sí solo alcanzaba para simular una mejora.
             const ratio = pesoCorporal > 0 ? (carga * (1 + reps / 30)) / pesoCorporal : 0;
             const marca = { name: ex.name.trim(), weight: extra, reps, e1rm, load: Math.round(carga * 10) / 10, ratio, bw: esPesoCorporal, db: ex.db === true, date };
+            // El mejor 1RM de cada día, en orden. Con el récord solo no se
+            // puede ver si un ejercicio progresa: sólo si alguna vez subió.
+            const serie = st.serieDeEjercicio.get(name) || [];
+            const ultimo = serie[serie.length - 1];
+            if (ultimo && ultimo.date === date) {
+              if (e1rm > ultimo.e1rm) serie[serie.length - 1] = { ...marca };
+            } else {
+              serie.push({ ...marca });
+            }
+            st.serieDeEjercicio.set(name, serie);
             const prev = st.records.get(name);
             const mejora = prev && (esPesoCorporal
               ? marca.ratio > prev.ratio + 0.002
@@ -498,6 +514,24 @@ export function derive(data, today = todayKey()) {
   const sexo = data.settings?.bodyFormula === '4' ? 'f' : 'm';
   const gimnasio = [...byActivity.values()].find((st) => st.activity.kind === 'gym');
   const strength = gimnasio ? strengthProfile(gimnasio.records, pesoCorporal, sexo) : [];
+
+  // De dónde vino la mejora de cada movimiento: de levantar más o de pesar
+  // menos. El cociente sube con las dos cosas y no son lo mismo.
+  const VENTANA_PROGRESO = 120;   // días hacia atrás que se comparan
+  for (const s of strength) {
+    const serie = gimnasio?.serieDeEjercicio?.get((s.exercise || '').trim().toLowerCase());
+    if (!serie?.length) continue;
+    const desde = addDays(today, -VENTANA_PROGRESO);
+    // La marca más vieja dentro de la ventana; si no hay, la primera de todas.
+    const previa = serie.find((x) => x.date >= desde) || serie[0];
+    const ultima = serie[serie.length - 1];
+    if (!previa || !ultima || previa.date === ultima.date) continue;
+    s.progreso = descomponerProgreso(
+      previa.e1rm, pesoPorFecha.get(previa.date) || pesoCorporal,
+      ultima.e1rm, pesoCorporal,
+    );
+    s.desde = previa.date;
+  }
   const strengthOverall = nivelGeneral(strength);
 
   // Movimientos cuya estimación de fuerza está vencida: hace más de seis

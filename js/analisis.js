@@ -199,3 +199,101 @@ export function repartoDeFuentes(activity, totales) {
   filas.sort((a, b) => b.minutos - a.minutos);
   return { filas, total, desbalance: filas[0].pct - filas[filas.length - 1].pct };
 }
+
+/**
+ * Cuánto de tu progreso relativo salió de levantar más y cuánto de pesar menos.
+ *
+ * El nivel de fuerza se mide en veces tu peso corporal, así que bajar de peso
+ * lo sube sin que levantes un kilo más. Las dos cosas son logros, pero son
+ * logros distintos: decir "subiste a Intermedio en sentadilla" cuando
+ * levantás lo mismo y pesás tres kilos menos es una mentira cómoda.
+ *
+ * La descomposición es exacta: las dos partes suman el cambio total del
+ * cociente. La de fuerza se mide al peso viejo, la de peso al 1RM nuevo.
+ *
+ * @returns {?{antes, ahora, delta, porFuerza, porPeso, kgLevantados, kgDePeso}}
+ */
+export function descomponerProgreso(e1rmAntes, pesoAntes, e1rmAhora, pesoAhora) {
+  const ok = (n) => Number.isFinite(n) && n > 0;
+  if (![e1rmAntes, pesoAntes, e1rmAhora, pesoAhora].every(ok)) return null;
+  const antes = e1rmAntes / pesoAntes;
+  const ahora = e1rmAhora / pesoAhora;
+  return {
+    antes,
+    ahora,
+    delta: ahora - antes,
+    porFuerza: (e1rmAhora - e1rmAntes) / pesoAntes,
+    porPeso: e1rmAhora / pesoAhora - e1rmAhora / pesoAntes,
+    kgLevantados: e1rmAhora - e1rmAntes,
+    kgDePeso: pesoAhora - pesoAntes,
+  };
+}
+
+/**
+ * En una frase: de dónde vino la mejora.
+ * Devuelve null cuando no hay nada que aclarar (no cambió, o el peso no se movió).
+ */
+export function explicarProgreso(d, { minimo = 0.02 } = {}) {
+  if (!d || Math.abs(d.delta) < minimo) return null;
+  const f = Math.abs(d.porFuerza);
+  const p = Math.abs(d.porPeso);
+  if (p < minimo / 2) return null;                    // el peso no influyó
+  const parte = p / (f + p);
+  return {
+    // Qué porcentaje del cambio vino del peso corporal.
+    pesoPct: parte,
+    // El caso incómodo: subió el cociente sin levantar más.
+    soloPorPeso: d.kgLevantados <= 0.5 && d.porPeso > 0,
+    kgLevantados: d.kgLevantados,
+    kgDePeso: d.kgDePeso,
+  };
+}
+
+/**
+ * Pares de movimientos que conviene que vayan parejos.
+ *
+ * No es simetría por gusto: un empuje muy por encima de su tirón, o un
+ * cuádriceps muy por encima de su isquiotibial, es de los desbalances que más
+ * se asocian a lesión. La app ya sabe en qué punto de su escala está cada
+ * movimiento, así que compararlos no cuesta nada.
+ */
+export const PARES = [
+  { a: 'bench', b: 'row', nombre: 'Empuje horizontal y tirón horizontal',
+    consejo: 'Banca por encima de remo es el desbalance más común del gimnasio, y el hombro lo paga.' },
+  { a: 'ohp', b: 'pullup', nombre: 'Empuje vertical y tirón vertical',
+    consejo: 'Si el press militar le saca mucho a las dominadas, falta espalda alta.' },
+  { a: 'squat', b: 'rdl', nombre: 'Cuádriceps e isquiotibiales',
+    consejo: 'Sentadilla muy por encima del peso muerto rumano deja el isquiotibial corto para frenar.' },
+];
+
+/** Cuánta diferencia de categoría se considera un desbalance que vale nombrar. */
+export const DESBALANCE = 0.6;
+
+/**
+ * Compara los pares y devuelve los que existen, marcando los desparejos.
+ * La posición de cada movimiento es su categoría más lo que lleva avanzado
+ * dentro de ella, que es lo mismo que promedia el nivel general.
+ */
+export function balances(perfil) {
+  const porLift = new Map((perfil || [])
+    .filter((p) => p.nivel && p.liftKey)
+    .map((p) => [p.liftKey, p]));
+
+  const salida = [];
+  for (const par of PARES) {
+    const uno = porLift.get(par.a);
+    const otro = porLift.get(par.b);
+    if (!uno || !otro) continue;
+    const posUno = uno.nivel.index + uno.nivel.pct;
+    const posOtro = otro.nivel.index + otro.nivel.pct;
+    const diff = posUno - posOtro;
+    salida.push({
+      ...par,
+      fuerte: diff >= 0 ? uno : otro,
+      flojo: diff >= 0 ? otro : uno,
+      brecha: Math.abs(diff),
+      desparejo: Math.abs(diff) >= DESBALANCE,
+    });
+  }
+  return salida.sort((x, y) => y.brecha - x.brecha);
+}

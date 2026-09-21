@@ -6,6 +6,7 @@ import { openLogger } from '../ui/logger.js';
 import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
 import { colorDe, colorDeRango } from '../theme.js';
+import { explicarProgreso } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
 import { getData } from '../state.js';
@@ -198,6 +199,7 @@ export function render({ params, navigate, celebrate }) {
             ? `${r.weight > 0 ? `+${r.weight} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
             : `${r.weight} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
         el('div', { class: 'row__value', text: `${r.e1rm} kg` })))));
+    root.append(progresionPorEjercicio(st, a));
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' },
       'El valor de la derecha es tu 1RM estimado (fórmula de Epley). ',
       st.recordList.some((r) => r.db)
@@ -278,6 +280,78 @@ function patronSemanal(st, a) {
 }
 
 /** Cabecera del gimnasio: el nivel lo da la fuerza, no las sesiones. */
+/**
+ * El nivel de fuerza se mide en veces tu peso corporal, así que bajar de peso
+ * lo sube sin levantar un kilo más. Las dos cosas son logros, pero distintos:
+ * callarlo sería dejar que la app te felicite por algo que no hiciste.
+ */
+function avisoDePesoCorporal(st) {
+  const conPeso = (st.strength || [])
+    .map((s) => ({ s, e: explicarProgreso(s.progreso) }))
+    .filter((x) => x.e);
+  if (!conPeso.length) return null;
+
+  const soloPeso = conPeso.filter((x) => x.e.soloPorPeso);
+  const kg = (n) => formatNumber(Math.round(Math.abs(n) * 10) / 10);
+
+  if (soloPeso.length) {
+    const nombres = soloPeso.map((x) => x.s.lift.toLowerCase()).join(', ');
+    return el('p', { class: 'hint', style: 'margin-top:10px' },
+      `Ojo con ${nombres}: ${soloPeso.length === 1 ? 'subió' : 'subieron'} de cociente `,
+      `porque bajaste ${kg(soloPeso[0].e.kgDePeso)} kg, no porque levantes más. `,
+      'Pesar menos cuenta —mover tu cuerpo es más fácil— pero no es lo mismo que ganar fuerza.');
+  }
+
+  const mixto = conPeso.find((x) => x.e.pesoPct > 0.3);
+  if (!mixto) return null;
+  return el('p', { class: 'hint', style: 'margin-top:10px' },
+    `En ${mixto.s.lift.toLowerCase()}, cerca del ${Math.round(mixto.e.pesoPct * 100)}% de la mejora `,
+    `viene de haber bajado ${kg(mixto.e.kgDePeso)} kg; el resto, de los `,
+    `${kg(mixto.e.kgLevantados)} kg que sumaste al 1RM.`);
+}
+
+/**
+ * Cómo se movió un ejercicio en el tiempo. El récord es un número: dice si
+ * alguna vez subiste, no si estás subiendo. La serie sí.
+ */
+function progresionPorEjercicio(st, a) {
+  const series = [...(st.serieDeEjercicio || new Map()).entries()]
+    .map(([clave, puntos]) => ({ clave, puntos, nombre: puntos[puntos.length - 1]?.name || clave }))
+    .filter((x) => x.puntos.length >= 2)
+    .sort((x, y) => y.puntos.length - x.puntos.length);
+  if (!series.length) return null;
+
+  const caja = el('div', {});
+  caja.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Progresión' }), el('small', { text: '1RM estimado' })));
+
+  const selector = el('select', { class: 'select' },
+    series.map((x) => el('option', { value: x.clave, text: `${x.nombre} · ${x.puntos.length} sesiones` })));
+  const panel = el('div', { class: 'card' });
+
+  const dibujar = () => {
+    const elegida = series.find((x) => x.clave === selector.value) || series[0];
+    const puntos = elegida.puntos.map((x) => ({ label: shortDate(x.date), value: Math.round(x.e1rm * 10) / 10 }));
+    const primero = puntos[0].value;
+    const ultimo = puntos[puntos.length - 1].value;
+    const delta = Math.round((ultimo - primero) * 10) / 10;
+    panel.innerHTML = '';
+    panel.append(
+      lineChart(puntos, { color: colorDe(a), suffix: ' kg' }),
+      el('p', { class: 'hint', style: 'margin-top:10px' },
+        delta > 0
+          ? `Subiste ${formatNumber(delta)} kg de 1RM desde ${shortDate(elegida.puntos[0].date)}.`
+          : delta < 0
+            ? `Bajaste ${formatNumber(Math.abs(delta))} kg desde ${shortDate(elegida.puntos[0].date)}. Puede ser una semana floja o que haga falta cambiar algo.`
+            : `Sin cambios desde ${shortDate(elegida.puntos[0].date)}: mismo 1RM estimado.`));
+  };
+  selector.addEventListener('change', dibujar);
+  dibujar();
+
+  caja.append(el('div', { style: 'margin-bottom:8px' }, selector), panel);
+  return caja;
+}
+
 function strengthHeader(st, a) {
   const g = st.strengthOverall;
   if (!g) {
@@ -295,6 +369,7 @@ function strengthHeader(st, a) {
       ? el('p', { class: 'hint', style: 'margin-top:10px' },
           `Lo que más frena el promedio es ${flojo.lift.toLowerCase()}: ${formatNumber(flojo.falta)} kg de 1RM para pasar a ${flojo.nivel.next}.`)
       : null,
+    avisoDePesoCorporal(st),
     g.lifts < 3
       ? el('p', { class: 'hint', style: 'margin-top:6px' },
           `El promedio sale de ${g.lifts} ${g.lifts === 1 ? 'movimiento' : 'movimientos'}. Cargá los básicos —sentadilla, banca, press militar, remo y dominadas— para que el nivel sea representativo.`)

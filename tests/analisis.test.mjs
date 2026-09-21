@@ -278,3 +278,104 @@ test('la inversión no inventa mejoras donde no las hay', async () => {
   // Con un solo movimiento no hay promedio, así que tampoco hay impacto.
   assert.deepEqual(mejorInversion([enCategoria('squat', 1)]), []);
 });
+
+// ---------------------------------------------------------------------------
+// Fuerza relativa contra fuerza real
+// ---------------------------------------------------------------------------
+
+test('las dos partes suman exactamente el cambio total', async () => {
+  const { descomponerProgreso } = await import('../js/analisis.js');
+  for (const [a, pa, b, pb] of [[80, 65, 90, 62], [100, 60, 100, 55], [50, 70, 45, 70], [120, 61.5, 125, 61.5]]) {
+    const d = descomponerProgreso(a, pa, b, pb);
+    assert.ok(Math.abs((d.porFuerza + d.porPeso) - d.delta) < 1e-12,
+      `${a}/${pa} → ${b}/${pb}: las partes no suman el total`);
+  }
+});
+
+test('bajar de peso sin levantar más se atribuye al peso, no a la fuerza', async () => {
+  const { descomponerProgreso, explicarProgreso } = await import('../js/analisis.js');
+  const d = descomponerProgreso(100, 65, 100, 60);
+  assert.equal(d.porFuerza, 0, 'no levantó ni un kilo más');
+  assert.ok(d.porPeso > 0);
+  const e = explicarProgreso(d);
+  assert.equal(e.soloPorPeso, true);
+  assert.ok(e.pesoPct > 0.99, 'todo el mérito es del peso');
+});
+
+test('levantar más sin cambiar de peso se atribuye a la fuerza', async () => {
+  const { descomponerProgreso, explicarProgreso } = await import('../js/analisis.js');
+  const d = descomponerProgreso(80, 61.5, 95, 61.5);
+  assert.ok(d.porFuerza > 0);
+  assert.equal(d.porPeso, 0);
+  assert.equal(explicarProgreso(d), null, 'no hay nada que aclarar');
+});
+
+test('cuando aportan las dos cosas, reparte', async () => {
+  const { descomponerProgreso, explicarProgreso } = await import('../js/analisis.js');
+  const d = descomponerProgreso(80, 65, 90, 62);
+  const e = explicarProgreso(d);
+  assert.ok(e.pesoPct > 0 && e.pesoPct < 1, `repartió ${e.pesoPct}`);
+  assert.equal(e.soloPorPeso, false);
+  assert.equal(e.kgLevantados, 10);
+  assert.equal(e.kgDePeso, -3);
+});
+
+test('engordar baja el cociente aunque levantes lo mismo', async () => {
+  const { descomponerProgreso } = await import('../js/analisis.js');
+  const d = descomponerProgreso(100, 60, 100, 65);
+  assert.ok(d.delta < 0 && d.porPeso < 0 && d.porFuerza === 0);
+});
+
+test('no opina sin datos completos', async () => {
+  const { descomponerProgreso, explicarProgreso } = await import('../js/analisis.js');
+  assert.equal(descomponerProgreso(0, 60, 100, 60), null);
+  assert.equal(descomponerProgreso(100, 0, 100, 60), null);
+  assert.equal(descomponerProgreso(100, 60, NaN, 60), null);
+  assert.equal(explicarProgreso(null), null);
+});
+
+// ---------------------------------------------------------------------------
+// Balance entre pares
+// ---------------------------------------------------------------------------
+
+test('marca el desbalance y dice cuál es el flojo', async () => {
+  const { balances } = await import('../js/analisis.js');
+  const r = balances([enCategoria('bench', 2, 0.5), enCategoria('row', 1, 0.1)]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].fuerte.liftKey, 'bench');
+  assert.equal(r[0].flojo.liftKey, 'row');
+  assert.ok(Math.abs(r[0].brecha - 1.4) < 1e-9, `brecha ${r[0].brecha}`);
+  assert.equal(r[0].desparejo, true);
+});
+
+test('dos parejos no son un desbalance', async () => {
+  const { balances } = await import('../js/analisis.js');
+  const r = balances([enCategoria('bench', 1, 0.5), enCategoria('row', 1, 0.6)]);
+  assert.equal(r[0].desparejo, false);
+});
+
+test('da igual cuál de los dos esté adelante', async () => {
+  const { balances } = await import('../js/analisis.js');
+  const a = balances([enCategoria('squat', 3, 0.2), enCategoria('rdl', 1, 0.2)])[0];
+  const b = balances([enCategoria('rdl', 3, 0.2), enCategoria('squat', 1, 0.2)])[0];
+  assert.equal(a.brecha, b.brecha);
+  assert.equal(a.flojo.liftKey, 'rdl');
+  assert.equal(b.flojo.liftKey, 'squat');
+});
+
+test('un par incompleto no se inventa', async () => {
+  const { balances } = await import('../js/analisis.js');
+  assert.deepEqual(balances([enCategoria('bench', 2, 0.5)]), []);
+  assert.deepEqual(balances([]), []);
+  assert.deepEqual(balances(null), []);
+});
+
+test('los desbalances vienen del más grave al menos', async () => {
+  const { balances } = await import('../js/analisis.js');
+  const r = balances([
+    enCategoria('bench', 1, 0.5), enCategoria('row', 1, 0.4),      // brecha 0,1
+    enCategoria('squat', 3, 0.5), enCategoria('rdl', 1, 0.0),      // brecha 2,5
+  ]);
+  assert.equal(r[0].a, 'squat', 'el peor va primero');
+  assert.ok(r[0].brecha > r[1].brecha);
+});
