@@ -297,3 +297,104 @@ export function balances(perfil) {
   }
   return salida.sort((x, y) => y.brecha - x.brecha);
 }
+
+/**
+ * Qué rachas se cortan hoy si no hacés nada.
+ *
+ * Hasta ahora sólo te enterabas cuando ya la habías perdido. Saberlo con el
+ * día por delante convierte el dato en algo que podés usar. Un escudo la
+ * salva, pero se gasta: eso también se avisa, porque gastar el último no es
+ * lo mismo que gastar el primero.
+ *
+ * @param {Array} estados  los estados por actividad
+ * @param {function} tocaHoy  si la actividad estaba agendada para hoy
+ */
+export function rachasEnRiesgo(estados, tocaHoy) {
+  const salida = [];
+  for (const st of estados || []) {
+    if (st.doneToday) continue;                       // ya está hecho
+    if (st.streak <= 0) continue;                     // no hay nada que perder
+    if (st.activity?.streakMode === 'weekly') continue; // esas se miden por semana
+    if (!tocaHoy(st.activity)) continue;              // hoy no tocaba
+    salida.push({
+      id: st.id,
+      activity: st.activity,
+      streak: st.streak,
+      escudos: st.shields || 0,
+      // Sin escudos la racha se corta; con escudos sobrevive pero cuesta uno.
+      seCorta: (st.shields || 0) <= 0,
+      ultimoEscudo: st.shields === 1,
+    });
+  }
+  // Primero lo que más duele perder.
+  return salida.sort((a, b) => (a.seCorta === b.seCorta ? b.streak - a.streak : a.seCorta ? -1 : 1));
+}
+
+/**
+ * El cierre de una semana.
+ *
+ * La app dice todo el tiempo cómo vas hoy, pero nunca te hace una devolución.
+ * Esto mira la semana entera, la compara con la anterior y se queda con lo
+ * poco que vale la pena mirar: qué cumpliste, qué se cayó y qué atacar.
+ *
+ * @param {object} state   el estado derivado
+ * @param {string} lunes   el primer día de la semana a resumir
+ * @param {function} libre   si un día estaba declarado libre
+ * @param {function} tocaba  si una actividad estaba agendada ese día. Se pasa
+ *   de afuera porque vive en el motor, y el motor ya depende de este módulo.
+ */
+export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () => true } = {}) {
+  const dias = Array.from({ length: 7 }, (_, i) => addDays(lunes, i));
+  const anterior = Array.from({ length: 7 }, (_, i) => addDays(lunes, i - 7));
+
+  const porActividad = [];
+  for (const st of state.byActivity.values()) {
+    const cuenta = (rango) => {
+      let agendados = 0;
+      let cumplidos = 0;
+      let total = 0;
+      for (const d of rango) {
+        if (libre(d)) continue;
+        const reg = st.byDate.get(d);
+        if (reg) { total += reg.value; if (reg.met) cumplidos += 1; }
+        if (tocaba(st.activity, d)) agendados += 1;
+      }
+      return { agendados, cumplidos, total };
+    };
+    const ahora = cuenta(dias);
+    const antes = cuenta(anterior);
+    if (ahora.total === 0 && antes.total === 0) continue;
+    porActividad.push({
+      id: st.id,
+      activity: st.activity,
+      ...ahora,
+      totalAnterior: antes.total,
+      cumplidosAnterior: antes.cumplidos,
+      delta: ahora.total - antes.total,
+    });
+  }
+
+  const xp = dias.reduce((n, d) => n + (state.daily.get(d)?.xp || 0), 0);
+  const xpAnterior = anterior.reduce((n, d) => n + (state.daily.get(d)?.xp || 0), 0);
+  const perfectos = dias.filter((d) => state.daily.get(d)?.perfect).length;
+  const diasLibres = dias.filter(libre).length;
+
+  const subieron = porActividad.filter((x) => x.delta > 0).sort((a, b) => b.delta - a.delta);
+  const cayeron = porActividad.filter((x) => x.delta < 0 && x.totalAnterior > 0)
+    .sort((a, b) => a.delta - b.delta);
+
+  return {
+    lunes,
+    dias,
+    xp,
+    xpAnterior,
+    deltaXp: xp - xpAnterior,
+    perfectos,
+    diasLibres,
+    porActividad: porActividad.sort((a, b) => b.total - a.total),
+    mejor: subieron[0] || null,
+    peor: cayeron[0] || null,
+    // Una semana sin nada no merece un resumen que finja que pasó algo.
+    vacia: xp === 0 && porActividad.every((x) => x.total === 0),
+  };
+}

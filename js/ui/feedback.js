@@ -42,6 +42,41 @@ export function toast(icon, html, ms = 3200) {
   }, ms);
 }
 
+/**
+ * Un aviso con un botón para deshacer.
+ *
+ * Borrar un registro no tenía vuelta atrás: una sesión de gimnasio entera se
+ * perdía por un toque mal dado. El botón vive lo que dura el aviso, que es el
+ * tiempo en que uno se da cuenta del error.
+ *
+ * @returns {{cerrar: function}} para poder sacarlo antes si se deshace.
+ */
+export function toastConDeshacer(icon, html, alDeshacer, ms = 8000) {
+  const host = document.getElementById('toasts');
+  let hecho = false;
+  const boton = el('button', { class: 'toast__undo', type: 'button' }, 'Deshacer');
+  const node = el('div', { class: 'toast toast--undo' },
+    el('span', { class: 'toast__icon', text: icon }),
+    el('span', { html }),
+    boton);
+
+  const cerrar = () => {
+    if (hecho) return;
+    hecho = true;
+    node.classList.add('is-out');
+    setTimeout(() => node.remove(), 320);
+  };
+  boton.addEventListener('click', () => {
+    if (hecho) return;
+    cerrar();
+    alDeshacer();
+  });
+
+  host.append(node);
+  setTimeout(cerrar, ms);
+  return { cerrar };
+}
+
 let confettiRunning = false;
 export function confetti(colors = ['var(--accent)', 'var(--gold)', 'var(--fire)', 'var(--ok)', 'var(--danger)']) {
   const canvas = document.getElementById('confetti');

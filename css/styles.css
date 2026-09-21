@@ -696,3 +696,35 @@ a { color: inherit; text-decoration: none; }
   border-radius: 12px; border: 1px solid var(--line);
   background: var(--panel-strong); color: var(--text); font: inherit;
 }
+.aviso--racha { background: color-mix(in srgb, var(--fire) 10%, transparent); border-color: color-mix(in srgb, var(--fire) 30%, transparent); }
+.toast--undo { gap: 12px; }
+.toast__undo {
+  /* El contenedor de avisos ignora los toques para no tapar la pantalla, así
+     que hay que devolvérselos al único que sí se toca. */
+  pointer-events: auto;
+  margin-left: auto; flex: none;
+  background: var(--panel-strong); border: 1px solid var(--line);
+  color: var(--accent); font: inherit; font-weight: 700;
+  border-radius: 999px; padding: 6px 14px; min-height: 34px; cursor: pointer;
+}
+
+/* La tarjeta entera abre el registro; el botón de la meta va por encima. */
+.quest__tap {
+  position: absolute; inset: 0; z-index: 1;
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.quest__quick {
+  position: relative; z-index: 2; flex: none;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 45%, var(--line));
+  background: color-mix(in srgb, var(--c, var(--accent)) 14%, transparent);
+  color: var(--c, var(--accent)); font-size: 1rem; font-weight: 800; cursor: pointer;
+}
+.quest__quick:active { transform: scale(.92); }
+/* El contenido se dibuja por encima de la capa que recibe el toque, pero deja
+   pasar los toques: si no, tocar el medio de la tarjeta no abría nada. El
+   botón de la meta es la excepción, que para eso está. */
+.quest > *:not(.quest__tap):not(.quest__quick) {
+  position: relative; z-index: 2; pointer-events: none;
+}
+.quest__quick { pointer-events: auto; }

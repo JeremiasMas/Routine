@@ -379,3 +379,126 @@ test('los desbalances vienen del más grave al menos', async () => {
   assert.equal(r[0].a, 'squat', 'el peor va primero');
   assert.ok(r[0].brecha > r[1].brecha);
 });
+
+// ---------------------------------------------------------------------------
+// Rachas en riesgo
+// ---------------------------------------------------------------------------
+
+const estado = (id, extra = {}) => ({
+  id, activity: { id, name: id, icon: '·' }, streak: 10, shields: 0, doneToday: false, ...extra,
+});
+const siempreToca = () => true;
+
+test('avisa de una racha que se corta hoy', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  const r = rachasEnRiesgo([estado('piano', { streak: 30 })], siempreToca);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].seCorta, true);
+  assert.equal(r[0].streak, 30);
+});
+
+test('lo ya hecho hoy no está en riesgo', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  assert.deepEqual(rachasEnRiesgo([estado('piano', { doneToday: true })], siempreToca), []);
+});
+
+test('lo que hoy no tocaba tampoco', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  assert.deepEqual(rachasEnRiesgo([estado('gym')], () => false), []);
+});
+
+test('sin racha no hay nada que perder', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  assert.deepEqual(rachasEnRiesgo([estado('piano', { streak: 0 })], siempreToca), []);
+});
+
+test('con escudo la racha sobrevive, pero avisa que cuesta uno', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  const r = rachasEnRiesgo([estado('piano', { shields: 2 })], siempreToca);
+  assert.equal(r[0].seCorta, false);
+  assert.equal(r[0].ultimoEscudo, false);
+  const ultimo = rachasEnRiesgo([estado('piano', { shields: 1 })], siempreToca);
+  assert.equal(ultimo[0].ultimoEscudo, true, 'gastar el último no es lo mismo que gastar el primero');
+});
+
+test('primero lo que se corta, después lo que sólo gasta escudo', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  const r = rachasEnRiesgo([
+    estado('datos', { streak: 100, shields: 2 }),   // protegida
+    estado('piano', { streak: 5, shields: 0 }),     // se corta
+  ], siempreToca);
+  assert.equal(r[0].id, 'piano', 'lo que se pierde de verdad va primero');
+  assert.equal(r[1].id, 'datos');
+});
+
+test('las semanales no entran: no se cortan por un día', async () => {
+  const { rachasEnRiesgo } = await import('../js/analisis.js');
+  const semanal = estado('substack');
+  semanal.activity.streakMode = 'weekly';
+  assert.deepEqual(rachasEnRiesgo([semanal], siempreToca), []);
+});
+
+// ---------------------------------------------------------------------------
+// Resumen semanal
+// ---------------------------------------------------------------------------
+
+test('el resumen compara la semana con la anterior', async () => {
+  const { resumenSemanal } = await import('../js/analisis.js');
+  const { derive } = await import('../js/derive.js');
+  const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
+  const { isScheduled } = await import('../js/derive.js');
+
+  const LUNES = '2026-09-14';          // lunes
+  const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'piano');
+  const entries = {};
+  // Semana anterior: dos sesiones. Esta semana: cuatro.
+  for (const d of ['2026-09-07', '2026-09-11']) entries[d] = { piano: { value: 30 } };
+  for (const d of ['2026-09-14', '2026-09-18', '2026-09-19', '2026-09-20']) entries[d] = { piano: { value: 30 } };
+  const state = derive({ activities: acts, entries, unlocked: {}, settings: {} }, '2026-09-21');
+  const r = resumenSemanal(state, LUNES, { tocaba: isScheduled });
+
+  const piano = r.porActividad.find((x) => x.id === 'piano');
+  assert.equal(piano.total, 120, 'cuatro sesiones de 30');
+  assert.equal(piano.totalAnterior, 60);
+  assert.equal(piano.delta, 60);
+  assert.equal(r.mejor.id, 'piano');
+  assert.equal(r.peor, null);
+  assert.equal(r.vacia, false);
+});
+
+test('señala lo que se cayó respecto de la semana anterior', async () => {
+  const { resumenSemanal } = await import('../js/analisis.js');
+  const { derive, isScheduled } = await import('../js/derive.js');
+  const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
+  const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'datos');
+  const entries = {};
+  for (const d of ['2026-09-07', '2026-09-08', '2026-09-09']) entries[d] = { datos: { value: 45 } };
+  entries['2026-09-14'] = { datos: { value: 45 } };
+  const state = derive({ activities: acts, entries, unlocked: {}, settings: {} }, '2026-09-21');
+  const r = resumenSemanal(state, '2026-09-14', { tocaba: isScheduled });
+  assert.equal(r.peor.id, 'datos');
+  assert.ok(r.peor.delta < 0);
+});
+
+test('los días declarados libres no cuentan como fallo', async () => {
+  const { resumenSemanal } = await import('../js/analisis.js');
+  const { derive, isScheduled } = await import('../js/derive.js');
+  const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
+  const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'datos');
+  const state = derive({ activities: acts, entries: { '2026-09-14': { datos: { value: 45 } } },
+    unlocked: {}, settings: {} }, '2026-09-21');
+  const conLibres = resumenSemanal(state, '2026-09-14',
+    { tocaba: isScheduled, libre: (d) => d >= '2026-09-15' });
+  const sinLibres = resumenSemanal(state, '2026-09-14', { tocaba: isScheduled });
+  const a = conLibres.porActividad.find((x) => x.id === 'datos');
+  const b = sinLibres.porActividad.find((x) => x.id === 'datos');
+  assert.ok(a.agendados < b.agendados, 'una semana de descanso pide menos');
+  assert.equal(conLibres.diasLibres, 6);
+});
+
+test('una semana sin nada se declara vacía en vez de fingir', async () => {
+  const { resumenSemanal } = await import('../js/analisis.js');
+  const { derive, isScheduled } = await import('../js/derive.js');
+  const state = derive({ activities: [], entries: {}, unlocked: {}, settings: {} }, '2026-09-21');
+  assert.equal(resumenSemanal(state, '2026-09-14', { tocaba: isScheduled }).vacia, true);
+});

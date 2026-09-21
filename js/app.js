@@ -1,9 +1,9 @@
 // Arranque, navegación y celebraciones.
 import { el, formatNumber, plural } from './utils.js';
-import { load, getState, invalidate, getData } from './state.js';
+import { load, getState, invalidate, getData, setEntry } from './state.js';
 import { ring, xpBar, chip } from './ui/components.js';
 import { openSheet, closeSheet } from './ui/sheet.js';
-import { toast, confetti, sounds } from './ui/feedback.js';
+import { toast, toastConDeshacer, confetti, sounds } from './ui/feedback.js';
 import * as today from './views/today.js';
 import * as activity from './views/activity.js';
 import * as stats from './views/stats.js';
@@ -91,9 +91,20 @@ function renderTabbar(active) {
 }
 
 /** Muestra el feedback de lo que acaba de pasar: XP, logros, subidas de nivel. */
-function celebrate(events, value) {
+function celebrate(events, value, borrado) {
   closeSheet();
-  if (!events) { toast('🗑', 'Registro borrado.'); return; }
+  if (!events) {
+    if (borrado?.entry) {
+      toastConDeshacer('🗑', `${borrado.activity.name} borrado.`, () => {
+        setEntry(borrado.dateKey, borrado.activity.id, borrado.entry);
+        navigate();
+        toast('↩', 'Listo, lo devolvimos.');
+      });
+    } else {
+      toast('🗑', 'Registro borrado.');
+    }
+    return;
+  }
 
   const { levelUps = [], achievements = [], playerLevelUp, perfectDay } = events;
   sounds.xp();

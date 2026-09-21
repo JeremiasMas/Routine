@@ -71,7 +71,7 @@ export function render({ params, navigate, celebrate }) {
 
   root.append(el('div', { style: 'margin-top:12px' },
     el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(a)}`,
-      onClick: () => openLogger(a, state.today, (events) => { celebrate(events); navigate(); }) },
+      onClick: () => openLogger(a, state.today, (...args) => { celebrate(...args); navigate(); }) },
       `Registrar ${relativeDay(state.today).toLowerCase()}`)));
 
   // Los pasos se pueden contar en vivo con el acelerómetro, sin esperar a la
@@ -217,7 +217,7 @@ export function render({ params, navigate, celebrate }) {
   root.append(recent.length
     ? el('div', { class: 'list' }, recent.map((h) => el('button', {
         class: 'row', style: 'width:100%;text-align:left',
-        onClick: () => openLogger(a, h.date, (events) => { celebrate(events); navigate(); }),
+        onClick: () => openLogger(a, h.date, (...args) => { celebrate(...args); navigate(); }),
       },
       el('div', { class: 'row__main' },
         el('div', { text: relativeDay(h.date) }),

@@ -3,12 +3,14 @@ import {
   el, formatValue, formatNumber, relativeDay, todayKey, addDays,
   weekStart, weekLabel, dayName, keyToDate, plural,
 } from '../utils.js';
-import { getState, backupVencido, diasSinBackup } from '../state.js';
+import { getState, backupVencido, diasSinBackup, setEntry } from '../state.js';
 import { isScheduled, goalFor } from '../derive.js';
 import { templateForDay, templateById } from '../config.js';
 import { ring, chip, xpBar } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
 import { colorDe } from '../theme.js';
+import { rachasEnRiesgo } from '../analisis.js';
+import { enApp } from '../native.js';
 
 let viewDate = todayKey();
 
@@ -40,6 +42,13 @@ export function render({ navigate, celebrate }) {
   const perfecto = toca.length > 0 && hechas === toca.length;
   const casi = !perfecto && toca.length > 0 && hechas / toca.length >= 0.8;
   const rutina = templateForDay(keyToDate(viewDate).getDay());
+
+  // Lo que se pierde hoy si no hacés nada. Sólo en el día de hoy: en un día
+  // pasado ya no hay nada que decidir.
+  if (viewDate === state.today) {
+    const riesgo = rachasEnRiesgo([...state.byActivity.values()], (a) => isScheduled(a, viewDate));
+    if (riesgo.length) root.append(avisoDeRacha(riesgo));
+  }
 
   // --- Resumen del día ---
   root.append(el('div', { class: 'card', style: 'margin-bottom:4px' },
@@ -85,7 +94,7 @@ export function render({ navigate, celebrate }) {
         const meta = st?.weekTarget || 1;
         return el('button', {
           style: 'display:block;width:100%;text-align:left',
-          onClick: () => openLogger(a, viewDate, (events) => { celebrate(events); navigate(); }),
+          onClick: () => openLogger(a, viewDate, (...args) => { celebrate(...args); navigate(); }),
         },
           el('div', { style: 'display:flex;justify-content:space-between;gap:8px;font-size:.86rem' },
             el('span', {}, `${a.icon} ${a.name}`),
@@ -143,11 +152,13 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
   }
   if (st?.shields > 0) meta.append(chip(`🛡 ${st.shields}`, 'chip--shield'));
 
-  const card = el('button', {
+  const abrir = () => openLogger(activity, dateKey, (...args) => { celebrate(...args); navigate(); });
+
+  const card = el('div', {
     class: `quest${met ? ' is-done' : ''}${off ? ' quest--off' : ''}`,
     style: `--c:${colorDe(activity)}`,
-    onClick: () => openLogger(activity, dateKey, (events) => { celebrate(events); navigate(); }),
   },
+    el('button', { class: 'quest__tap', 'aria-label': `Registrar ${activity.name}`, onClick: abrir }),
     el('span', { class: 'quest__icon', text: activity.icon }),
     el('div', { class: 'quest__body' },
       el('div', { class: 'quest__head' },
@@ -164,7 +175,8 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
         : el('div', { style: 'text-align:center;line-height:1' },
             el('span', { style: 'font-size:.44rem;letter-spacing:.1em;color:var(--muted);display:block', text: 'NV' }),
             el('b', { style: 'font-size:.82rem', text: `${st?.level.level ?? 1}` })),
-    }));
+    }),
+    botonRapido(activity, dateKey, met, navigate, celebrate));
 
   // Ir al detalle con pulsación larga o clic derecho.
   card.addEventListener('contextmenu', (e) => { e.preventDefault(); location.hash = `#/actividad/${activity.id}`; });
@@ -191,3 +203,64 @@ function weekStrip(state) {
 
 export function setViewDate(key) { viewDate = key; }
 export function getViewDate() { return viewDate; }
+
+
+/** Qué rachas están en juego hoy, en una frase que se pueda usar. */
+function avisoDeRacha(riesgo) {
+  const cortan = riesgo.filter((r) => r.seCorta);
+  const conEscudo = riesgo.filter((r) => !r.seCorta);
+  const nombres = (lista) => lista.map((r) => `${r.activity.icon} ${r.activity.name}`).join(', ');
+
+  const caja = el('div', { class: 'aviso aviso--racha', style: 'margin-bottom:10px' });
+  if (cortan.length) {
+    const peor = cortan[0];
+    caja.append(el('div', { style: 'font-weight:700' },
+      `🔥 Se corta tu racha de ${plural(peor.streak, 'día', 'días')}`));
+    caja.append(el('p', { class: 'hint', style: 'margin-top:4px' },
+      cortan.length === 1
+        ? `${nombres(cortan)} no tiene escudos: si el día termina sin registrarlo, la racha vuelve a cero.`
+        : `${nombres(cortan)} no tienen escudos: si el día termina sin registrarlas, esas rachas vuelven a cero.`));
+  } else {
+    const peor = conEscudo[0];
+    caja.append(el('div', { style: 'font-weight:700' },
+      `🛡 Hoy gastás ${peor.ultimoEscudo ? 'tu último escudo' : 'un escudo'}`));
+    caja.append(el('p', { class: 'hint', style: 'margin-top:4px' },
+      `${nombres(conEscudo)}: la racha sobrevive, pero el escudo no se recupera hasta otros siete días cumplidos.`));
+  }
+  if (cortan.length && conEscudo.length) {
+    caja.append(el('p', { class: 'hint', style: 'margin-top:6px' },
+      `${nombres(conEscudo)} ${conEscudo.length === 1 ? 'se salva' : 'se salvan'} con escudo.`));
+  }
+  return caja;
+}
+
+
+/**
+ * Cumplir la meta en un toque, sin abrir la hoja.
+ *
+ * Sólo donde "cumplir" es un número único y sin ambigüedad: minutos, pasos,
+ * mililitros. En el gimnasio o en una medición no existe un valor obvio, y
+ * ofrecerlo sería inventar el dato.
+ */
+function botonRapido(activity, dateKey, met, navigate, celebrate) {
+  if (met) return null;
+  if (activity.kind !== 'number') return null;
+  // Con la app de Android los pasos los escribe Health Connect: un valor
+  // puesto a mano se pisa en la siguiente lectura.
+  if (activity.id === 'pasos' && enApp()) return null;
+  const meta = Number(activity.goal) || 0;
+  if (meta <= 0) return null;
+
+  return el('button', {
+    class: 'quest__quick',
+    type: 'button',
+    title: `Registrar la meta: ${formatValue(meta, activity.unit)}`,
+    'aria-label': `Cumplí la meta de ${activity.name}`,
+    onClick: (e) => {
+      e.stopPropagation();
+      const events = setEntry(dateKey, activity.id, { value: meta });
+      celebrate(events, meta);
+      navigate();
+    },
+  }, '✓');
+}

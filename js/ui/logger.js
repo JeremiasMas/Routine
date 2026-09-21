@@ -25,7 +25,13 @@ function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getC
   const preview = el('span', { class: 'xp-preview' });
   const save = el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(activity)}` }, 'Guardar');
   const remove = existing
-    ? el('button', { class: 'btn btn--danger', onClick: () => { setEntry(dateKey, activity.id, null); onSaved?.(null); } }, 'Borrar')
+    ? el('button', { class: 'btn btn--danger', onClick: () => {
+        // Se guarda una copia antes de borrar: es lo único que hace posible
+        // devolverlo tal cual estaba, con su fecha de modificación y todo.
+        const copia = structuredClone(existing);
+        setEntry(dateKey, activity.id, null);
+        onSaved?.(null, 0, { activity, dateKey, entry: copia });
+      } }, 'Borrar')
     : null;
 
   save.addEventListener('click', () => {

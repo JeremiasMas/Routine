@@ -1,9 +1,12 @@
 // Progreso global: mapa de calor, XP por semana y ranking de actividades.
 import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween } from '../utils.js';
-import { getState } from '../state.js';
+import { getState, getData } from '../state.js';
 import { stat, xpBar, chip, barChart } from '../ui/components.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { seccionAnalisis } from './analisis.js';
+import { resumenSemanal } from '../analisis.js';
+import { isScheduled } from '../derive.js';
+import { esLibre } from '../pausas.js';
 
 export function render() {
   const state = getState();
@@ -17,6 +20,8 @@ export function render() {
     stat(state.perfectDays, 'Días perfectos')));
 
   // --- Mapa de calor del último año ---
+  root.append(tarjetaSemanal(state));
+
   const analisis = seccionAnalisis(state);
   if (analisis) root.append(analisis);
 
@@ -105,4 +110,55 @@ function heatmap(state) {
       })),
       el('span', { class: 'heatmap__cell', style: 'background:var(--gold)' }),
       el('span', { text: 'día perfecto' })));
+}
+
+
+/**
+ * El cierre de la semana. La app dice todo el tiempo cómo vas hoy y nunca te
+ * hace una devolución; esto mira la semana entera y la compara con la
+ * anterior. Hasta el domingo muestra la semana en curso, que todavía se puede
+ * cambiar; el lunes ya muestra la cerrada.
+ */
+function tarjetaSemanal(state) {
+  const libre = (f) => esLibre(getData().pausas, f);
+  const dow = new Date(`${state.today}T00:00:00Z`).getUTCDay();
+  // El lunes conviene ver la semana que cerró, no una de un día.
+  const lunes = dow === 1 ? addDays(weekStart(state.today), -7) : weekStart(state.today);
+  const r = resumenSemanal(state, lunes, { libre, tocaba: isScheduled });
+  if (r.vacia) return el('div', {});
+
+  const enCurso = lunes === weekStart(state.today);
+  const signo = (n) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
+
+  const card = el('div', { class: 'card' },
+    el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px' },
+      el('div', { style: 'font-weight:700', text: enCurso ? 'Esta semana' : 'La semana que cerró' }),
+      el('div', { class: 'row__sub', text: `${shortDate(lunes)} → ${shortDate(addDays(lunes, 6))}` })),
+    el('div', { class: 'stat-grid', style: 'margin-top:12px' },
+      stat(formatNumber(r.xp), 'XP'),
+      stat(signo(r.deltaXp), 'vs. semana previa'),
+      stat(r.perfectos, r.perfectos === 1 ? 'día perfecto' : 'días perfectos'),
+      stat(r.diasLibres, r.diasLibres === 1 ? 'día libre' : 'días libres')));
+
+  if (r.mejor) {
+    card.append(el('p', { class: 'hint', style: 'margin-top:10px' },
+      `📈 Lo que más subió: ${r.mejor.activity.name}, `,
+      `${formatValue(r.mejor.total, r.mejor.activity.unit)} contra ${formatValue(r.mejor.totalAnterior, r.mejor.activity.unit)}.`));
+  }
+  if (r.peor) {
+    card.append(el('p', { class: 'hint', style: 'margin-top:6px' },
+      `📉 Lo que se cayó: ${r.peor.activity.name}, `,
+      `${formatValue(r.peor.total, r.peor.activity.unit)} contra ${formatValue(r.peor.totalAnterior, r.peor.activity.unit)}. `,
+      enCurso ? 'Todavía estás a tiempo.' : 'Un buen lugar para empezar la semana.'));
+  }
+  if (!r.mejor && !r.peor) {
+    card.append(el('p', { class: 'hint', style: 'margin-top:10px' },
+      'Semana pareja con la anterior: ni subiste ni bajaste en nada.'));
+  }
+
+  return el('div', {},
+    el('div', { class: 'section-title' },
+      el('h2', { text: 'Tu semana' }),
+      el('small', { text: enCurso ? 'en curso' : 'cerrada' })),
+    card);
 }
