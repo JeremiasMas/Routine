@@ -207,11 +207,24 @@ test('una sesión mezclada suma cada ejercicio como corresponde', () => {
   assert.equal(gymVolume(sesion), 640);
 });
 
-test('hay veinte rangos de jugador, uno cada tres niveles', async () => {
+test('hay veinte rangos y el último cae justo en el nivel 60', async () => {
   const { PLAYER_TITLES } = await import('../js/config.js');
   assert.equal(PLAYER_TITLES.length, 20);
-  for (let i = 0; i < PLAYER_TITLES.length; i++) {
-    assert.equal(PLAYER_TITLES[i].min, 1 + i * 3, `el rango ${i + 1} no cae donde debería`);
+  assert.equal(PLAYER_TITLES[0].min, 1, 'el primero arranca en el nivel 1');
+  assert.equal(PLAYER_TITLES.at(-1).min, 60, 'el último tiene que caer redondo');
+  // El primero dura cinco niveles; de ahí en más, uno cada tres.
+  assert.equal(PLAYER_TITLES[1].min, 6);
+  for (let i = 2; i < PLAYER_TITLES.length; i++) {
+    assert.equal(PLAYER_TITLES[i].min - PLAYER_TITLES[i - 1].min, 3,
+      `entre ${PLAYER_TITLES[i - 1].name} y ${PLAYER_TITLES[i].name} no hay tres niveles`);
+  }
+});
+
+test('los rangos van siempre hacia arriba', async () => {
+  const { PLAYER_TITLES } = await import('../js/config.js');
+  for (let i = 1; i < PLAYER_TITLES.length; i++) {
+    assert.ok(PLAYER_TITLES[i].min > PLAYER_TITLES[i - 1].min,
+      `${PLAYER_TITLES[i].name} no está por encima del anterior`);
   }
 });
 
@@ -229,11 +242,12 @@ test('cada rango tiene nombre y explicación', async () => {
 test('el rango de un nivel es el último alcanzado, no el siguiente', async () => {
   const { playerTitleFor } = await import('../js/xp.js');
   assert.equal(playerTitleFor(1).name, 'Leónidas');
-  assert.equal(playerTitleFor(3).name, 'Leónidas', 'hasta el 3 seguís en el primero');
-  assert.equal(playerTitleFor(4).name, 'Milcíades', 'el 4 estrena el segundo');
-  assert.equal(playerTitleFor(8).name, 'Temístocles');
-  assert.equal(playerTitleFor(58).name, 'Gengis Kan');
-  assert.equal(playerTitleFor(500).name, 'Gengis Kan', 'pasado el último no hay más');
+  assert.equal(playerTitleFor(5).name, 'Leónidas', 'el primero dura cinco niveles');
+  assert.equal(playerTitleFor(6).name, 'Milcíades', 'el 6 estrena el segundo');
+  assert.equal(playerTitleFor(8).name, 'Milcíades');
+  assert.equal(playerTitleFor(59).name, 'Aníbal', 'el 60 todavía no');
+  assert.equal(playerTitleFor(60).name, 'Gengis Kan', 'el último cae en el 60 redondo');
+  assert.equal(playerTitleFor(500).name, 'Gengis Kan', 'pasado el 60 se sigue subiendo, pero no hay rango nuevo');
   assert.equal(playerTitleFor(0).name, 'Leónidas', 'antes del primero tampoco se rompe');
 });
 
@@ -242,4 +256,7 @@ test('los rangos cubren toda la escalera sin huecos', async () => {
   const vistos = new Set();
   for (let n = 1; n <= 60; n++) vistos.add(playerTitleFor(n).name);
   assert.equal(vistos.size, 20, `sólo se alcanzan ${vistos.size} rangos en 60 niveles`);
+  // Y ninguno queda inalcanzable por caer más allá del último.
+  const { PLAYER_TITLES } = await import('../js/config.js');
+  for (const t of PLAYER_TITLES) assert.ok(vistos.has(t.name), `${t.name} nunca se alcanza`);
 });

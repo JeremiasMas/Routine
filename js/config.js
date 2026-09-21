@@ -315,36 +315,41 @@ export const DEFAULT_TIER_NAMES = TIERS.map((t) => t.name);
 
 /** Rangos del jugador (nivel global). */
 /**
- * Rangos de jugador: veinte generales, uno cada tres niveles.
+ * Rangos de jugador: veinte generales, del nivel 1 al 60.
+ *
+ * El primero dura cinco niveles —cambiar de rango a los tres días no
+ * significaría nada— y de ahí en más se sube cada tres, hasta que Gengis Kan
+ * cae exactamente en el 60. Pasado el 60 se sigue subiendo de nivel, pero ya
+ * no hay rango nuevo: el último es el último.
  *
  * El orden no es cronológico ni de fama, sino de dificultad de lo logrado: de
- * lo más acotado a lo más improbable. Empieza con trescientos hombres en un
- * desfiladero y termina con un huérfano esclavizado que acabó con el imperio
- * contiguo más grande de la historia.
+ * lo más acotado a lo más improbable. Por eso Escipión va antes que Aníbal
+ * aunque lo haya vencido —tenía a Roma entera detrás— y Eisenhower antes que
+ * Belisario, que hizo algo comparable con muchísimo menos.
  *
  * Cada `nota` es por qué está en ese escalón, no un dato de enciclopedia.
  */
 export const PLAYER_TITLES = [
   { min: 1, name: 'Leónidas', nota: '300 hombres, tres días, un desfiladero.' },
-  { min: 4, name: 'Milcíades', nota: 'Maratón: diez mil atenienses contra un imperio.' },
-  { min: 7, name: 'Temístocles', nota: 'Construyó una flota y con ella ganó Salamina.' },
-  { min: 10, name: 'Escipión', nota: 'Venció al invicto, con Roma entera detrás.' },
-  { min: 13, name: 'Wellington', nota: 'Nunca perdió una batalla; tampoco le faltó nada.' },
-  { min: 16, name: 'Eisenhower', nota: 'La operación más grande jamás montada.' },
-  { min: 19, name: 'Saladino', nota: 'Unificó un mundo dividido y recuperó Jerusalén.' },
-  { min: 22, name: 'Epaminondas', nota: 'Rompió el mito espartano con menos hombres.' },
-  { min: 25, name: 'Julio César', nota: 'La Galia en inferioridad; después, Roma.' },
-  { min: 28, name: 'Zhukov', nota: 'Dio vuelta una guerra que se estaba perdiendo.' },
-  { min: 31, name: 'Gustavo Adolfo', nota: 'Suecia contra el Imperio, y cambió cómo se peleaba.' },
-  { min: 34, name: 'Tamerlán', nota: 'Rehízo un imperio partiendo de casi nada.' },
-  { min: 37, name: 'Subotai', nota: 'Campañas en dos continentes, sin comunicaciones.' },
-  { min: 40, name: 'Jaled ibn al-Walid', nota: 'Cien batallas, ninguna perdida, casi siempre en inferioridad.' },
-  { min: 43, name: 'Alejandro Magno', nota: 'Heredó el mejor ejército y aun así hizo lo improbable.' },
-  { min: 46, name: 'Napoleón', nota: 'De teniente sin fortuna a dueño de Europa, contra siete coaliciones.' },
-  { min: 49, name: 'Federico el Grande', nota: 'Prusia sola contra Austria, Francia y Rusia. Sobrevivió.' },
-  { min: 52, name: 'Belisario', nota: 'Recuperó medio Imperio con ejércitos diminutos y un emperador en contra.' },
-  { min: 55, name: 'Aníbal', nota: 'Quince años en territorio enemigo, sin refuerzos, invicto en campo.' },
-  { min: 58, name: 'Gengis Kan', nota: 'Empezó huérfano y esclavo. Terminó con el imperio más grande jamás unido.' },
+  { min: 6, name: 'Milcíades', nota: 'Maratón: diez mil atenienses contra un imperio.' },
+  { min: 9, name: 'Temístocles', nota: 'Construyó una flota y con ella ganó Salamina.' },
+  { min: 12, name: 'Escipión', nota: 'Venció al invicto, con Roma entera detrás.' },
+  { min: 15, name: 'Wellington', nota: 'Nunca perdió una batalla; tampoco le faltó nada.' },
+  { min: 18, name: 'Eisenhower', nota: 'La operación más grande jamás montada.' },
+  { min: 21, name: 'Saladino', nota: 'Unificó un mundo dividido y recuperó Jerusalén.' },
+  { min: 24, name: 'Epaminondas', nota: 'Rompió el mito espartano con menos hombres.' },
+  { min: 27, name: 'Julio César', nota: 'La Galia en inferioridad; después, Roma.' },
+  { min: 30, name: 'Zhukov', nota: 'Dio vuelta una guerra que se estaba perdiendo.' },
+  { min: 33, name: 'Gustavo Adolfo', nota: 'Suecia contra el Imperio, y cambió cómo se peleaba.' },
+  { min: 36, name: 'Tamerlán', nota: 'Rehízo un imperio partiendo de casi nada.' },
+  { min: 39, name: 'Subotai', nota: 'Campañas en dos continentes, sin comunicaciones.' },
+  { min: 42, name: 'Jaled ibn al-Walid', nota: 'Cien batallas, ninguna perdida, casi siempre en inferioridad.' },
+  { min: 45, name: 'Alejandro Magno', nota: 'Heredó el mejor ejército y aun así hizo lo improbable.' },
+  { min: 48, name: 'Napoleón', nota: 'De teniente sin fortuna a dueño de Europa, contra siete coaliciones.' },
+  { min: 51, name: 'Federico el Grande', nota: 'Prusia sola contra Austria, Francia y Rusia. Sobrevivió.' },
+  { min: 54, name: 'Belisario', nota: 'Recuperó medio Imperio con ejércitos diminutos y un emperador en contra.' },
+  { min: 57, name: 'Aníbal', nota: 'Quince años en territorio enemigo, sin refuerzos, invicto en campo.' },
+  { min: 60, name: 'Gengis Kan', nota: 'Empezó huérfano y esclavo. Terminó con el imperio más grande jamás unido.' },
 ];
 
 /** XP extra por eventos especiales. */
