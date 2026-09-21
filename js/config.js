@@ -197,6 +197,7 @@ export const GYM_TEMPLATES = [
       { name: 'Remo sentado con agarre supino en polea' },
       { name: 'Pullover' },
       { name: 'Curl en polea baja con barra' },
+      { name: 'Curl con soga en polea baja' },
       { name: 'Face pulls' },
       { name: 'Standing cable crunch' },
       { name: 'Elevaciones de piernas en paralelas', bw: true },
