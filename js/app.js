@@ -9,7 +9,7 @@ import * as activity from './views/activity.js';
 import * as stats from './views/stats.js';
 import * as awards from './views/awards.js';
 import * as settings from './views/settings.js';
-import { conectar as conectarNativo, alCambiar as alCambiarNativo } from './native.js';
+import { conectar as conectarNativo, alCambiar as alCambiarNativo, publicarResumen } from './native.js';
 import { copiaAutomatica } from './backup.js';
 import { aplicarTema } from './theme.js';
 
@@ -174,6 +174,9 @@ function watchDayChange() {
       today.setViewDate(day);
       location.hash = '#/';
       navigate();
+      // El widget se actualiza con cada cambio, pero pasar de medianoche no
+      // es un cambio: sin esto se quedaría mostrando el día de ayer.
+      publicarResumen(state);
     }
   };
   setInterval(check, 60000);

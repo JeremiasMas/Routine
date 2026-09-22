@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Una misión. El cuerpo abre la app en esa actividad; el botón de la
+     derecha, donde aparece, la encola sin abrir nada. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp">
+
+  <LinearLayout
+      android:id="@+id/fila_cuerpo"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/fila_icono"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:paddingEnd="6dp"
+        android:paddingRight="6dp"
+        android:textColor="@color/widget_texto" />
+
+    <TextView
+        android:id="@+id/fila_nombre"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="@color/widget_texto"
+        android:textSize="13sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/fila_valor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/widget_suave"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:paddingStart="8dp"
+        android:paddingLeft="8dp" />
+  </LinearLayout>
+
+  <TextView
+      android:id="@+id/fila_boton"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/widget_boton"
+      android:textColor="@color/widget_acento"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:minWidth="34dp"
+      android:gravity="center"
+      android:paddingTop="2dp"
+      android:paddingBottom="2dp"
+      android:layout_marginStart="8dp"
+      android:layout_marginLeft="8dp"
+      android:background="@drawable/widget_boton_fondo" />
+</LinearLayout>

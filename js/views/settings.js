@@ -97,6 +97,7 @@ export function render({ navigate }) {
   // --- Días libres ---
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Días libres' }), el('small', { text: 'no rompen rachas' })));
+  if (enApp()) root.append(tarjetaDelWidget());
   root.append(tarjetaDePausas(navigate));
 
   // --- Aspecto ---
@@ -398,6 +399,42 @@ function doReset(navigate) {
   openSheet('¿Borrar todo el progreso?', body);
 }
 
+
+/**
+ * Cómo poner el widget y qué esperar de él. Un widget que nadie sabe que
+ * existe es código que no hace nada, y el de la pantalla de bloqueo es el que
+ * más explicación necesita porque Android no deja hacer lo obvio.
+ */
+function tarjetaDelWidget() {
+  const puesto = typeof window.RutinaNativa?.guardarResumen === 'function';
+  return el('div', { class: 'card', style: 'margin-top:10px' },
+    el('div', { style: 'display:flex;align-items:center;gap:10px' },
+      el('span', { style: 'font-size:1.3rem', text: puesto ? '🧩' : '⚠️' }),
+      el('div', { style: 'flex:1;min-width:0' },
+        el('div', { style: 'font-weight:700', text: 'Widget de la pantalla de inicio' }),
+        el('div', { class: 'hint', text: puesto
+          ? 'Las misiones de hoy, sin abrir la app.'
+          : 'Esta versión de la app todavía no lo trae: hace falta reinstalar el APK.' }))),
+    !puesto ? null : el('div', {},
+      el('p', { class: 'hint', style: 'margin-top:10px' },
+        'Para ponerlo: mantené apretado un espacio vacío de la pantalla de inicio, ',
+        'entrá en Widgets, buscá Rutina y arrastralo.'),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'Tocando una misión se abre la app en esa actividad. Las que se cumplen con un ',
+        'número obvio —minutos, agua— traen un ✓ que las marca sin abrir nada: quedan en ',
+        'amarillo hasta la próxima vez que entres, que es cuando se registran de verdad ',
+        'con la fecha del día en que las tocaste.'),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'El gimnasio y las mediciones no traen ✓ a propósito: ahí no hay un valor obvio que ',
+        'registrar y ponerlo sería inventarte el dato.'),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'Pasada la medianoche el widget no sabe solo qué toca: muestra "Día nuevo" hasta ',
+        'que abras la app una vez.'),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'En la pantalla de bloqueo no se pueden poner widgets —Android los sacó en la ',
+        'versión 5— pero en Samsung podés elegir Rutina como uno de los dos atajos de ',
+        'abajo, en Ajustes → Pantalla de bloqueo → Atajos.')));
+}
 
 /**
  * Estado del puente con Health Connect. Sólo aparece adentro de la app de

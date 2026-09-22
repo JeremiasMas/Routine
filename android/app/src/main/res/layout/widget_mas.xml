@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "y 2 más": cuando hay más misiones de las que entran. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fila_mas"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:textColor="@color/widget_suave"
+    android:textSize="12sp"
+    android:paddingTop="4dp" />

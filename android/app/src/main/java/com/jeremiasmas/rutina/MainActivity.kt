@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
   private var elegirArchivoCallback: ValueCallback<Array<Uri>>? = null
   private var origenElegido: String? = null
   private var margenes = Margenes(0, 0, 0, 0)
+  private var rutaPedida: String? = null
 
   /** Los márgenes del sistema, en píxeles de CSS. */
   data class Margenes(val top: Int, val bottom: Int, val left: Int, val right: Int)
@@ -134,17 +135,34 @@ class MainActivity : AppCompatActivity() {
         // descontamos acá, y sumarlos dos veces deja un hueco enorme arriba.
         avisarMargenes()
         ultimoEnvio = null   // página nueva: hay que volver a mandarle los pasos
+        enviarPendientes()
         refrescar()
       }
     }
     origenElegido = getPreferences(MODE_PRIVATE).getString("origen", null)
-    web.loadUrl(WEB)
+    rutaPedida = intent?.getStringExtra(EXTRA_RUTA)
+    web.loadUrl(WEB + (rutaPedida ?: ""))
 
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
         if (web.canGoBack()) web.goBack() else finish()
       }
     })
+  }
+
+  /**
+   * Con launchMode singleTask, tocar el widget con la app ya abierta no pasa
+   * por onCreate: sin esto, el segundo toque no llevaría a ningún lado.
+   */
+  override fun onNewIntent(nuevo: Intent?) {
+    super.onNewIntent(nuevo)
+    intent = nuevo
+    val ruta = nuevo?.getStringExtra(EXTRA_RUTA)
+    if (!ruta.isNullOrEmpty()) {
+      rutaPedida = ruta
+      web.evaluateJavascript("location.hash = ${jsTexto(ruta)}", null)
+    }
+    enviarPendientes()
   }
 
   override fun onResume() {
@@ -190,6 +208,27 @@ class MainActivity : AppCompatActivity() {
       "document.documentElement.dataset.insets='nativo';"
     web.evaluateJavascript(css, null)
   }
+
+  /**
+   * Le pasa a la web lo que tocaste en el widget con la app cerrada.
+   *
+   * La web decide cuáles corresponden —no pisa nada que ya esté cargado— y
+   * avisa por el puente cuando terminó, recién ahí se vacía la cola. Si algo
+   * falla en el medio, los registros siguen ahí para el próximo intento.
+   */
+  private fun enviarPendientes() {
+    if (!webLista) return
+    val cola = Resumen.pendientes(this)
+    if (cola.length() == 0) return
+    web.evaluateJavascript(
+      "window.dispatchEvent(new CustomEvent('rutina-pendientes'," +
+        "{detail:{pendientes:$cola}}))",
+      null,
+    )
+  }
+
+  /** Un texto metido en una expresión de JavaScript sin poder romperla. */
+  private fun jsTexto(valor: String): String = JSONObject.quote(valor)
 
   /** Le pasa los pasos a la web, salvo que sean los mismos de la última vez. */
   private fun enviar(json: String) {
@@ -297,6 +336,25 @@ class MainActivity : AppCompatActivity() {
       }
     }
 
+    /**
+     * Guarda el resumen del día para el widget.
+     *
+     * El widget corre en otro proceso y no puede leer el localStorage de la
+     * web: esto es lo único que le da algo real para mostrar.
+     */
+    @JavascriptInterface
+    fun guardarResumen(json: String) {
+      Resumen.guardar(this@MainActivity, json)
+      WidgetRutina.refrescar(this@MainActivity)
+    }
+
+    /** La web terminó de aplicar la cola del widget: ya se puede vaciar. */
+    @JavascriptInterface
+    fun pendientesAplicados() {
+      Resumen.limpiarPendientes(this@MainActivity)
+      runOnUiThread { WidgetRutina.refrescar(this@MainActivity) }
+    }
+
     @JavascriptInterface
     fun instalarHealthConnect() {
       runOnUiThread {
@@ -338,6 +396,8 @@ class MainActivity : AppCompatActivity() {
   }
 
   companion object {
+    /** Con qué pantalla abrir, cuando venís de tocar una misión del widget. */
+    const val EXTRA_RUTA = "ruta"
     const val WEB = "https://jeremiasmas.github.io/Routine/"
     const val PLAY_HEALTH_CONNECT =
       "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"

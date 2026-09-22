@@ -35,6 +35,20 @@
       </intent-filter>
     </activity>
 
+    <!-- El widget de la pantalla de inicio. Dibuja el resumen que la web deja
+         escrito y encola lo que tocás con la app cerrada. -->
+    <receiver
+        android:name=".WidgetRutina"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.REGISTRAR" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_info" />
+    </receiver>
+
     <!-- Health Connect pregunta por acá para qué queremos los datos. -->
     <activity-alias
         android:name="ViewPermissionUsageActivity"

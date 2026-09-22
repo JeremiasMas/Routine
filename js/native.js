@@ -8,10 +8,13 @@
  *
  * En Chrome, sin la app, nada de esto existe y la web funciona igual.
  */
-import { bulkSetEntries, getData } from './state.js';
+import { bulkSetEntries, getData, getState, setEntry, subscribe } from './state.js';
 import { esFechaValida } from './utils.js';
+import { resumenDelDia, pendientesAAplicar } from './resumen.js';
 
 export const EVENTO = 'rutina-pasos';
+/** Por acá la app le pasa lo que tocaste en el widget mientras estaba cerrada. */
+export const EVENTO_PENDIENTES = 'rutina-pendientes';
 
 /** ¿Estamos adentro de la app de Android? */
 export function enApp() {
@@ -154,9 +157,53 @@ export function alCambiar(fn) {
   return () => oyentes.delete(fn);
 }
 
+/**
+ * Le deja servido a la app el resumen del día para el widget.
+ *
+ * El widget corre en otro proceso y no puede leer el localStorage, así que la
+ * única forma de que muestre algo real es que la web se lo escriba. Se publica
+ * en cada cambio: es un objeto chico y escribirlo cuesta menos que tener un
+ * widget que miente.
+ */
+export function publicarResumen(state = getState()) {
+  if (typeof window.RutinaNativa?.guardarResumen !== 'function') return false;
+  try {
+    window.RutinaNativa.guardarResumen(JSON.stringify(resumenDelDia(state, { enApp: true })));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Aplica lo que tocaste en el widget con la app cerrada.
+ *
+ * Cada registro viaja con su fecha, así que un toque del martes aplicado el
+ * jueves queda en el martes. Lo que ya esté cargado no se pisa: si entre medio
+ * anotaste el valor real, ese manda.
+ *
+ * @returns {number} cuántos se aplicaron
+ */
+export function aplicarPendientes(pendientes) {
+  const aplicables = pendientesAAplicar(pendientes, getData().entries);
+  for (const p of aplicables) setEntry(p.fecha, p.actividad, { value: p.valor, fuente: 'widget' });
+  if (aplicables.length) window.RutinaNativa?.pendientesAplicados?.();
+  return aplicables.length;
+}
+
 /** Engancha el puente. Se llama una vez, al arrancar la app. */
 export function conectar() {
   if (typeof window === 'undefined') return;
+  window.addEventListener(EVENTO_PENDIENTES, (e) => {
+    const cuantos = aplicarPendientes(e.detail?.pendientes || []);
+    oyentes.forEach((fn) => fn(nativo, [], { pendientes: cuantos }));
+  });
+
+  // El widget se actualiza solo con cada cambio, que es lo que evita que
+  // muestre el día de ayer.
+  subscribe((state) => publicarResumen(state));
+  publicarResumen();
+
   window.addEventListener(EVENTO, (e) => {
     const datos = e.detail || {};
     nativo.estado = datos.estado || null;

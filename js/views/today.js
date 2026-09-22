@@ -11,6 +11,7 @@ import { openLogger } from '../ui/logger.js';
 import { colorDe } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
 import { enApp } from '../native.js';
+import { puedeUnToque } from '../resumen.js';
 
 let viewDate = todayKey();
 
@@ -244,12 +245,10 @@ function avisoDeRacha(riesgo) {
  */
 function botonRapido(activity, dateKey, met, navigate, celebrate) {
   if (met) return null;
-  if (activity.kind !== 'number') return null;
-  // Con la app de Android los pasos los escribe Health Connect: un valor
-  // puesto a mano se pisa en la siguiente lectura.
-  if (activity.id === 'pasos' && enApp()) return null;
+  // La misma regla que usa el widget: si acá se puede de un toque, allá
+  // también, y al revés. Tenerla escrita dos veces era pedir que se separen.
+  if (!puedeUnToque(activity, { enApp: enApp() })) return null;
   const meta = Number(activity.goal) || 0;
-  if (meta <= 0) return null;
 
   return el('button', {
     class: 'quest__quick',

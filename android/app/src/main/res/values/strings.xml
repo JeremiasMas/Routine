@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">Rutina</string>
+
+  <string name="widget_descripcion">Las misiones de hoy, y marcarlas sin abrir la app.</string>
+  <string name="widget_vacio_titulo">Rutina</string>
+  <string name="widget_vacio_detalle">Abrí la app una vez para ver tu día acá.</string>
+  <string name="widget_viejo_titulo">Día nuevo</string>
+  <string name="widget_viejo_detalle">Abrí la app para ver lo que toca hoy.</string>
+  <string name="widget_perfecto">¡Día perfecto! ⭐</string>
+  <string name="widget_progreso">%1$d de %2$d misiones de hoy</string>
+  <string name="widget_detalle">%1$d XP · racha de %2$d · %3$s</string>
+  <string name="widget_hecho">✓</string>
+  <string name="widget_encolada">✓ al abrir</string>
+  <string name="widget_boton">✓</string>
+  <string name="widget_mas">y %1$d más</string>
 </resources>

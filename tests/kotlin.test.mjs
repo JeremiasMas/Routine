@@ -156,3 +156,131 @@ test('el nombre del evento coincide entre la app y la web', () => {
   assert.ok(kt.includes(`new CustomEvent('${enJs}'`),
     `la web escucha '${enJs}' y la app manda otra cosa`);
 });
+
+// ---------------------------------------------------------------------------
+// El widget
+//
+// Todo lo que sigue es lo que el compilador de recursos encontraría, pero
+// media hora más tarde y después de una vuelta entera de CI. Un R.id que no
+// existe no es un error de Kotlin: es un error de aapt, y sale al final.
+// ---------------------------------------------------------------------------
+
+const RES = 'android/app/src/main/res';
+const MANIFEST = 'android/app/src/main/AndroidManifest.xml';
+const leer = (ruta) => readFileSync(ruta, 'utf8');
+
+/** Todos los ids que declara algún layout, con @+id/. */
+function idsDeclarados() {
+  const ids = new Set();
+  for (const nombre of readdirSync(join(RES, 'layout'))) {
+    for (const m of leer(join(RES, 'layout', nombre)).matchAll(/@\+id\/(\w+)/g)) ids.add(m[1]);
+  }
+  return ids;
+}
+
+/** Los nombres declarados en values/, por tipo. */
+function valores(tipo) {
+  const out = new Set();
+  for (const nombre of readdirSync(join(RES, 'values'))) {
+    for (const m of leer(join(RES, 'values', nombre)).matchAll(new RegExp(`<${tipo} name="([\\w.]+)"`, 'g'))) {
+      out.add(m[1]);
+    }
+  }
+  return out;
+}
+
+const fuentesKotlin = archivos.map(leer).join('\n');
+
+test('todo R.id que usa el código existe en algún layout', () => {
+  const declarados = idsDeclarados();
+  const usados = [...fuentesKotlin.matchAll(/R\.id\.(\w+)/g)].map((m) => m[1]);
+  assert.ok(usados.length > 0, 'no encontré ningún R.id');
+  for (const id of new Set(usados)) {
+    assert.ok(declarados.has(id), `R.id.${id} no está declarado en ningún layout`);
+  }
+});
+
+test('todo R.layout que usa el código existe', () => {
+  const layouts = new Set(readdirSync(join(RES, 'layout')).map((n) => n.replace(/\.xml$/, '')));
+  for (const m of fuentesKotlin.matchAll(/R\.layout\.(\w+)/g)) {
+    assert.ok(layouts.has(m[1]), `R.layout.${m[1]} no existe`);
+  }
+});
+
+test('todo R.string y R.color que usa el código existe', () => {
+  const strings = valores('string');
+  const colors = valores('color');
+  for (const m of fuentesKotlin.matchAll(/R\.string\.(\w+)/g)) {
+    assert.ok(strings.has(m[1]), `R.string.${m[1]} no está en values/`);
+  }
+  for (const m of fuentesKotlin.matchAll(/R\.color\.(\w+)/g)) {
+    assert.ok(colors.has(m[1]), `R.color.${m[1]} no está en values/`);
+  }
+});
+
+test('los layouts y el manifiesto sólo apuntan a recursos que existen', () => {
+  const strings = valores('string');
+  const colors = valores('color');
+  const drawables = new Set(readdirSync(join(RES, 'drawable')).map((n) => n.replace(/\.xml$/, '')));
+  const layouts = new Set(readdirSync(join(RES, 'layout')).map((n) => n.replace(/\.xml$/, '')));
+  const xmls = new Set(readdirSync(join(RES, 'xml')).map((n) => n.replace(/\.xml$/, '')));
+  const tablas = { string: strings, color: colors, drawable: drawables, layout: layouts, xml: xmls };
+
+  const aRevisar = [MANIFEST];
+  for (const carpeta of ['layout', 'xml', 'drawable']) {
+    for (const n of readdirSync(join(RES, carpeta))) aRevisar.push(join(RES, carpeta, n));
+  }
+  for (const ruta of aRevisar) {
+    for (const m of leer(ruta).matchAll(/"@(string|color|drawable|layout|xml)\/(\w+)"/g)) {
+      assert.ok(tablas[m[1]].has(m[2]), `${ruta} usa @${m[1]}/${m[2]}, que no existe`);
+    }
+  }
+});
+
+test('el widget está declarado en el manifiesto', () => {
+  const manifest = leer(MANIFEST);
+  // Sin el receiver no aparece en la lista de widgets del teléfono, y no hay
+  // ningún error: simplemente no está.
+  assert.match(manifest, /<receiver\s[\s\S]*?android:name="\.WidgetRutina"/,
+    'falta el <receiver> del widget');
+  assert.match(manifest, /android\.appwidget\.action\.APPWIDGET_UPDATE/,
+    'sin APPWIDGET_UPDATE el widget nunca se dibuja');
+  assert.match(manifest, /android:name="android\.appwidget\.provider"/,
+    'falta el meta-data que apunta a widget_info');
+});
+
+test('la acción del widget dice lo mismo en el manifiesto y en el código', () => {
+  const kt = leer('android/app/src/main/java/com/jeremiasmas/rutina/WidgetRutina.kt');
+  const accion = /const val ACCION_REGISTRAR = "([^"]+)"/.exec(kt)?.[1];
+  assert.ok(accion, 'no encontré ACCION_REGISTRAR');
+  assert.ok(leer(MANIFEST).includes(accion),
+    `el manifiesto no filtra "${accion}": el botón del widget no haría nada`);
+});
+
+test('el nombre del evento de pendientes coincide entre la app y la web', () => {
+  const enJs = /export const EVENTO_PENDIENTES = '([^']+)'/.exec(readFileSync('js/native.js', 'utf8'))?.[1];
+  assert.ok(enJs, 'no encontré EVENTO_PENDIENTES en native.js');
+  assert.ok(leer(MAIN).includes(`new CustomEvent('${enJs}'`),
+    `la web escucha '${enJs}' y la app manda otra cosa`);
+});
+
+test('el widget no se queda con una cola que nadie vacía', () => {
+  // Si la web aplica los registros y la app no limpia, se vuelven a aplicar
+  // para siempre; si limpia sin que la web avise, se pierden.
+  const kt = leer(MAIN);
+  assert.match(kt, /fun pendientesAplicados\(\)/, 'falta el aviso de vuelta');
+  assert.match(kt, /Resumen\.limpiarPendientes/, 'nadie vacía la cola');
+  assert.match(readFileSync('js/native.js', 'utf8'), /pendientesAplicados\?\.\(\)/,
+    'la web no avisa que terminó');
+});
+
+test('el fondo de la app no quedó del tema viejo', () => {
+  // Era el azul de antes de Brasa: se veía como un flash al abrir.
+  const fondo = /<color name="fondo">(#[0-9a-fA-F]+)<\/color>/.exec(leer(join(RES, 'values/colors.xml')))?.[1];
+  assert.ok(fondo, 'no encontré el color de fondo');
+  const azul = /^#(..)(..)(..)$/.exec(fondo.slice(0, 7));
+  if (azul) {
+    const [r, g, b] = azul.slice(1).map((h) => parseInt(h, 16));
+    assert.ok(b <= r + 20, `el fondo ${fondo} sigue tirando a azul`);
+  }
+});

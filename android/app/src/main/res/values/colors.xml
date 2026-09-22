@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <!-- El mismo fondo que la web, para que no haya un flash blanco al abrir. -->
-  <color name="fondo">#0b1020</color>
+  <!-- El mismo fondo que la web, para que no haya un flash de otro color al
+       abrir. Es el negro del tema Brasa. -->
+  <color name="fondo">#000000</color>
+
+  <!-- El widget vive fuera de la app, así que no puede leer las variables del
+       CSS: los colores de Brasa están repetidos acá a mano. -->
+  <color name="widget_fondo">#0c0709</color>
+  <color name="widget_borde">#3a1114</color>
+  <color name="widget_texto">#f4eef0</color>
+  <color name="widget_suave">#9a8b90</color>
+  <color name="widget_acento">#ef2b34</color>
+  <color name="widget_acento_fondo">#2a0d10</color>
+  <color name="widget_ok">#3ddc97</color>
+  <color name="widget_pendiente">#f59e0b</color>
 </resources>
