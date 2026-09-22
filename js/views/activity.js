@@ -199,7 +199,8 @@ export function render({ params, navigate, celebrate }) {
             ? `${r.weight > 0 ? `+${r.weight} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
             : `${r.weight} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
         el('div', { class: 'row__value', text: `${r.e1rm} kg` })))));
-    root.append(progresionPorEjercicio(st, a));
+    const progresion = progresionPorEjercicio(st, a);
+    if (progresion) root.append(progresion);
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' },
       'El valor de la derecha es tu 1RM estimado (fórmula de Epley). ',
       st.recordList.some((r) => r.db)

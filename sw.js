@@ -28,6 +28,7 @@ const ASSETS = [
   './js/theme.js',
   './js/analisis.js',
   './js/config.js',
+  './js/copys.js',
   './js/utils.js',
   './js/ui/components.js',
   './js/ui/feedback.js',

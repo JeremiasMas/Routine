@@ -4,7 +4,8 @@ import {
   tendencia, constancia, proximosSaltos, impactoDeSubir, estancados,
   proyeccionGrasa, repartoDeFuentes, VENTANA, DIAS_PARA_ESTANCARSE,
 } from '../js/analisis.js';
-import { addDays } from '../js/utils.js';
+import { addDays, weekStart } from '../js/utils.js';
+import { isScheduled } from '../js/derive.js';
 import { STANDARDS } from '../js/strength.js';
 
 const PESO = 61.5;
@@ -72,17 +73,95 @@ test('arrancar de cero cuenta como subida, no como división por cero', () => {
   assert.ok(Number.isFinite(t.cambio));
 });
 
+/** Un estado de actividad con lo justo que mira la constancia. */
+const estadoDe = (activity, registros) => {
+  const history = registros.map((r) => ({ met: false, ...r }));
+  return { activity, history, byDate: new Map(history.map((h) => [h.date, h])) };
+};
+
+const DIARIA = { id: 'x', name: 'X', streakMode: 'daily', unit: 'min', goal: 30 };
+
 test('la constancia mide cuántas veces cumpliste, no cuánto hiciste', () => {
-  const historia = [
-    { date: hace(5), value: 60, met: true },
-    { date: hace(4), value: 10, met: false },
-    { date: hace(3), value: 90, met: true },
-    { date: hace(2), value: 5, met: false },
-  ];
-  const c = constancia(historia, HOY);
+  const st = estadoDe(DIARIA, [
+    { date: hace(3), value: 60, met: true },
+    { date: hace(2), value: 10, met: false },
+    { date: hace(1), value: 90, met: true },
+    { date: HOY, value: 5, met: false },
+  ]);
+  const c = constancia(st, HOY);
+  assert.equal(c.modo, 'diario');
   assert.equal(c.total, 4);
   assert.equal(c.cumplidos, 2);
   assert.equal(c.pct, 0.5);
+});
+
+test('los días que ni registraste cuentan como ausencias', () => {
+  // Cuatro días de ventana y un solo registro: contar sólo lo registrado
+  // daría 100%, que es justo lo que la constancia no debe decir.
+  const st = estadoDe(DIARIA, [{ date: hace(3), value: 60, met: true }]);
+  const c = constancia(st, HOY);
+  assert.equal(c.total, 4);
+  assert.equal(c.cumplidos, 1);
+});
+
+test('la ventana no arranca antes del primer registro', () => {
+  // Recién empezada, una disciplina no puede figurar con dos meses de faltas.
+  const st = estadoDe(DIARIA, [
+    { date: hace(1), value: 60, met: true },
+    { date: HOY, value: 60, met: true },
+  ]);
+  const c = constancia(st, HOY);
+  assert.equal(c.total, 2);
+  assert.equal(c.pct, 1);
+});
+
+test('sólo cuenta los días agendados', () => {
+  // Piano: lunes, viernes, sábado y domingo. Los martes no son faltas.
+  const soloDomingos = { ...DIARIA, days: [0] };
+  const st = estadoDe(soloDomingos, [{ date: hace(7), value: 60, met: true }]);
+  const c = constancia(st, HOY, { tocaba: isScheduled });
+  assert.equal(c.total, 2, 'hace 7 días y hoy son los dos únicos domingos');
+  assert.equal(c.cumplidos, 1);
+});
+
+test('un día de pausa no es una falta', () => {
+  const st = estadoDe(DIARIA, [{ date: hace(3), value: 60, met: true }]);
+  const enPausa = new Set([hace(2), hace(1)]);
+  const c = constancia(st, HOY, { libre: (d) => enPausa.has(d) });
+  assert.equal(c.total, 2, 'quedan el día del registro y hoy');
+  assert.equal(c.cumplidos, 1);
+});
+
+test('con meta semanal cuenta semanas, no días', () => {
+  // Mover la sesión del lunes al martes no es faltar: lo que se mide es si
+  // la semana llegó al número.
+  const semanal = { id: 'gym', name: 'Gym', streakMode: 'weekly', weeklyTarget: 2, unit: 'series' };
+  const l0 = weekStart(HOY);
+  const l1 = addDays(l0, -7);
+  const l2 = addDays(l0, -14);
+  const st = estadoDe(semanal, [
+    { date: l2, value: 30, met: true },
+    { date: addDays(l2, 3), value: 30, met: true },
+    { date: addDays(l1, 2), value: 30, met: true },          // una sola: no llega
+    { date: addDays(l0, 1), value: 30, met: true },
+    { date: addDays(l0, 4), value: 30, met: true },
+  ]);
+  const c = constancia(st, HOY);
+  assert.equal(c.modo, 'semanal');
+  assert.equal(c.total, 3);
+  assert.equal(c.cumplidos, 2);
+});
+
+test('una sesión floja igual cuenta para la semana', () => {
+  // La meta semanal es de apariciones: tres idas cortas son tres idas.
+  const semanal = { id: 'gym', name: 'Gym', streakMode: 'weekly', weeklyTarget: 2, unit: 'series' };
+  const l1 = addDays(weekStart(HOY), -7);
+  const st = estadoDe(semanal, [
+    { date: l1, value: 8, met: false },
+    { date: addDays(l1, 3), value: 12, met: false },
+  ]);
+  const c = constancia(st, HOY);
+  assert.equal(c.cumplidos, 1);
 });
 
 // ---------------------------------------------------------------------------

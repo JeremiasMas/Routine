@@ -5,7 +5,7 @@
  * consejos genéricos. Cuando no alcanza la información para decir algo, se
  * dice que no alcanza, que es más útil que un consejo falso.
  */
-import { addDays, daysBetween } from './utils.js';
+import { addDays, daysBetween, weekStart } from './utils.js';
 import { NIVELES } from './strength.js';
 
 /** Días que mira la tendencia de cada lado de la comparación. */
@@ -40,17 +40,71 @@ export function tendencia(historia, hoy) {
 }
 
 /**
- * Qué porcentaje de los días que tocaban cumpliste, en la ventana dada.
- * Mide constancia, que no es lo mismo que volumen: se puede entrenar mucho
- * en ráfagas y tener una constancia mala.
+ * Con cuánta regularidad apareciste, en la ventana dada.
+ *
+ * Mide constancia, que no es lo mismo que volumen: se puede entrenar mucho en
+ * ráfagas y tener una constancia mala. Y no se mide igual en todas partes:
+ *
+ *  - Donde la meta es semanal (gimnasio, muay thai, escribir, medirse) cuenta
+ *    cuántas semanas llegaste al número. Mover la sesión del lunes al martes
+ *    no es faltar, y contarlo como falta sería mentir.
+ *  - Donde hay días fijos (piano) o se espera todos los días (datos, pasos,
+ *    francés) cuenta cuántos de esos días cumpliste la meta.
+ *
+ * La ventana nunca arranca antes del primer registro: una disciplina que
+ * empezó hace diez días no puede figurar con un mes de ausencias. La semana
+ * en curso tampoco cuenta, porque todavía no terminó.
+ *
+ * @returns {?{total:number, cumplidos:number, pct:number, modo:'semanal'|'diario'}}
  */
-export function constancia(historia, hoy, dias = VENTANA * 2) {
+export function constancia(st, hoy, opciones = {}) {
+  const {
+    dias = VENTANA * 2,
+    libre = () => false,
+    tocaba = () => true,
+    metaSemanal = (a) => a.weeklyTarget || 1,
+  } = opciones;
+
+  const historia = st?.history;
   if (!historia?.length) return null;
-  const desde = addDays(hoy, -dias);
-  const enVentana = historia.filter((h) => h.date > desde);
-  if (!enVentana.length) return null;
-  const cumplidos = enVentana.filter((h) => h.met).length;
-  return { total: enVentana.length, cumplidos, pct: cumplidos / enVentana.length };
+  const a = st.activity || {};
+  const porFecha = st.byDate || new Map();
+  // El más tardío de los dos: el borde de la ventana o el primer registro.
+  const ventana = addDays(hoy, -dias);
+  const inicio = ventana > historia[0].date ? ventana : historia[0].date;
+
+  if (a.streakMode === 'weekly') {
+    let total = 0;
+    let cumplidos = 0;
+    let w = weekStart(inicio);
+    if (w < inicio) w = addDays(w, 7);   // la primera semana arrancó incompleta
+    for (; addDays(w, 6) <= hoy; w = addDays(w, 7)) {
+      const dias7 = Array.from({ length: 7 }, (_, i) => addDays(w, i));
+      if (dias7.every(libre)) continue;  // semana entera de pausa: no se juzga
+      let hechas = 0;
+      for (const d of dias7) {
+        if (libre(d)) continue;
+        const reg = porFecha.get(d);
+        if (!reg || !(reg.value > 0)) continue;
+        hechas += a.kind === 'writing' ? reg.value : 1;
+      }
+      total += 1;
+      if (hechas >= metaSemanal(a, w)) cumplidos += 1;
+    }
+    if (!total) return null;
+    return { total, cumplidos, pct: cumplidos / total, modo: 'semanal' };
+  }
+
+  let total = 0;
+  let cumplidos = 0;
+  for (let d = inicio; d <= hoy; d = addDays(d, 1)) {
+    if (libre(d)) continue;
+    if (!tocaba(a, d)) continue;
+    total += 1;
+    if (porFecha.get(d)?.met) cumplidos += 1;
+  }
+  if (!total) return null;
+  return { total, cumplidos, pct: cumplidos / total, modo: 'diario' };
 }
 
 /**

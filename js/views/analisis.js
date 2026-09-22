@@ -8,13 +8,17 @@ import {
 import { colorDe, colorDeRango } from '../theme.js';
 import { bodySummary } from '../body.js';
 import { getData } from '../state.js';
+import { isScheduled, weeklyTargetFor } from '../derive.js';
+import { esLibre } from '../pausas.js';
+import { juicioDeConstancia } from '../copys.js';
 
 /** La sección entera, para pegar en Progreso. */
 export function seccionAnalisis(state) {
   const cuerpo = el('div', { class: 'list' });
+  const libre = (f) => esLibre(getData().pausas, f);
   let algo = false;
   for (const st of state.byActivity.values()) {
-    const tarjeta = tarjetaDe(st, state);
+    const tarjeta = tarjetaDe(st, state, libre);
     if (tarjeta) { cuerpo.append(tarjeta); algo = true; }
   }
   if (!algo) return null;
@@ -24,13 +28,15 @@ export function seccionAnalisis(state) {
     cuerpo);
 }
 
-function tarjetaDe(st, state) {
+function tarjetaDe(st, state, libre) {
   const a = st.activity;
   if (st.leveled === false) return null;               // el agua no tiene análisis
   if (!st.history?.length) return null;
 
-  const t = tendencia(st.history, state.today);
-  const c = constancia(st.history, state.today);
+  // Medirse más seguido no es progreso, así que la composición corporal no
+  // lleva línea de tendencia: su movimiento real es la proyección de grasa.
+  const t = a.kind === 'body' ? null : tendencia(st.history, state.today);
+  const c = constancia(st, state.today, { libre, tocaba: isScheduled, metaSemanal: weeklyTargetFor });
   const detalle = detalleDe(st, state);
   if (!t && !c && !detalle) return null;
 
@@ -42,7 +48,7 @@ function tarjetaDe(st, state) {
     el('div', { class: 'analisis__cuerpo' },
       dondeEstas(st),
       t ? lineaTendencia(st, t) : null,
-      c ? lineaConstancia(c) : null,
+      c ? lineaConstancia(st, c) : null,
       detalle));
 }
 
@@ -53,7 +59,9 @@ function estadoCorto(st, t) {
   const nombre = st.strengthOverall?.name || st.tier?.name || `Nivel ${st.level.level}`;
   const color = colorDeRango(st.tier, st.tier?.index) || st.tier?.color || 'var(--accent)';
   return el('span', {}, chip(nombre, 'chip--tier', `--t:${color}`),
-    t ? chip(`${flecha} ${Math.abs(Math.round(t.cambio * 100))}%`, clase) : null);
+    !t ? null
+      : t.antes === 0 ? chip('nuevo', 'chip--ok')
+        : chip(`${flecha} ${Math.abs(Math.round(t.cambio * 100))}%`, clase));
 }
 
 function dondeEstas(st) {
@@ -65,29 +73,60 @@ function dondeEstas(st) {
     partes.push(`${plural(s.lifts, 'movimiento medido', 'movimientos medidos')}.`);
   } else {
     partes.push(`Nivel ${st.level.level}${st.tier ? ` · ${st.tier.name}` : ''}.`);
-    partes.push(`${formatValue(st.total, a.unit)} acumulados.`);
+    partes.push(acumulado(st));
   }
   return el('p', { class: 'hint', text: partes.join(' ') });
+}
+
+/**
+ * Lo juntado hasta hoy, dicho en el idioma de cada disciplina.
+ *
+ * "1 mediciones acumulados" era el precio de tener una sola frase para todo:
+ * la unidad de una actividad no siempre entra en una oración genérica.
+ */
+function acumulado(st) {
+  const a = st.activity;
+  if (a.kind === 'body') return `${plural(st.total, 'medición registrada', 'mediciones registradas')}.`;
+  if (a.kind === 'writing') return `${plural(st.total, 'post publicado', 'posts publicados')}.`;
+  if (a.kind === 'gym') return `${plural(st.total, 'serie hecha', 'series hechas')}.`;
+  // En minutos el formato pasa a horas, y las horas son femeninas.
+  const participio = a.unit === 'min' && st.total >= 60 ? 'acumuladas' : 'acumulados';
+  return `${formatValue(st.total, a.unit)} ${participio}.`;
+}
+
+/** Un valor con su unidad, cuidando la concordancia cuando es uno solo. */
+function cantidad(a, n) {
+  if (a.kind === 'writing') return plural(n, 'post', 'posts');
+  if (a.kind === 'gym') return plural(n, 'serie', 'series');
+  if (a.kind === 'body') return plural(n, 'medición', 'mediciones');
+  return formatValue(n, a.unit);
 }
 
 function lineaTendencia(st, t) {
   const a = st.activity;
   const pct = Math.abs(Math.round(t.cambio * 100));
-  const texto = t.dir === 'estable'
-    ? `Venís parejo: ${formatValue(t.ahora, a.unit)} en las últimas 4 semanas, contra ${formatValue(t.antes, a.unit)} en las 4 anteriores.`
-    : t.dir === 'sube'
-      ? `Subiste ${pct}%: ${formatValue(t.ahora, a.unit)} en las últimas 4 semanas, contra ${formatValue(t.antes, a.unit)} en las 4 anteriores.`
-      : `Bajaste ${pct}%: ${formatValue(t.ahora, a.unit)} en las últimas 4 semanas, contra ${formatValue(t.antes, a.unit)} en las 4 anteriores.`;
+  const comparacion = `${cantidad(a, t.ahora)} en las últimas 4 semanas, contra ${cantidad(a, t.antes)} en las 4 anteriores.`;
+  // Con cero atrás el porcentaje no significa nada: todo crecimiento desde
+  // la nada da 100%, y decirlo suena a un logro que no es.
+  const texto = t.antes === 0
+    ? `Arrancaste hace poco: ${cantidad(a, t.ahora)} en las últimas 4 semanas y nada en las 4 anteriores. Recién con otro mes hay con qué comparar.`
+    : t.dir === 'estable'
+      ? `Venís parejo: ${comparacion}`
+      : t.dir === 'sube'
+        ? `Subiste ${pct}%: ${comparacion}`
+        : `Bajaste ${pct}%: ${comparacion}`;
   return el('p', { class: 'hint', style: 'margin-top:8px', text: texto });
 }
 
-function lineaConstancia(c) {
+function lineaConstancia(st, c) {
   const pct = Math.round(c.pct * 100);
-  const juicio = pct >= 85 ? 'Eso es constancia de verdad.'
-    : pct >= 60 ? 'Hay margen: la mitad de lo que falta se gana apareciendo.'
-    : 'Lo que más te va a mover no es entrenar más fuerte, es faltar menos.';
-  return el('p', { class: 'hint', style: 'margin-top:8px',
-    text: `Cumpliste ${c.cumplidos} de ${c.total} días que tocaban (${pct}%). ${juicio}` });
+  const juicio = juicioDeConstancia(st.activity.id, c.cumplidos, c.total);
+  // Donde la meta es semanal, contar días sería injusto: mover la sesión del
+  // lunes al martes no es faltar.
+  const cuenta = c.modo === 'semanal'
+    ? `Llegaste a la meta en ${c.cumplidos} de ${plural(c.total, 'semana', 'semanas')} (${pct}%).`
+    : `Cumpliste ${c.cumplidos} de ${plural(c.total, 'día que tocaba', 'días que tocaban')} (${pct}%).`;
+  return el('p', { class: 'hint', style: 'margin-top:8px', text: `${cuenta} ${juicio}` });
 }
 
 /** La parte propia de cada disciplina. */
