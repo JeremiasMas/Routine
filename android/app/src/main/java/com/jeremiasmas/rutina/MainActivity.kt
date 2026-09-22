@@ -153,11 +153,15 @@ class MainActivity : AppCompatActivity() {
   /**
    * Con launchMode singleTask, tocar el widget con la app ya abierta no pasa
    * por onCreate: sin esto, el segundo toque no llevaría a ningún lado.
+   *
+   * El parámetro va sin ? a propósito: en las versiones nuevas de la clase
+   * base el Intent dejó de ser nullable, y declararlo nullable no es un
+   * override distinto sino ninguno, así que el método no se llamaría nunca.
    */
-  override fun onNewIntent(nuevo: Intent?) {
+  override fun onNewIntent(nuevo: Intent) {
     super.onNewIntent(nuevo)
     intent = nuevo
-    val ruta = nuevo?.getStringExtra(EXTRA_RUTA)
+    val ruta = nuevo.getStringExtra(EXTRA_RUTA)
     if (!ruta.isNullOrEmpty()) {
       rutaPedida = ruta
       web.evaluateJavascript("location.hash = ${jsTexto(ruta)}", null)

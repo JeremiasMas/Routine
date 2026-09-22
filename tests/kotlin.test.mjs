@@ -284,3 +284,89 @@ test('el fondo de la app no quedó del tema viejo', () => {
     assert.ok(b <= r + 20, `el fondo ${fondo} sigue tirando a azul`);
   }
 });
+
+test('los override con firma estricta no declaran el parámetro nullable', () => {
+  // AndroidX anota @NonNull varios parámetros. Declararlos con ? no es un
+  // override distinto: no es ninguno, y el método nunca se llama. El
+  // compilador lo dice ("overrides nothing"), pero recién en CI.
+  const ESTRICTOS = {
+    onNewIntent: 'Intent',
+    onSaveInstanceState: 'Bundle',
+    onRequestPermissionsResult: 'Array<out String>',
+  };
+  for (const ruta of archivos) {
+    const src = leer(ruta);
+    for (const [metodo, tipo] of Object.entries(ESTRICTOS)) {
+      const m = new RegExp(`override fun ${metodo}\\(([^)]*)\\)`).exec(src);
+      if (!m) continue;
+      assert.ok(!m[1].includes(`${tipo}?`),
+        `${ruta}: ${metodo} declara ${tipo}? y la clase base lo tiene @NonNull, `
+        + 'así que no sobrescribe nada y no se llama nunca');
+    }
+  }
+});
+
+test('los textos de Android no tienen comillas sin escapar', () => {
+  // Una comilla simple suelta en strings.xml es un error de aapt, no de
+  // Kotlin: aparece al final del build y no dice de qué archivo viene.
+  for (const nombre of readdirSync(join(RES, 'values'))) {
+    const src = leer(join(RES, 'values', nombre));
+    for (const m of src.matchAll(/<string name="(\w+)"[^>]*>([\s\S]*?)<\/string>/g)) {
+      const cuerpo = m[2];
+      const sueltas = [...cuerpo.matchAll(/(^|[^\\])'/g)];
+      assert.equal(sueltas.length, 0,
+        `${nombre}: la cadena ${m[1]} tiene una comilla simple sin escapar`);
+      // Con más de un %s o %d hay que numerarlos, o aapt lo rechaza.
+      const sinNumerar = [...cuerpo.matchAll(/%[sd]/g)].length;
+      const numerados = [...cuerpo.matchAll(/%\d+\$[sd]/g)].length;
+      assert.ok(!(sinNumerar > 1),
+        `${nombre}: la cadena ${m[1]} tiene ${sinNumerar} marcadores sin numerar`);
+      assert.ok(!(sinNumerar >= 1 && numerados >= 1),
+        `${nombre}: la cadena ${m[1]} mezcla marcadores numerados y sin numerar`);
+    }
+  }
+});
+
+/** Los argumentos de una llamada, contando paréntesis en vez de adivinar. */
+function argumentosDe(src, desde) {
+  let prof = 0;
+  let nivelCero = 0;
+  for (let i = desde; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '(') prof += 1;
+    else if (ch === ')') {
+      prof -= 1;
+      if (prof !== 0) continue;
+      // Kotlin permite coma final, y esa no separa ningún argumento.
+      let j = i - 1;
+      while (j > desde && /\s/.test(src[j])) j -= 1;
+      return src[j] === ',' ? nivelCero : nivelCero + 1;
+    } else if (ch === ',' && prof === 1) nivelCero += 1;
+  }
+  return null;
+}
+
+test('lo que el código le pasa a cada texto coincide con sus marcadores', () => {
+  // getString con menos argumentos de los que pide la cadena no falla al
+  // compilar: revienta en el teléfono, y sólo cuando se dibuja esa pantalla.
+  const strings = new Map();
+  for (const nombre of readdirSync(join(RES, 'values'))) {
+    for (const m of leer(join(RES, 'values', nombre)).matchAll(/<string name="(\w+)"[^>]*>([\s\S]*?)<\/string>/g)) {
+      strings.set(m[1], new Set([...m[2].matchAll(/%(\d+)\$[sd]/g)].map((x) => x[1])).size);
+    }
+  }
+  let revisadas = 0;
+  for (const ruta of archivos) {
+    const src = leer(ruta);
+    for (const m of src.matchAll(/getString\(/g)) {
+      const resto = src.slice(m.index);
+      const cual = /getString\(\s*R\.string\.(\w+)/.exec(resto)?.[1];
+      if (!cual || !strings.has(cual)) continue;
+      const pasa = argumentosDe(src, m.index + 'getString'.length) - 1;
+      revisadas += 1;
+      assert.equal(pasa, strings.get(cual),
+        `${ruta}: R.string.${cual} pide ${strings.get(cual)} argumentos y le pasan ${pasa}`);
+    }
+  }
+  assert.ok(revisadas > 0, 'no revisé ninguna llamada a getString');
+});
