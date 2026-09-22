@@ -3,7 +3,7 @@ import { el, formatValue, formatNumber, shortDate, plural } from '../utils.js';
 import { chip } from '../ui/components.js';
 import {
   tendencia, constancia, proximosSaltos, mejorInversion,
-  estancados, proyeccionGrasa, repartoDeFuentes, balances,
+  estancados, proyeccionGrasa, repartoDeFuentes, balances, volumenPorGrupo,
 } from '../analisis.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { bodySummary } from '../body.js';
@@ -199,6 +199,11 @@ function detalleGimnasio(st, state) {
         'movimiento en su propia tabla, que es lo único comparable entre ejercicios distintos.')));
   }
 
+  // Cómo se reparte el trabajo. El total de series no dice nada del reparto:
+  // se pueden hacer treinta y que veinte se las lleve la espalda.
+  const reparto = volumenPorGrupo(st, state.today);
+  if (reparto) caja.append(tarjetaDeVolumen(reparto));
+
   const trabados = estancados(st, state.today);
   if (trabados.length) {
     caja.append(el('div', { class: 'analisis__foco', style: 'margin-top:10px' },
@@ -216,6 +221,51 @@ function detalleGimnasio(st, state) {
 
   if (!caja.childNodes.length) return null;
   return caja;
+}
+
+/** Series semanales por grupo, contra el rango donde la gente progresa. */
+function tarjetaDeVolumen(v) {
+  const flojos = v.filas.filter((f) => f.estado === 'bajo');
+  const pasados = v.filas.filter((f) => f.estado === 'alto');
+
+  const barra = (f) => {
+    // La barra llega hasta el máximo del rango; la zona verde marca dónde
+    // empieza a rendir. Ver el hueco dice más que el número.
+    const tope = Math.max(f.max, f.porSemana);
+    const pct = (n) => `${Math.min(100, (n / tope) * 100)}%`;
+    const color = f.estado === 'ok' ? 'var(--ok)' : 'var(--gold)';
+    return el('div', { class: 'vol' },
+      el('div', { class: 'vol__zona', style: `left:${pct(f.min)};right:calc(100% - ${pct(f.max)})` }),
+      el('div', { class: 'vol__barra', style: `width:${pct(f.porSemana)};background:${color}` }));
+  };
+
+  return el('div', { class: 'analisis__foco', style: 'margin-top:10px' },
+    el('div', { style: 'font-weight:700' }, '📐 Cómo se reparte el trabajo'),
+    el('p', { class: 'hint', style: 'margin-top:6px',
+      text: v.semanas === 1
+        ? 'Series de la última semana que entrenaste.'
+        : `Series por semana, promediadas sobre las ${v.semanas} semanas que entrenaste.` }),
+    el('div', { class: 'list', style: 'margin-top:8px' },
+      v.filas.map((f) => el('div', { class: 'row', style: 'display:block' },
+        el('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:baseline' },
+          el('div', { text: f.nombre }),
+          el('div', { class: 'row__value', style: f.estado === 'ok' ? '' : 'color:var(--gold)',
+            text: formatNumber(f.porSemana) })),
+        barra(f),
+        el('div', { class: 'row__sub', text: `${f.min}-${f.max} por semana es donde suele rendir` })))),
+    flojos.length
+      ? el('p', { class: 'hint', style: 'margin-top:8px' },
+          `Abajo del rango: ${flojos.map((f) => f.nombre.toLowerCase()).join(', ')}. `,
+          'Con ese volumen un músculo se mantiene, pero no es de donde va a venir tu próximo salto de fuerza.')
+      : null,
+    pasados.length
+      ? el('p', { class: 'hint', style: 'margin-top:8px' },
+          `Arriba del rango: ${pasados.map((f) => f.nombre.toLowerCase()).join(', ')}. `,
+          'Más series no siempre es más músculo: pasado cierto punto el límite es cuánto recuperás, no cuánto entrenás.')
+      : null,
+    el('p', { class: 'hint', style: 'margin-top:8px' },
+      'Los ejercicios que ayudan cuentan media serie: un remo entrena bíceps, pero no como un curl. ',
+      'Los rangos son referencias, como las tablas de fuerza: ubican, no deciden decimales.'));
 }
 
 function detalleCuerpo(st, state) {

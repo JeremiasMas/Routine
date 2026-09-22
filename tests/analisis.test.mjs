@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   tendencia, constancia, proximosSaltos, impactoDeSubir, estancados,
-  proyeccionGrasa, repartoDeFuentes, VENTANA, DIAS_PARA_ESTANCARSE,
+  proyeccionGrasa, repartoDeFuentes, volumenPorGrupo, proyeccionDeRango,
+  VENTANA, DIAS_PARA_ESTANCARSE,
 } from '../js/analisis.js';
 import { addDays, weekStart } from '../js/utils.js';
 import { isScheduled } from '../js/derive.js';
@@ -580,4 +581,133 @@ test('una semana sin nada se declara vacía en vez de fingir', async () => {
   const { derive, isScheduled } = await import('../js/derive.js');
   const state = derive({ activities: [], entries: {}, unlocked: {}, settings: {} }, '2026-09-21');
   assert.equal(resumenSemanal(state, '2026-09-14', { tocaba: isScheduled }).vacia, true);
+});
+
+// ---------------------------------------------------------------------------
+// Volumen por grupo muscular
+// ---------------------------------------------------------------------------
+
+const sesion = (date, ejercicios) => ({
+  date,
+  value: ejercicios.reduce((n, e) => n + e.sets.length, 0),
+  met: true,
+  entry: { templateId: 'espalda-biceps', exercises: ejercicios },
+});
+
+const tresSeries = (name) => ({ name, sets: [{ weight: 50, reps: 8 }, { weight: 50, reps: 8 }, { weight: 50, reps: 8 }] });
+
+/** Cuatro semanas cerradas antes de la que corre, una sesión por semana. */
+const semanasPrevias = (n, ejercicios) => Array.from({ length: n }, (_, i) =>
+  sesion(addDays(weekStart(HOY), -7 * (n - i)), ejercicios));
+
+test('cuenta series directas por grupo muscular', () => {
+  const st = { history: semanasPrevias(4, [tresSeries('Remo con barra al pecho')]) };
+  const v = volumenPorGrupo(st, HOY);
+  const espalda = v.filas.find((f) => f.id === 'espalda');
+  assert.equal(espalda.porSemana, 3, 'tres series por semana');
+  assert.equal(espalda.estado, 'bajo', 'tres series no alcanzan para el mínimo de espalda');
+});
+
+test('los grupos que ayudan se llevan media serie, no una entera', () => {
+  // Un remo entrena bíceps, pero no como un curl.
+  const st = { history: semanasPrevias(4, [tresSeries('Remo con barra al pecho')]) };
+  const v = volumenPorGrupo(st, HOY);
+  assert.equal(v.filas.find((f) => f.id === 'biceps').porSemana, 1.5);
+});
+
+test('un ejercicio sin grupo conocido no se atribuye a nadie', () => {
+  const st = { history: semanasPrevias(4, [tresSeries('Algo que inventé anoche')]) };
+  assert.equal(volumenPorGrupo(st, HOY), null, 'sin grupo no hay nada que repartir');
+});
+
+test('la semana en curso no arrastra el promedio', () => {
+  // Está a medio hacer: contarla haría que todo parezca en baja los lunes.
+  const st = { history: [sesion(weekStart(HOY), [tresSeries('Remo con barra al pecho')])] };
+  assert.equal(volumenPorGrupo(st, HOY), null);
+});
+
+test('promedia sobre las semanas que entrenaste, no sobre la ventana', () => {
+  // Dos semanas de sesiones y dos de nada: el promedio son las que hubo.
+  const st = { history: semanasPrevias(4, [tresSeries('Remo con barra al pecho')]).slice(2) };
+  const v = volumenPorGrupo(st, HOY);
+  assert.equal(v.semanas, 2);
+  assert.equal(v.filas.find((f) => f.id === 'espalda').porSemana, 3);
+});
+
+test('marca lo que se pasa del rango productivo', () => {
+  const muchas = { name: 'Remo con barra al pecho', sets: Array.from({ length: 22 }, () => ({ weight: 50, reps: 8 })) };
+  const st = { history: semanasPrevias(4, [muchas]) };
+  const v = volumenPorGrupo(st, HOY);
+  assert.equal(v.filas.find((f) => f.id === 'espalda').estado, 'alto');
+});
+
+test('ordena por volumen, que es donde se ve el desbalance', () => {
+  const st = { history: semanasPrevias(4, [
+    tresSeries('Remo con barra al pecho'),
+    tresSeries('Remo bajo cerrado'),
+    tresSeries('Curl en polea baja con barra'),
+  ]) };
+  const v = volumenPorGrupo(st, HOY);
+  assert.equal(v.filas[0].id, 'espalda', '6 series directas de espalda');
+  const orden = v.filas.map((f) => f.porSemana);
+  assert.deepEqual(orden, [...orden].sort((a, b) => b - a));
+});
+
+// ---------------------------------------------------------------------------
+// Proyección del próximo rango
+// ---------------------------------------------------------------------------
+
+/** Un estado con XP repartida a ritmo parejo en la ventana. */
+const jugador = (level, into, xpPorDia, dias = VENTANA) => ({
+  player: { level, into, xp: 0 },
+  daily: new Map(Array.from({ length: dias }, (_, i) => [addDays(HOY, -i), { xp: xpPorDia }])),
+});
+
+test('dice cuándo cae el próximo título al ritmo actual', () => {
+  const p = proyeccionDeRango(jugador(5, 0, 400), HOY);
+  assert.equal(p.estado, 'en-camino');
+  assert.equal(p.nivel, 6, 'del nivel 5 el próximo título estrena en el 6');
+  assert.equal(p.titulo.name, 'Milcíades');
+  assert.ok(p.dias > 0 && p.fecha > HOY);
+  // Al doble de ritmo tarda la mitad (±1 por el redondeo hacia arriba).
+  const rapido = proyeccionDeRango(jugador(5, 0, 800), HOY);
+  assert.ok(Math.abs(rapido.dias - Math.ceil(p.dias / 2)) <= 1);
+});
+
+test('suma los niveles enteros que faltan hasta el título', () => {
+  // Del 6 al 9 hay tres niveles, así que falta más XP que del 8 al 9.
+  const lejos = proyeccionDeRango(jugador(6, 0, 400), HOY);
+  const cerca = proyeccionDeRango(jugador(8, 0, 400), HOY);
+  assert.equal(lejos.nivel, 9);
+  assert.equal(cerca.nivel, 9);
+  assert.ok(lejos.xpFaltante > cerca.xpFaltante);
+});
+
+test('lo que ya tenés dentro del nivel descuenta', () => {
+  const arrancando = proyeccionDeRango(jugador(5, 0, 400), HOY);
+  const casi = proyeccionDeRango(jugador(5, 2000, 400), HOY);
+  assert.ok(casi.xpFaltante < arrancando.xpFaltante);
+});
+
+test('sin XP en el último mes no se inventa una fecha', () => {
+  const p = proyeccionDeRango(jugador(5, 0, 0), HOY);
+  assert.equal(p.estado, 'sin-ritmo');
+  assert.equal(p.fecha, undefined);
+});
+
+test('un ritmo que daría más de dos años no se proyecta', () => {
+  const p = proyeccionDeRango(jugador(30, 0, 1), HOY);
+  assert.equal(p.estado, 'lejos');
+  assert.equal(p.fecha, undefined);
+});
+
+test('en el último rango no hay nada que proyectar', () => {
+  const p = proyeccionDeRango(jugador(60, 0, 400), HOY);
+  assert.equal(p.estado, 'ultimo');
+  assert.equal(p.titulo.name, 'Gengis Kan');
+});
+
+test('sin jugador no rompe', () => {
+  assert.equal(proyeccionDeRango({}, HOY), null);
+  assert.equal(proyeccionDeRango(null, HOY), null);
 });

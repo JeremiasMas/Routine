@@ -7,6 +7,8 @@
  */
 import { addDays, daysBetween, weekStart } from './utils.js';
 import { NIVELES } from './strength.js';
+import { GRUPOS, perfilDeEjercicio, PLAYER_TITLES } from './config.js';
+import { xpToNextPlayerLevel, playerTitleFor } from './xp.js';
 
 /** Días que mira la tendencia de cada lado de la comparación. */
 export const VENTANA = 28;
@@ -105,6 +107,72 @@ export function constancia(st, hoy, opciones = {}) {
   }
   if (!total) return null;
   return { total, cumplidos, pct: cumplidos / total, modo: 'diario' };
+}
+
+/**
+ * Series semanales por grupo muscular.
+ *
+ * El total de series de una sesión no dice nada sobre el reparto: se puede
+ * hacer treinta series y que la espalda se lleve veinte. Acá se cuenta series
+ * DIRECTAS —las del músculo que hace el trabajo— y media serie por cada grupo
+ * que ayuda, porque un remo entrena bíceps pero no como un curl.
+ *
+ * La semana en curso no entra: está a medio hacer y arrastraría el promedio
+ * para abajo. Los grupos que no entrenaste no aparecen: no hay nada que decir
+ * de un músculo del que no hay datos.
+ *
+ * @returns {?{semanas:number, filas:Array, desde:string}}
+ */
+export function volumenPorGrupo(st, hoy, semanas = 4) {
+  const historia = st?.history;
+  if (!historia?.length) return null;
+
+  const finVentana = weekStart(hoy);                 // la semana en curso no cuenta
+  const inicio = addDays(finVentana, -7 * semanas);
+  const cuenta = new Map();
+  let sesiones = 0;
+
+  for (const h of historia) {
+    if (h.date < inicio || h.date >= finVentana) continue;
+    const ejercicios = h.entry?.exercises;
+    if (!ejercicios?.length) continue;
+    sesiones += 1;
+    for (const ex of ejercicios) {
+      const series = (ex.sets || []).filter((x) => Number(x.reps) > 0).length;
+      if (!series) continue;
+      const perfil = perfilDeEjercicio(ex.name);
+      if (!perfil.grupo) continue;                   // sin grupo no se atribuye
+      cuenta.set(perfil.grupo, (cuenta.get(perfil.grupo) || 0) + series);
+      for (const g of perfil.tambien) {
+        if (GRUPOS[g]) cuenta.set(g, (cuenta.get(g) || 0) + series * 0.5);
+      }
+    }
+  }
+
+  if (!sesiones || !cuenta.size) return null;
+
+  // Sólo las semanas en que de verdad entrenaste: un mes de gripe no tiene
+  // que figurar como "poco volumen de espalda".
+  const semanasConSesion = new Set(
+    historia.filter((h) => h.date >= inicio && h.date < finVentana && h.entry?.exercises?.length)
+      .map((h) => weekStart(h.date)),
+  ).size || 1;
+
+  const filas = [...cuenta.entries()].map(([id, series]) => {
+    const g = GRUPOS[id];
+    const porSemana = Math.round((series / semanasConSesion) * 10) / 10;
+    return {
+      id,
+      nombre: g.name,
+      series,
+      porSemana,
+      min: g.min,
+      max: g.max,
+      estado: porSemana < g.min ? 'bajo' : porSemana > g.max ? 'alto' : 'ok',
+    };
+  }).sort((a, b) => b.porSemana - a.porSemana);
+
+  return { semanas: semanasConSesion, sesiones, desde: inicio, filas };
 }
 
 /**
@@ -230,6 +298,57 @@ export function proyeccionGrasa(mediciones, meta, hoy) {
     porSemana,
     dias: Math.round(diasRestantes),
     fecha: addDays(hoy, Math.round(diasRestantes)),
+  };
+}
+
+/**
+ * Cuándo cae el próximo título de jugador, al ritmo de las últimas semanas.
+ *
+ * Misma honestidad que la proyección de grasa: si no hay ritmo del cual
+ * proyectar, se dice que no lo hay en vez de inventar una fecha. Y la XP que
+ * viene de logros no se proyecta —son de una sola vez— así que el ritmo sale
+ * del día a día, que es lo único que se repite.
+ *
+ * @param {{player:{level:number, xp:number, into:number}, daily:Map}} state
+ * @returns {?{estado:string, titulo?:object, nivel?:number, dias?:number,
+ *             fecha?:string, xpFaltante?:number, porDia?:number}}
+ */
+export function proyeccionDeRango(state, hoy, dias = VENTANA) {
+  const player = state?.player;
+  if (!player) return null;
+
+  const actual = playerTitleFor(player.level);
+  const siguiente = PLAYER_TITLES.find((t) => t.min > player.level);
+  if (!siguiente) return { estado: 'ultimo', titulo: actual };
+
+  // XP que falta: lo que resta del nivel actual más los niveles enteros hasta
+  // el que estrena el título.
+  let xpFaltante = Math.max(0, xpToNextPlayerLevel(player.level) - (player.into || 0));
+  for (let n = player.level + 1; n < siguiente.min; n += 1) xpFaltante += xpToNextPlayerLevel(n);
+
+  const desde = addDays(hoy, -dias);
+  let ganada = 0;
+  for (let i = 1; i <= dias; i += 1) ganada += state.daily?.get(addDays(desde, i))?.xp || 0;
+  const porDia = ganada / dias;
+
+  if (porDia <= 0) {
+    return { estado: 'sin-ritmo', titulo: siguiente, nivel: siguiente.min, xpFaltante };
+  }
+
+  const diasRestantes = Math.ceil(xpFaltante / porDia);
+  // Más de dos años es una cifra que no informa: el ritmo de hoy no se
+  // sostiene tanto tiempo, ni para bien ni para mal.
+  if (diasRestantes > 365 * 2) {
+    return { estado: 'lejos', titulo: siguiente, nivel: siguiente.min, xpFaltante, porDia };
+  }
+  return {
+    estado: 'en-camino',
+    titulo: siguiente,
+    nivel: siguiente.min,
+    xpFaltante,
+    porDia: Math.round(porDia),
+    dias: diasRestantes,
+    fecha: addDays(hoy, diasRestantes),
   };
 }
 

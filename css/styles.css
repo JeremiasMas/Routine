@@ -670,6 +670,25 @@ a { color: inherit; text-decoration: none; }
   padding: 10px; border-radius: 12px; background: var(--panel-strong);
   border: 1px solid var(--line);
 }
+/* Series semanales de un grupo muscular contra su rango productivo.
+   La franja clara marca el rango; la barra, dónde estás. Ver el hueco dice
+   más que el número. */
+.vol {
+  position: relative; height: 7px; margin: 7px 0 5px;
+  border-radius: 999px; overflow: hidden;
+  /* La pista es neutra a propósito: el color del tema tiñe la franja buena,
+     no el fondo, o las tres capas se vuelven del mismo marrón. */
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+}
+.vol__zona {
+  position: absolute; top: 0; bottom: 0;
+  background: color-mix(in srgb, var(--ok) 32%, transparent);
+}
+.vol__barra {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  border-radius: 999px;
+}
+
 .chip--ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
 .chip--warn { color: var(--gold); background: color-mix(in srgb, var(--gold) 15%, transparent); }
 .set-row__peso {

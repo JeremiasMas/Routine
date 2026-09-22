@@ -8,8 +8,9 @@ import { previewXp, completedSets, goalFor } from '../derive.js';
 import { gymVolume, estimatedOneRepMax } from '../xp.js';
 import {
   GYM_TEMPLATES, templateById, templateForDay,
-  DEFAULT_SETS, DEFAULT_REP_RANGE, esMancuerna,
+  DEFAULT_SETS, esMancuerna, perfilDeEjercicio, RANGOS_REPS,
 } from '../config.js';
+import { objetivoDeHoy, textoDeObjetivo } from '../progresion.js';
 import { colorDe } from '../theme.js';
 
 /** Abre el registrador correcto para la actividad. */
@@ -111,33 +112,32 @@ function gymForm(activity, dateKey, onSaved) {
   let templateId = existing?.templateId ?? sugerida?.id ?? null;
   let exercises = [];
 
-  // Tope del rango de repeticiones: si lo cerraste en todas las series, toca subir.
-  const TOPE_REPS = Number(DEFAULT_REP_RANGE.split('-')[1]) || 15;
-  const SALTO_KG = 2.5;
-
   /**
-   * ¿Cerraste la última sesión completa en el tope del rango? Entonces se
-   * propone subir la carga: es la progresión que uno olvida entre series.
+   * El objetivo de hoy para un ejercicio, con su rango propio.
+   *
+   * Antes era una sola regla para los 35 ejercicios: 3×10-15 y, si cerrabas
+   * las tres series en 15, +2,5 kg. Eso contradecía a la propia app, que pide
+   * series de 5 en los movimientos grandes porque a 15 repeticiones el 1RM
+   * estimado se dispersa ±28 kg. Ahora cada ejercicio vive en su rango y sube
+   * con el escalón de su equipo.
    */
-  function sugerenciaDeCarga(name) {
+  function objetivoDe(name, count = DEFAULT_SETS) {
     const previas = lastSets.get((name || '').trim().toLowerCase());
-    if (!previas?.length || previas.length < DEFAULT_SETS) return null;
-    if (!previas.every((s) => Number(s.reps) >= TOPE_REPS)) return null;
-    const peso = Number(previas[previas.length - 1]?.weight) || 0;
-    if (peso <= 0) return null;
-    return { desde: peso, hasta: peso + SALTO_KG };
+    return objetivoDeHoy(previas, perfilDeEjercicio(name), count);
   }
 
-  /** Series precargadas con lo último que levantaste en ese ejercicio. */
+  /** Series precargadas con el objetivo de hoy, o con lo último si no hay. */
   function seedSets(name, count = DEFAULT_SETS) {
     const previas = lastSets.get((name || '').trim().toLowerCase());
-    const sube = sugerenciaDeCarga(name);
+    const objetivo = objetivoDe(name, count);
     return Array.from({ length: count }, (_, i) => ({
-      weight: sube
-        ? sube.hasta
+      weight: objetivo
+        ? objetivo.peso
         : (previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? ''),
       reps: '',
-      target: previas?.[i]?.reps ?? null,
+      // El número gris dentro del casillero: lo que hay que hacer hoy, no lo
+      // que hiciste la vez pasada.
+      target: objetivo?.reps?.[i] ?? previas?.[i]?.reps ?? null,
     }));
   }
 
@@ -152,7 +152,7 @@ function gymForm(activity, dateKey, onSaved) {
       ? template.exercises
       : (lastByTemplate.get(id) || []); // el Día 4 aprende de la última vez
     exercises = base.length
-      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, db: ex.db ?? esMancuerna(ex.name), sets: seedSets(ex.name), sube: sugerenciaDeCarga(ex.name) }))
+      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, db: ex.db ?? esMancuerna(ex.name), sets: seedSets(ex.name), objetivo: objetivoDe(ex.name) }))
       : [{ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }];
   }
   loadTemplate(templateId, { keepExisting: true });
@@ -224,13 +224,19 @@ function gymForm(activity, dateKey, onSaved) {
   function exerciseCard(ex, index) {
     const rec = records.get((ex.name || '').trim().toLowerCase());
     const head = ex.name
-      ? el('div', { style: 'flex:1;min-width:0' },
-          el('div', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
-          ex.sube
-            ? el('div', { class: 'row__sub', style: 'color:var(--ok)',
-                text: `↑ ${formatNumber(ex.sube.hasta)} kg — la última cerraste las ${DEFAULT_SETS} series en ${TOPE_REPS}` })
-            : el('div', { class: 'row__sub' },
-                rec ? `Récord: ${rec.weight} kg × ${rec.reps}` : `${DEFAULT_SETS}×${DEFAULT_REP_RANGE}`))
+      ? (() => {
+          const perfil = perfilDeEjercicio(ex.name);
+          const objetivo = ex.objetivo ?? objetivoDe(ex.name);
+          const texto = textoDeObjetivo(objetivo, perfil);
+          const rango = objetivo?.rango || RANGOS_REPS[perfil.rango] || RANGOS_REPS.medio;
+          return el('div', { style: 'flex:1;min-width:0' },
+            el('div', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
+            texto
+              ? el('div', { class: 'row__sub', style: objetivo.sube ? 'color:var(--ok)' : '', text: texto })
+              : el('div', { class: 'row__sub' },
+                  rec ? `Récord: ${rec.weight} kg × ${rec.reps}`
+                    : `${DEFAULT_SETS}×${rango.min}-${rango.max}`));
+        })()
       : (() => {
           const input = el('input', { type: 'text', placeholder: 'Ejercicio', list: 'exercise-names', value: '' });
           input.addEventListener('input', () => { ex.name = input.value; updateSummary(); });
@@ -242,7 +248,10 @@ function gymForm(activity, dateKey, onSaved) {
       setsWrap.innerHTML = '';
       ex.sets.forEach((set, si) => {
         const weight = el('input', {
-          type: 'number', inputmode: 'decimal', min: '0', step: '2.5',
+          // El paso de las flechitas es el escalón real del equipo: 2,5 en
+          // barra y polea, 2 en mancuerna, 1 en las de muñeca.
+          type: 'number', inputmode: 'decimal', min: '0',
+          step: String(perfilDeEjercicio(ex.name).salto),
           placeholder: ex.bw ? '+kg' : (ex.db ? 'kg c/u' : 'kg'), value: set.weight ?? '',
         });
         const reps = el('input', {

@@ -179,10 +179,54 @@ export const DEFAULT_ACTIVITIES = [
 ];
 
 /**
+ * Rangos de repeticiones por tipo de movimiento.
+ *
+ * Un solo rango para todo (eran 10-15) se contradecía con la propia app, que
+ * pide series de 5 para medir fuerza porque a 15 repeticiones el 1RM estimado
+ * se dispersa ±28 kg. Los movimientos grandes viven abajo, donde la carga es
+ * el estímulo y la medición sirve; los aislamientos viven arriba, donde lo que
+ * importa es el trabajo acumulado y nadie mide un 1RM de vuelos laterales.
+ */
+export const RANGOS_REPS = {
+  pesado: { min: 5, max: 8 },
+  medio: { min: 8, max: 12 },
+  liviano: { min: 12, max: 20 },
+};
+
+/**
+ * Grupos musculares y series semanales donde la mayoría de la gente progresa.
+ *
+ * Son referencias, como las tablas de fuerza: ubican y muestran si algo está
+ * muy abajo o muy arriba, no deciden decimales. Debajo del mínimo el grupo
+ * suele estar sólo manteniéndose; muy por encima del máximo la recuperación
+ * empieza a ser el límite antes que el estímulo.
+ */
+export const GRUPOS = {
+  espalda: { name: 'Espalda', min: 10, max: 20 },
+  pecho: { name: 'Pecho', min: 10, max: 20 },
+  hombros: { name: 'Hombros', min: 8, max: 20 },
+  biceps: { name: 'Bíceps', min: 8, max: 20 },
+  triceps: { name: 'Tríceps', min: 8, max: 20 },
+  cuadriceps: { name: 'Cuádriceps', min: 8, max: 18 },
+  isquios: { name: 'Isquios', min: 6, max: 16 },
+  gluteos: { name: 'Glúteos', min: 6, max: 16 },
+  pantorrillas: { name: 'Pantorrillas', min: 8, max: 16 },
+  core: { name: 'Core', min: 8, max: 20 },
+  antebrazos: { name: 'Antebrazos', min: 6, max: 15 },
+};
+
+/**
  * Rutina del gimnasio. Cargarla desde una plantilla evita tipear 14 ejercicios,
  * y las series planificadas son la meta de la sesión: completarlas = 100 XP.
  *  - day: día de la semana en que toca (0 = domingo)
  *  - bw: ejercicio de peso corporal (el peso es carga EXTRA, puede ir vacío)
+ *  - db: se hace con una mancuerna en cada mano
+ *  - grupo: el músculo que hace el trabajo; `tambien`, los que ayudan y se
+ *    llevan media serie de crédito cada uno (un remo entrena bíceps, pero no
+ *    como un curl)
+ *  - rango: en qué rango de repeticiones vive el ejercicio
+ *  - salto: de a cuánto sube la carga cuando cerrás el rango. Por defecto 2,5
+ *    en barra y polea y 2 en mancuerna, que es el escalón real del rack
  */
 export const GYM_TEMPLATES = [
   {
@@ -191,18 +235,18 @@ export const GYM_TEMPLATES = [
     name: 'Espalda / Bíceps + Abs',
     short: 'Espalda · Bíceps',
     exercises: [
-      { name: 'Dominadas agarre ancho', bw: true },
-      { name: 'Remo bajo cerrado' },
-      { name: 'Remo con barra al pecho' },
-      { name: 'Remo sentado con agarre supino en polea' },
-      { name: 'Pullover' },
-      { name: 'Curl en polea baja con barra' },
-      { name: 'Curl con soga en polea baja' },
-      { name: 'Face pulls' },
-      { name: 'Standing cable crunch' },
-      { name: 'Elevaciones de piernas en paralelas', bw: true },
-      { name: 'Weighted crunch' },
-      { name: 'Russian twist' },
+      { name: 'Dominadas agarre ancho', bw: true, grupo: 'espalda', tambien: ['biceps'], rango: 'pesado' },
+      { name: 'Remo bajo cerrado', grupo: 'espalda', tambien: ['biceps'], rango: 'medio' },
+      { name: 'Remo con barra al pecho', grupo: 'espalda', tambien: ['biceps'], rango: 'pesado' },
+      { name: 'Remo sentado con agarre supino en polea', grupo: 'espalda', tambien: ['biceps'], rango: 'medio' },
+      { name: 'Pullover', grupo: 'espalda', tambien: ['pecho'], rango: 'medio' },
+      { name: 'Curl en polea baja con barra', grupo: 'biceps', rango: 'medio' },
+      { name: 'Curl con soga en polea baja', grupo: 'biceps', tambien: ['antebrazos'], rango: 'medio' },
+      { name: 'Face pulls', grupo: 'hombros', tambien: ['espalda'], rango: 'liviano' },
+      { name: 'Standing cable crunch', grupo: 'core', rango: 'medio' },
+      { name: 'Elevaciones de piernas en paralelas', bw: true, grupo: 'core', rango: 'liviano' },
+      { name: 'Weighted crunch', grupo: 'core', rango: 'liviano' },
+      { name: 'Russian twist', grupo: 'core', rango: 'liviano' },
     ],
   },
   {
@@ -211,20 +255,20 @@ export const GYM_TEMPLATES = [
     name: 'Hombros / Tríceps / Antebrazos',
     short: 'Hombros · Tríceps',
     exercises: [
-      { name: 'Vuelo lateral con mancuerna vertical', db: true },
-      { name: 'Vuelo lateral con mancuerna horizontal', db: true },
-      { name: 'Vuelo posterior', db: true },
-      { name: 'Pullover en camilla inclinada' },
-      { name: 'Encogimientos de trapecio', db: true },
-      { name: 'Press militar' },
-      { name: 'Arnold con polea' },
-      { name: 'Tríceps supino' },
-      { name: 'Tríceps con soga' },
-      { name: 'Tríceps trasnuca' },
-      { name: 'French press' },
-      { name: 'Dumbbell standing pronation wrist', db: true },
-      { name: 'Dumbbell over bench palms up curl', db: true },
-      { name: 'Dumbbell standing wrist curl', db: true },
+      { name: 'Vuelo lateral con mancuerna vertical', db: true, grupo: 'hombros', rango: 'liviano' },
+      { name: 'Vuelo lateral con mancuerna horizontal', db: true, grupo: 'hombros', rango: 'liviano' },
+      { name: 'Vuelo posterior', db: true, grupo: 'hombros', tambien: ['espalda'], rango: 'liviano' },
+      { name: 'Pullover en camilla inclinada', grupo: 'espalda', tambien: ['pecho'], rango: 'medio' },
+      { name: 'Encogimientos de trapecio', db: true, grupo: 'espalda', rango: 'medio' },
+      { name: 'Press militar', grupo: 'hombros', tambien: ['triceps'], rango: 'pesado' },
+      { name: 'Arnold con polea', grupo: 'hombros', tambien: ['triceps'], rango: 'medio' },
+      { name: 'Tríceps supino', grupo: 'triceps', rango: 'medio' },
+      { name: 'Tríceps con soga', grupo: 'triceps', rango: 'medio' },
+      { name: 'Tríceps trasnuca', grupo: 'triceps', rango: 'medio' },
+      { name: 'French press', grupo: 'triceps', rango: 'medio' },
+      { name: 'Dumbbell standing pronation wrist', db: true, grupo: 'antebrazos', rango: 'liviano', salto: 1 },
+      { name: 'Dumbbell over bench palms up curl', db: true, grupo: 'biceps', tambien: ['antebrazos'], rango: 'medio' },
+      { name: 'Dumbbell standing wrist curl', db: true, grupo: 'antebrazos', rango: 'liviano', salto: 1 },
     ],
   },
   {
@@ -233,22 +277,24 @@ export const GYM_TEMPLATES = [
     name: 'Pecho / Piernas',
     short: 'Pecho · Piernas',
     exercises: [
-      { name: 'Pecho plano' },
-      { name: 'Pecho inclinado' },
-      { name: 'Aperturas inclinadas', db: true },
-      { name: 'Sentadilla con barra' },
-      { name: 'Sillón de cuádriceps' },
-      { name: 'Camilla de isquiotibiales' },
-      { name: 'Peso muerto rumano' },
-      { name: 'Sillón de abductores' },
-      { name: 'Elevaciones de talón' },
+      { name: 'Pecho plano', grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
+      { name: 'Pecho inclinado', grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
+      { name: 'Aperturas inclinadas', db: true, grupo: 'pecho', rango: 'medio' },
+      { name: 'Sentadilla con barra', grupo: 'cuadriceps', tambien: ['gluteos'], rango: 'pesado' },
+      { name: 'Sillón de cuádriceps', grupo: 'cuadriceps', rango: 'medio' },
+      { name: 'Camilla de isquiotibiales', grupo: 'isquios', rango: 'medio' },
+      { name: 'Peso muerto rumano', grupo: 'isquios', tambien: ['gluteos', 'espalda'], rango: 'pesado' },
+      { name: 'Sillón de abductores', grupo: 'gluteos', rango: 'medio' },
+      { name: 'Elevaciones de talón', grupo: 'pantorrillas', rango: 'liviano' },
     ],
   },
 ];
 
-/** Series y repeticiones por defecto de cada ejercicio de la rutina. */
+/**
+ * Series por defecto de cada ejercicio. Las repeticiones ya no son una sola
+ * cifra para todo: las decide el rango del ejercicio (ver RANGOS_REPS).
+ */
 export const DEFAULT_SETS = 3;
-export const DEFAULT_REP_RANGE = '10-15';
 
 export function templateById(id) {
   return GYM_TEMPLATES.find((t) => t.id === id) || null;
@@ -276,6 +322,37 @@ export function esMancuerna(nombre, plantillas = GYM_TEMPLATES) {
   }
   // Los que traen "mancuerna" o "dumbbell" en el nombre, aunque sean a mano.
   return /\bmancuerna|\bdumbbell/.test(clave);
+}
+
+/**
+ * El perfil de un ejercicio: qué músculo trabaja, en qué rango vive y de a
+ * cuánto sube.
+ *
+ * Los de las plantillas lo traen escrito. Los que cargás a mano en el Día 4
+ * no, así que se deduce de lo que se pueda: si el nombre dice mancuerna, el
+ * salto es el del rack. Lo que no se sabe queda en 'otros' en vez de
+ * inventar un grupo, porque un volumen mal atribuido es peor que uno ausente.
+ */
+export function perfilDeEjercicio(nombre, plantillas = GYM_TEMPLATES) {
+  const clave = (nombre || '').trim().toLowerCase();
+  let ex = null;
+  for (const t of plantillas) {
+    for (const e of t.exercises) {
+      if (e.name.trim().toLowerCase() === clave) { ex = e; break; }
+    }
+    if (ex) break;
+  }
+  const db = ex ? Boolean(ex.db) : esMancuerna(nombre, plantillas);
+  return {
+    nombre: ex?.name || (nombre || '').trim(),
+    grupo: ex?.grupo || null,
+    tambien: ex?.tambien || [],
+    rango: ex?.rango || 'medio',
+    bw: Boolean(ex?.bw),
+    db,
+    // El escalón real del gimnasio: 2,5 en barra y polea, 2 en mancuerna.
+    salto: ex?.salto ?? (db ? 2 : 2.5),
+  };
 }
 
 /** Series planificadas de una plantilla. */

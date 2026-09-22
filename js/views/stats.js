@@ -1,10 +1,10 @@
 // Progreso global: mapa de calor, XP por semana y ranking de actividades.
-import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween } from '../utils.js';
+import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween, plural } from '../utils.js';
 import { getState, getData } from '../state.js';
 import { stat, xpBar, chip, barChart } from '../ui/components.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { seccionAnalisis } from './analisis.js';
-import { resumenSemanal } from '../analisis.js';
+import { resumenSemanal, proyeccionDeRango } from '../analisis.js';
 import { isScheduled } from '../derive.js';
 import { esLibre } from '../pausas.js';
 
@@ -18,6 +18,9 @@ export function render() {
     stat(state.player.level, 'Nivel jugador'),
     stat(state.globalStreak, 'Racha global'),
     stat(state.perfectDays, 'Días perfectos')));
+
+  const rumbo = tarjetaDeRango(state);
+  if (rumbo) root.append(rumbo);
 
   // --- Mapa de calor del último año ---
   root.append(tarjetaSemanal(state));
@@ -161,4 +164,36 @@ function tarjetaSemanal(state) {
       el('h2', { text: 'Tu semana' }),
       el('small', { text: enCurso ? 'en curso' : 'cerrada' })),
     card);
+}
+
+/**
+ * Hacia qué general vas y cuándo llega, al ritmo de las últimas cuatro
+ * semanas. El rango de arriba dice dónde estás; esto dice hacia dónde.
+ */
+function tarjetaDeRango(state) {
+  const p = proyeccionDeRango(state, state.today);
+  if (!p) return null;
+
+  const cab = (texto) => el('div', { style: 'display:flex;gap:8px;align-items:baseline;flex-wrap:wrap' },
+    el('div', { style: 'font-weight:700', text: texto }));
+
+  if (p.estado === 'ultimo') {
+    return el('div', { class: 'card', style: 'margin-top:10px' },
+      cab(`${p.titulo.name} · nivel ${state.player.level}`),
+      el('p', { class: 'hint', style: 'margin-top:6px', text: p.titulo.nota }),
+      el('p', { class: 'hint', style: 'margin-top:6px',
+        text: 'Último rango de la escalera. De acá en adelante lo que sube es el nivel.' }));
+  }
+
+  const faltan = `Te faltan ${formatNumber(p.xpFaltante)} XP para el nivel ${p.nivel}.`;
+  const cuerpo = p.estado === 'en-camino'
+    ? `${faltan} Al ritmo de las últimas 4 semanas (${formatNumber(p.porDia)} XP por día) cae alrededor del ${shortDate(p.fecha)}, en ${plural(p.dias, 'día', 'días')}.`
+    : p.estado === 'lejos'
+      ? `${faltan} Al ritmo de las últimas 4 semanas quedaría a más de dos años, así que la fecha no diría nada.`
+      : `${faltan} En las últimas 4 semanas no sumaste XP, así que no hay ritmo del cual proyectar.`;
+
+  return el('div', { class: 'card', style: 'margin-top:10px' },
+    cab(`Próximo rango: ${p.titulo.name}`),
+    el('p', { class: 'hint', style: 'margin-top:6px', text: p.titulo.nota }),
+    el('p', { class: 'hint', style: 'margin-top:6px', text: cuerpo }));
 }
