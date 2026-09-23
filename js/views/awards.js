@@ -6,8 +6,11 @@ import { xpBar } from '../ui/components.js';
 export function render() {
   const state = getState();
   const unlocked = state.achievements.filter((a) => a.unlocked);
+  // Los más cerca primero. Entre los que todavía no arrancaron manda la XP:
+  // así el final de la lista son los monstruos, y se lee como una escalera en
+  // vez de como un montón.
   const locked = state.achievements.filter((a) => !a.unlocked)
-    .sort((a, b) => b.pct - a.pct);
+    .sort((a, b) => (b.pct - a.pct) || (a.xp - b.xp));
 
   const root = el('div', {});
   root.append(el('div', { class: 'card' },
@@ -24,7 +27,8 @@ export function render() {
   }
 
   root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Por desbloquear' }), el('small', { text: 'los más cercanos primero' })));
+    el('h2', { text: 'Por desbloquear' }),
+    el('small', { text: `${locked.length} · los más cercanos primero` })));
   root.append(locked.length
     ? el('div', { class: 'awards' }, locked.map(card))
     : el('div', { class: 'empty' }, '¡Los conseguiste todos! Leyenda. 🐐'));

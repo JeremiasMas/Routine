@@ -7,6 +7,7 @@ import {
   gymVolume, estimatedOneRepMax, streakMultiplier, esSerieFiable, REPS_CALIBRACION,
 } from './xp.js';
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
+import { hazanas } from './hazanas.js';
 import { bodySummary, bodyFatBand } from './body.js';
 import { descomponerProgreso } from './analisis.js';
 import { esLibre } from './pausas.js';
@@ -579,9 +580,10 @@ export function derive(data, today = todayKey()) {
     sourceTotals: Object.fromEntries([...byActivity].map(([id, st]) => [id, st.sourceTotals])),
     bestDailyStreak, totalEntries, minActivityLevel,
     playerLevel: playerLevelFromXp(activityXp + bonusXp).level,
+    ...hazanas({ byActivity, daily, dates, today, strength, data, bodyFat }),
   };
   let achievementXp = 0;
-  const achievements = ACHIEVEMENTS.map((def) => {
+  const evaluar = (def) => {
     const progress = Math.max(0, Number(def.progress(summary)) || 0);
     const unlocked = progress >= def.target;
     if (unlocked) achievementXp += def.xp;
@@ -592,7 +594,16 @@ export function derive(data, today = todayKey()) {
       unlocked,
       unlockedAt: data.unlocked?.[def.id] || null,
     };
-  });
+  };
+
+  // Dos pasadas: los logros que cuentan logros necesitan saber cuántos hay
+  // desbloqueados, y contarse a sí mismos los dejaría imposibles para siempre.
+  const comunes = ACHIEVEMENTS.filter((d) => !d.meta).map(evaluar);
+  summary.logrosDesbloqueados = comunes.filter((a) => a.unlocked).length;
+  summary.logrosTotales = comunes.length;
+  const metas = ACHIEVEMENTS.filter((d) => d.meta).map(evaluar);
+  const orden = new Map([...comunes, ...metas].map((a) => [a.id, a]));
+  const achievements = ACHIEVEMENTS.map((d) => orden.get(d.id));
 
   const playerXp = activityXp + bonusXp + achievementXp;
   const player = playerLevelFromXp(playerXp);
