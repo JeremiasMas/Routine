@@ -234,7 +234,7 @@ function gymForm(activity, dateKey, onSaved) {
             texto
               ? el('div', { class: 'row__sub', style: objetivo.sube ? 'color:var(--ok)' : '', text: texto })
               : el('div', { class: 'row__sub' },
-                  rec ? `Récord: ${rec.weight} kg × ${rec.reps}`
+                  rec ? `Récord: ${formatNumber(rec.weight)} kg${rec.db ? ' c/u' : ''} × ${rec.reps}`
                     : `${DEFAULT_SETS}×${rango.min}-${rango.max}`));
         })()
       : (() => {

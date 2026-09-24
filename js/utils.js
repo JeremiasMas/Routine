@@ -92,6 +92,16 @@ export function formatNumber(n) {
   return rounded.toLocaleString('es-AR', { maximumFractionDigits: 1 });
 }
 
+/**
+ * Un número con más de un decimal, cuando el decimal importa.
+ *
+ * formatNumber redondea a uno: un factor de 1,15 salía escrito "1,2" al lado
+ * del cálculo que usaba 1,15, y el texto contradecía a la cuenta.
+ */
+export function formatPreciso(n, decimales = 2) {
+  return Number(n).toLocaleString('es-AR', { maximumFractionDigits: decimales });
+}
+
 /** Formatea un valor según la unidad de la actividad (min -> 1h 30m). */
 export function formatValue(value, unit) {
   if (unit === 'ml') {

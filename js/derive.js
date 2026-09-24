@@ -1,7 +1,7 @@
 // Deriva TODO el estado de juego (XP, niveles, rachas, récords, logros)
 // a partir del historial crudo. Es una función pura: mismo historial,
 // mismo resultado. Así nunca se desincroniza nada.
-import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets } from './config.js';
+import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets, esMancuerna } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier, esSerieFiable, REPS_CALIBRACION,
@@ -282,7 +282,15 @@ export function derive(data, today = todayKey()) {
             // repeticiones es demasiado incierto para fijar un récord.
             if (!esSerieFiable(reps)) continue;
             if (reps <= REPS_CALIBRACION) st.ultimaCalibracion.set(name, date);
-            const carga = esPesoCorporal ? pesoCorporal + extra : extra;
+            // Dos preguntas distintas que se parecen:
+            //  - ex.db dice CÓMO anotaste el número (una mancuerna o el total).
+            //    De eso salen las manos que hay que contar, y por eso tiene que
+            //    salir del registro y no de la plantilla: los registros viejos,
+            //    de antes de marcar el ejercicio, traen el total.
+            //  - esMancuerna dice QUÉ movimiento es, que no cambia con el
+            //    tiempo. De eso sale la conversión contra la tabla de barra.
+            const manos = ex.db === true ? 2 : 1;
+            const carga = esPesoCorporal ? pesoCorporal + extra : extra * manos;
             const e1rm = estimatedOneRepMax(carga, reps);
             if (e1rm <= 0) continue;
             // En los ejercicios de peso corporal el récord se mide en veces tu
@@ -290,7 +298,7 @@ export function derive(data, today = todayKey()) {
             // calcula sobre el valor sin redondear, porque el redondeo del 1RM
             // por sí solo alcanzaba para simular una mejora.
             const ratio = pesoCorporal > 0 ? (carga * (1 + reps / 30)) / pesoCorporal : 0;
-            const marca = { name: ex.name.trim(), weight: extra, reps, e1rm, load: Math.round(carga * 10) / 10, ratio, bw: esPesoCorporal, db: ex.db === true, date };
+            const marca = { name: ex.name.trim(), weight: extra, reps, e1rm, load: Math.round(carga * 10) / 10, ratio, bw: esPesoCorporal, db: ex.db === true, conMancuerna: esMancuerna(ex.name), date };
             // El mejor 1RM de cada día, en orden. Con el récord solo no se
             // puede ver si un ejercicio progresa: sólo si alguna vez subió.
             const serie = st.serieDeEjercicio.get(name) || [];

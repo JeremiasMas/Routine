@@ -260,7 +260,7 @@ export const GYM_TEMPLATES = [
       { name: 'Vuelo posterior', db: true, grupo: 'hombros', tambien: ['espalda'], rango: 'liviano' },
       { name: 'Fondo de tríceps', bw: true, grupo: 'triceps', tambien: ['pecho', 'hombros'], rango: 'medio' },
       { name: 'Encogimientos de trapecio', db: true, grupo: 'espalda', rango: 'medio' },
-      { name: 'Press militar', grupo: 'hombros', tambien: ['triceps'], rango: 'pesado' },
+      { name: 'Press militar', db: true, grupo: 'hombros', tambien: ['triceps'], rango: 'pesado' },
       { name: 'Arnold con polea', grupo: 'hombros', tambien: ['triceps'], rango: 'medio' },
       { name: 'Tríceps supino', grupo: 'triceps', rango: 'medio' },
       { name: 'Tríceps con soga', grupo: 'triceps', rango: 'medio' },

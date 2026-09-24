@@ -1,11 +1,12 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
-import { el, formatValue, formatNumber, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort } from '../utils.js';
+import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort } from '../utils.js';
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
 import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
 import { colorDe, colorDeRango } from '../theme.js';
+import { EQUIV_MANCUERNA } from '../strength.js';
 import { explicarProgreso } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
@@ -166,6 +167,9 @@ export function render({ params, navigate, celebrate }) {
       el('div', { class: 'quest__meta', style: 'margin-top:4px' },
         chip(s.nivel.name, 'chip--tier', `--t:${colorDe(a)}`),
         chip(`${formatNumber(s.ratio)}× tu peso`),
+        // El ajuste por mancuerna se muestra: un número corregido en silencio
+        // es peor que uno sin corregir.
+        s.conversion > 1 ? chip(`≈ ${formatNumber(s.comparable)} kg en barra`) : null,
         s.usaPesoCorporal ? chip(s.weight > 0 ? `+${formatNumber(s.weight)} kg de lastre` : 'sin lastre') : null),
       s.nivel.next
         ? el('div', { style: 'margin-top:8px' },
@@ -184,6 +188,15 @@ export function render({ params, navigate, celebrate }) {
 
     root.append(el('p', { class: 'hint', style: 'margin-top:10px' },
       'El 1RM sale del promedio de cuatro fórmulas (Epley, Brzycki, Lombardi y Wathen) sobre tu mejor serie de hasta 12 repeticiones: las más largas entrenan, pero no sirven para medir. Los niveles son referencias generales, así que ubican y muestran progresión, no deciden decimales.'));
+
+    if (state.strength.some((s) => s.conversion > 1)) {
+      root.append(el('p', { class: 'hint', style: 'margin-top:8px' },
+        'Las tablas están hechas con barra. Con mancuernas el mismo peso total es más difícil ',
+        '—cada brazo se estabiliza solo y el recorrido es mayor—, así que para ubicarte en la ',
+        `escala se convierte: el total que movés cuenta como ${formatPreciso(EQUIV_MANCUERNA)}× en barra. `,
+        'Es una regla de dedo, como las tablas mismas. Los kilos que te faltan siguen siendo reales: ',
+        'es lo que le tenés que sumar a la mancuerna.'));
+    }
   }
 
   // --- Récords del gimnasio ---
@@ -196,9 +209,9 @@ export function render({ params, navigate, celebrate }) {
         el('div', { class: 'row__main' },
           el('div', { text: r.name }),
           el('div', { class: 'row__sub', text: r.bw
-            ? `${r.weight > 0 ? `+${r.weight} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
-            : `${r.weight} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
-        el('div', { class: 'row__value', text: `${r.e1rm} kg` })))));
+            ? `${r.weight > 0 ? `+${formatNumber(r.weight)} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
+            : `${formatNumber(r.weight)} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
+        el('div', { class: 'row__value', text: `${formatNumber(r.e1rm)} kg` })))));
     const progresion = progresionPorEjercicio(st, a);
     if (progresion) root.append(progresion);
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' },

@@ -139,3 +139,89 @@ test('el nivel de fuerza va de 1 a 6 y sirve como nivel de actividad', () => {
   }
   assert.equal(nivelGeneral([]), null, 'sin ejercicios con estándar no hay nivel');
 });
+
+// ---------------------------------------------------------------------------
+// Mancuernas
+//
+// Dos preguntas que se parecen y no son la misma: cómo anotaste el número
+// (una mancuerna o el total) y qué movimiento es (con mancuernas o con barra).
+// La primera decide cuántas manos contar; la segunda, contra qué tabla medirte.
+// ---------------------------------------------------------------------------
+
+const recordDe = (extra) => ({
+  name: 'Press militar', reps: 11, date: '2026-09-23', ...extra,
+});
+
+test('el 1RM de un ejercicio con mancuerna cuenta las dos manos', async () => {
+  // El tonelaje ya las contaba; el 1RM no. Marcar un ejercicio como de
+  // mancuerna le habría partido la fuerza al medio sin que nada fallara.
+  const { derive } = await import('../js/derive.js');
+  const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
+  const gym = DEFAULT_ACTIVITIES.filter((a) => a.id === 'gym');
+  const sesion = (peso, db) => ({
+    '2026-09-23': { gym: { templateId: 'hombros-triceps', exercises: [
+      { name: 'Press militar', ...(db ? { db: true } : {}), sets: [{ weight: peso, reps: 11 }] },
+    ] } },
+  });
+  const unaMano = derive({ activities: gym, entries: sesion(17.5, true), unlocked: {}, settings: { weight: PC } }, '2026-09-24');
+  const total = derive({ activities: gym, entries: sesion(35, false), unlocked: {}, settings: { weight: PC } }, '2026-09-24');
+  const de = (s) => s.byActivity.get('gym').strength.find((x) => x.liftKey === 'ohp');
+  assert.equal(de(unaMano).e1rm, de(total).e1rm,
+    'anotar 17,5 por mancuerna y anotar 35 en total tienen que dar lo mismo');
+  assert.ok(de(unaMano).e1rm > 40, `dio ${de(unaMano).e1rm}: parece que contó una sola mano`);
+});
+
+test('la conversión toca la comparación, no el récord', async () => {
+  const { strengthProfile, EQUIV_MANCUERNA } = await import('../js/strength.js');
+  const [p] = strengthProfile([recordDe({ e1rm: 47.3, weight: 17.5, conMancuerna: true })], PC);
+  assert.equal(p.e1rm, 47.3, 'el récord es lo que de verdad levantaste');
+  assert.equal(p.comparable, Math.round(47.3 * EQUIV_MANCUERNA * 10) / 10);
+  assert.ok(p.comparable > p.e1rm, 'con mancuernas el equivalente en barra es mayor');
+});
+
+test('un movimiento con barra no se convierte', () => {
+  const [p] = strengthProfile([recordDe({ name: 'Sentadilla con barra', e1rm: 100, conMancuerna: false })], PC);
+  assert.equal(p.conversion, 1);
+  assert.equal(p.comparable, p.e1rm);
+});
+
+test('con mancuernas el nivel deja de estar subvaluado', () => {
+  // 2×17,5 por 11 repeticiones: contra la tabla de barra sin convertir cae en
+  // Novato, y es un press que ya vale un Intermedio.
+  const sinConvertir = strengthProfile([recordDe({ e1rm: 47.3, conMancuerna: false })], PC)[0];
+  const convertido = strengthProfile([recordDe({ e1rm: 47.3, conMancuerna: true })], PC)[0];
+  assert.equal(sinConvertir.nivel.name, 'Novato');
+  assert.equal(convertido.nivel.name, 'Intermedio');
+});
+
+test('lo que falta se dice en kilos reales, no convertidos', () => {
+  // "Te faltan X kg" tiene que ser lo que le sumás a la mancuerna, no a una
+  // barra que no usás: si no, el número no sirve para nada en el gimnasio.
+  const [p] = strengthProfile([recordDe({ e1rm: 47.3, conMancuerna: true })], PC);
+  const objetivoEnBarra = p.nivel.nextRatio * PC;
+  assert.ok(p.objetivo < objetivoEnBarra,
+    `el objetivo real (${p.objetivo}) tiene que ser menor que el de barra (${objetivoEnBarra})`);
+  assert.equal(p.falta, Math.round((p.objetivo - p.e1rm) * 10) / 10);
+});
+
+test('un registro viejo sin la marca sigue siendo con mancuernas', async () => {
+  // Los registros de antes de marcar el ejercicio traen el total y no traen
+  // db. Si la conversión mirara cómo se anotó, el historial daría un salto
+  // falso justo el día que se agregó la marca.
+  const { derive } = await import('../js/derive.js');
+  const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
+  const gym = DEFAULT_ACTIVITIES.filter((a) => a.id === 'gym');
+  const ej = (peso, db) => ({ name: 'Press militar', ...(db ? { db: true } : {}), sets: [{ weight: peso, reps: 11 }] });
+  const s = derive({
+    activities: gym,
+    entries: {
+      '2026-09-16': { gym: { templateId: 'hombros-triceps', exercises: [ej(35, false)] } },
+      '2026-09-23': { gym: { templateId: 'hombros-triceps', exercises: [ej(17.5, true)] } },
+    },
+    unlocked: {}, settings: { weight: PC },
+  }, '2026-09-24');
+  const serie = s.byActivity.get('gym').serieDeEjercicio.get('press militar');
+  assert.equal(serie.length, 2);
+  assert.equal(serie[0].e1rm, serie[1].e1rm, 'la curva no salta al cambiar cómo se anota');
+  assert.equal(s.byActivity.get('gym').strength.find((x) => x.liftKey === 'ohp').nivel.name, 'Intermedio');
+});

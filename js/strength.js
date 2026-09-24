@@ -91,6 +91,22 @@ export function nivelDeFuerza(liftKey, ratio, sexo = 'm') {
  * @param {'m'|'f'} sexo tabla de referencia a usar
  * @returns {Array} un objeto por ejercicio con estándar conocido
  */
+/**
+ * Cuánto "vale" en barra el mismo peso total movido con mancuernas.
+ *
+ * Los estándares de arriba son de movimientos con barra. Con mancuernas el
+ * mismo total es más difícil: cada brazo se estabiliza solo, el recorrido es
+ * mayor y no hay una barra que reparta. La regla de dedo habitual es que el
+ * total con mancuernas anda en 85-90% de lo que se mueve con barra, así que
+ * para comparar hay que subirlo.
+ *
+ * Es una regla de dedo, no una constante medida: sirve para no castigar a
+ * quien elige mancuernas, igual que las tablas sirven para ubicar y no para
+ * decidir decimales. Se muestra en pantalla a propósito, para que el número
+ * nunca sea un ajuste escondido.
+ */
+export const EQUIV_MANCUERNA = 1.15;
+
 export function strengthProfile(records, bodyweight, sexo = 'm') {
   const lista = records instanceof Map ? [...records.values()] : (records || []);
   if (!(bodyweight > 0)) return [];
@@ -106,10 +122,18 @@ export function strengthProfile(records, bodyweight, sexo = 'm') {
   }
 
   return [...porLift.values()].map((r) => {
-    const ratio = Math.round((r.e1rm / bodyweight) * 100) / 100;
+    // El récord queda como es: lo que de verdad levantaste. Lo que se convierte
+    // es sólo la comparación contra la tabla, que está hecha con barra.
+    // Se mira qué movimiento es, no cómo se anotó: un registro viejo hecho
+    // con mancuernas sigue siendo con mancuernas aunque le falte la marca.
+    const conversion = r.conMancuerna === true ? EQUIV_MANCUERNA : 1;
+    const comparable = r.e1rm * conversion;
+    const ratio = Math.round((comparable / bodyweight) * 100) / 100;
     const nivel = nivelDeFuerza(r.liftKey, ratio, sexo);
+    // El objetivo vuelve a kilos reales: lo que te falta es lo que tenés que
+    // sumarle a la mancuerna, no a una barra que no usás.
     const objetivo = nivel?.nextRatio != null
-      ? Math.round(nivel.nextRatio * bodyweight * 10) / 10
+      ? Math.round(((nivel.nextRatio * bodyweight) / conversion) * 10) / 10
       : null;
     return {
       liftKey: r.liftKey,
@@ -120,9 +144,12 @@ export function strengthProfile(records, bodyweight, sexo = 'm') {
       reps: r.reps,
       date: r.date,
       bodyweight,
+      db: r.db === true,
+      conversion,                                // 1 en barra, EQUIV_MANCUERNA en mancuerna
+      comparable: Math.round(comparable * 10) / 10,
       ratio,
       nivel,
-      objetivo,                                  // kg de 1RM para el próximo nivel
+      objetivo,                                  // kg de 1RM real para el próximo nivel
       falta: objetivo != null ? Math.round((objetivo - r.e1rm) * 10) / 10 : null,
       usaPesoCorporal: usaPesoCorporal(r.liftKey),
     };
