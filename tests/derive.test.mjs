@@ -104,10 +104,13 @@ test('una serie de peso corporal cuenta aunque no lleve peso', () => {
 
 test('cada rutina se mide contra SUS series planificadas', () => {
   const gym = acts(['gym'])[0];
-  const pecho = GYM_TEMPLATES.find((t) => t.id === 'pecho-piernas');   // 27 series
-  const hombros = GYM_TEMPLATES.find((t) => t.id === 'hombros-triceps'); // 42 series
-  assert.equal(goalFor(gym, { templateId: pecho.id }), 27);
-  assert.equal(goalFor(gym, { templateId: hombros.id }), 42);
+  const pecho = GYM_TEMPLATES.find((t) => t.id === 'pecho-piernas');
+  const hombros = GYM_TEMPLATES.find((t) => t.id === 'hombros-triceps');
+  // Las cifras salen de la plantilla y no escritas a mano: agregar o sacar un
+  // ejercicio es algo normal, y no tiene por qué romper este test.
+  assert.equal(goalFor(gym, { templateId: pecho.id }), plannedSets(pecho));
+  assert.equal(goalFor(gym, { templateId: hombros.id }), plannedSets(hombros));
+  assert.notEqual(plannedSets(pecho), plannedSets(hombros), 'las dos rutinas son de distinto largo');
   assert.equal(goalFor(gym, null), gym.goal, 'una sesión libre usa la meta genérica');
 
   // Completar la rutina corta y la larga valen lo mismo.
