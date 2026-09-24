@@ -674,13 +674,18 @@ test('dice cuándo cae el próximo título al ritmo actual', () => {
   assert.ok(Math.abs(rapido.dias - Math.ceil(p.dias / 2)) <= 1);
 });
 
-test('suma los niveles enteros que faltan hasta el título', () => {
-  // Del 6 al 9 hay tres niveles, así que falta más XP que del 8 al 9.
-  const lejos = proyeccionDeRango(jugador(6, 0, 400), HOY);
-  const cerca = proyeccionDeRango(jugador(8, 0, 400), HOY);
-  assert.equal(lejos.nivel, 9);
-  assert.equal(cerca.nivel, 9);
-  assert.ok(lejos.xpFaltante > cerca.xpFaltante);
+test('proyecta al nombre siguiente, que ahora es el nivel siguiente', () => {
+  // Con un nombre por nivel el próximo título es siempre el de arriba.
+  const p = proyeccionDeRango(jugador(23, 0, 400), HOY);
+  assert.equal(p.nivel, 24);
+  assert.equal(p.titulo.name, 'Epaminondas');
+});
+
+test('cuanto más alto el nivel, más XP pide el siguiente', () => {
+  // La curva es creciente: subir del 30 al 31 cuesta más que del 8 al 9.
+  const bajo = proyeccionDeRango(jugador(8, 0, 400), HOY);
+  const alto = proyeccionDeRango(jugador(30, 0, 400), HOY);
+  assert.ok(alto.xpFaltante > bajo.xpFaltante);
 });
 
 test('lo que ya tenés dentro del nivel descuenta', () => {

@@ -47,6 +47,10 @@ export function render({ params, navigate, celebrate }) {
         el('h1', { style: 'font-size:1.2rem', text: `${a.icon} ${a.name}` }),
         el('div', { class: 'quest__meta', style: 'margin-top:6px' },
           esHabito ? null : chip(st.tier.name, 'chip--tier', `--t:${colorDeRango(st.tier, st.tier.index) || colorDe(a)}`),
+          // En el gimnasio el rango sale de la escala de fuerza, así que se
+          // muestra también con el nombre de la escala: si no, la tarjeta y el
+          // análisis hablan de lo mismo con dos vocabularios distintos.
+          st.strengthOverall ? chip(`fuerza ${st.strengthOverall.name.toLowerCase()}`) : null,
           chip(`📅 ${a.streakMode === 'weekly' && !a.days?.length
             ? `${a.weeklyTarget}× por semana`
             : scheduleLabel(a.days)}`),

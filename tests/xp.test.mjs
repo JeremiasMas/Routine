@@ -207,16 +207,28 @@ test('una sesión mezclada suma cada ejercicio como corresponde', () => {
   assert.equal(gymVolume(sesion), 640);
 });
 
-test('hay veinte rangos y el último cae justo en el nivel 60', async () => {
+test('hay un nombre por nivel, del 1 al 60, sin huecos ni repetidos', async () => {
   const { PLAYER_TITLES } = await import('../js/config.js');
-  assert.equal(PLAYER_TITLES.length, 20);
-  assert.equal(PLAYER_TITLES[0].min, 1, 'el primero arranca en el nivel 1');
-  assert.equal(PLAYER_TITLES.at(-1).min, 60, 'el último tiene que caer redondo');
-  // El primero dura cinco niveles; de ahí en más, uno cada tres.
-  assert.equal(PLAYER_TITLES[1].min, 6);
-  for (let i = 2; i < PLAYER_TITLES.length; i++) {
-    assert.equal(PLAYER_TITLES[i].min - PLAYER_TITLES[i - 1].min, 3,
-      `entre ${PLAYER_TITLES[i - 1].name} y ${PLAYER_TITLES[i].name} no hay tres niveles`);
+  assert.equal(PLAYER_TITLES.length, 60);
+  assert.deepEqual(PLAYER_TITLES.map((t) => t.min), Array.from({ length: 60 }, (_, i) => i + 1),
+    'cada nivel tiene el suyo y ninguno se saltea');
+  assert.equal(PLAYER_TITLES[0].name, 'Leónidas');
+  assert.equal(PLAYER_TITLES.at(-1).name, 'Gengis Kan', 'el último cae en el 60 redondo');
+});
+
+test('los veinte de siempre siguen en su nivel exacto', async () => {
+  // Cambiar dónde cae uno le habría movido el rango a alguien que ya lo tenía.
+  const { PLAYER_TITLES } = await import('../js/config.js');
+  const ANCLAS = {
+    1: 'Leónidas', 6: 'Milcíades', 9: 'Temístocles', 12: 'Escipión', 15: 'Wellington',
+    18: 'Eisenhower', 21: 'Saladino', 24: 'Epaminondas', 27: 'Julio César', 30: 'Zhukov',
+    33: 'Gustavo Adolfo', 36: 'Tamerlán', 39: 'Subotai', 42: 'Jaled ibn al-Walid',
+    45: 'Alejandro Magno', 48: 'Napoleón', 51: 'Federico el Grande', 54: 'Belisario',
+    57: 'Aníbal', 60: 'Gengis Kan',
+  };
+  for (const [nivel, nombre] of Object.entries(ANCLAS)) {
+    assert.equal(PLAYER_TITLES.find((t) => t.min === Number(nivel))?.name, nombre,
+      `el nivel ${nivel} dejó de ser ${nombre}`);
   }
 });
 
@@ -239,24 +251,24 @@ test('cada rango tiene nombre y explicación', async () => {
   }
 });
 
-test('el rango de un nivel es el último alcanzado, no el siguiente', async () => {
+test('cada nivel estrena su propio nombre', async () => {
   const { playerTitleFor } = await import('../js/xp.js');
+  const { PLAYER_TITLES } = await import('../js/config.js');
+  for (let n = 1; n <= 60; n++) {
+    assert.equal(playerTitleFor(n).min, n, `el nivel ${n} no estrena nombre`);
+  }
   assert.equal(playerTitleFor(1).name, 'Leónidas');
-  assert.equal(playerTitleFor(5).name, 'Leónidas', 'el primero dura cinco niveles');
-  assert.equal(playerTitleFor(6).name, 'Milcíades', 'el 6 estrena el segundo');
-  assert.equal(playerTitleFor(8).name, 'Milcíades');
-  assert.equal(playerTitleFor(59).name, 'Aníbal', 'el 60 todavía no');
   assert.equal(playerTitleFor(60).name, 'Gengis Kan', 'el último cae en el 60 redondo');
-  assert.equal(playerTitleFor(500).name, 'Gengis Kan', 'pasado el 60 se sigue subiendo, pero no hay rango nuevo');
+  assert.equal(playerTitleFor(500).name, 'Gengis Kan', 'pasado el 60 se sigue subiendo, pero no hay nombre nuevo');
+  assert.equal(new Set(PLAYER_TITLES.map((t) => t.name)).size, 60, 'ninguno repetido');
   assert.equal(playerTitleFor(0).name, 'Leónidas', 'antes del primero tampoco se rompe');
 });
 
-test('los rangos cubren toda la escalera sin huecos', async () => {
+test('ningún nombre queda inalcanzable', async () => {
   const { playerTitleFor } = await import('../js/xp.js');
+  const { PLAYER_TITLES } = await import('../js/config.js');
   const vistos = new Set();
   for (let n = 1; n <= 60; n++) vistos.add(playerTitleFor(n).name);
-  assert.equal(vistos.size, 20, `sólo se alcanzan ${vistos.size} rangos en 60 niveles`);
-  // Y ninguno queda inalcanzable por caer más allá del último.
-  const { PLAYER_TITLES } = await import('../js/config.js');
+  assert.equal(vistos.size, 60, `sólo se alcanzan ${vistos.size} nombres en 60 niveles`);
   for (const t of PLAYER_TITLES) assert.ok(vistos.has(t.name), `${t.name} nunca se alcanza`);
 });

@@ -54,7 +54,12 @@ export const DEFAULT_ACTIVITIES = [
     // El nivel no lo dan las sesiones sino la fuerza lograda: cada nombre
     // corresponde a una banda de la escala de fuerza relativa.
     rankBy: 'strength',
-    tierNames: ['Novato de sala', 'Fierrero', 'Atleta', 'Fuerte', 'Bestia', 'Titán'],
+    // Estos nombres se apoyan sobre las bandas de fuerza, no sobre la XP, así
+    // que tienen que decir lo mismo que ellas. Antes corrían un escalón
+    // adelantados: a un "Novato" lo llamaban "Atleta" y a un "Intermedio",
+    // "Fuerte". Un rango que te sobrevalora deja de significar algo.
+    //   Empezando · Principiante · Novato · Intermedio · Avanzado · Élite
+    tierNames: ['Recién llegado', 'Novato de sala', 'Fierrero', 'Atleta', 'Bestia', 'Titán'],
     motto: 'La rutina no se negocia, se hace.',
   },
   {
@@ -259,7 +264,7 @@ export const GYM_TEMPLATES = [
       { name: 'Vuelo lateral con mancuerna horizontal', db: true, grupo: 'hombros', rango: 'liviano' },
       { name: 'Vuelo posterior', db: true, grupo: 'hombros', tambien: ['espalda'], rango: 'liviano' },
       { name: 'Fondo de tríceps', bw: true, grupo: 'triceps', tambien: ['pecho', 'hombros'], rango: 'medio' },
-      { name: 'Encogimientos de trapecio', db: true, grupo: 'espalda', rango: 'medio' },
+      { name: 'Encogimientos de trapecio', grupo: 'espalda', rango: 'medio' },
       { name: 'Press militar', db: true, grupo: 'hombros', tambien: ['triceps'], rango: 'pesado' },
       { name: 'Arnold con polea', grupo: 'hombros', tambien: ['triceps'], rango: 'medio' },
       { name: 'Tríceps supino', grupo: 'triceps', rango: 'medio' },
@@ -394,40 +399,76 @@ export const DEFAULT_TIER_NAMES = TIERS.map((t) => t.name);
 
 /** Rangos del jugador (nivel global). */
 /**
- * Rangos de jugador: veinte generales, del nivel 1 al 60.
+ * Un general por nivel, del 1 al 60, ordenados por dificultad de lo logrado.
  *
- * El primero dura cinco niveles —cambiar de rango a los tres días no
- * significaría nada— y de ahí en más se sube cada tres, hasta que Gengis Kan
- * cae exactamente en el 60. Pasado el 60 se sigue subiendo de nivel, pero ya
- * no hay rango nuevo: el último es el último.
+ * No por fama ni por tamaño del imperio: por lo improbable que era el
+ * resultado desde donde arrancaron. Por eso Alejandro, que heredó el mejor
+ * ejército de su tiempo, está más abajo que Belisario, que hizo lo suyo con
+ * ejércitos diminutos y el emperador en contra.
  *
- * El orden no es cronológico ni de fama, sino de dificultad de lo logrado: de
- * lo más acotado a lo más improbable. Por eso Escipión va antes que Aníbal
- * aunque lo haya vencido —tenía a Roma entera detrás— y Eisenhower antes que
- * Belisario, que hizo algo comparable con muchísimo menos.
- *
- * Cada `nota` es por qué está en ese escalón, no un dato de enciclopedia.
+ * Los veinte que ya estaban conservan su nivel exacto: cambiar dónde caen
+ * habría movido el rango de alguien que ya lo tenía.
  */
 export const PLAYER_TITLES = [
   { min: 1, name: 'Leónidas', nota: '300 hombres, tres días, un desfiladero.' },
+  { min: 2, name: 'Arminio', nota: 'Tres legiones desaparecidas en un bosque de Germania.' },
+  { min: 3, name: 'Boudica', nota: 'Casi le arranca Britania a Roma con un levantamiento.' },
+  { min: 4, name: 'Vercingétorix', nota: 'Unió a la Galia entera contra César, y estuvo cerca.' },
+  { min: 5, name: 'Espartaco', nota: 'Un ejército de esclavos que derrotó a legiones consulares.' },
   { min: 6, name: 'Milcíades', nota: 'Maratón: diez mil atenienses contra un imperio.' },
+  { min: 7, name: 'Lisandro', nota: 'Ganó en el mar la guerra que Esparta no ganaba en tierra.' },
+  { min: 8, name: 'Jenofonte', nota: 'Diez mil griegos perdidos en Persia, y los trajo de vuelta.' },
   { min: 9, name: 'Temístocles', nota: 'Construyó una flota y con ella ganó Salamina.' },
+  { min: 10, name: 'Camilo', nota: 'Recuperó Roma de los galos y la volvió a levantar.' },
+  { min: 11, name: 'Fabio Máximo', nota: 'Salvó a Roma negándose a dar batalla, con todos en contra.' },
   { min: 12, name: 'Escipión', nota: 'Venció al invicto, con Roma entera detrás.' },
+  { min: 13, name: 'Mario', nota: 'Rehízo el ejército romano y frenó la invasión del norte.' },
+  { min: 14, name: 'Sertorio', nota: 'Aguantó ocho años en Hispania contra el poder de Roma.' },
   { min: 15, name: 'Wellington', nota: 'Nunca perdió una batalla; tampoco le faltó nada.' },
+  { min: 16, name: 'Nelson', nota: 'Destruyó la flota que iba a invadir Inglaterra, y murió ganando.' },
+  { min: 17, name: 'Marlborough', nota: 'Cuatro batallas grandes, cuatro victorias, ninguna derrota.' },
   { min: 18, name: 'Eisenhower', nota: 'La operación más grande jamás montada.' },
+  { min: 19, name: 'Rommel', nota: 'Dos años sosteniendo África con lo que a otros les sobraba.' },
+  { min: 20, name: 'Slim', nota: 'Dio vuelta el peor frente de la guerra, y casi nadie lo recuerda.' },
   { min: 21, name: 'Saladino', nota: 'Unificó un mundo dividido y recuperó Jerusalén.' },
+  { min: 22, name: 'Ricardo Corazón de León', nota: 'Cruzó medio mundo para pelear la guerra de otro.' },
+  { min: 23, name: 'Juana de Arco', nota: 'Diecisiete años, sin formación militar, y dio vuelta una guerra.' },
   { min: 24, name: 'Epaminondas', nota: 'Rompió el mito espartano con menos hombres.' },
+  { min: 25, name: 'Filipo II', nota: 'Construyó el ejército con el que su hijo conquistó el mundo.' },
+  { min: 26, name: 'Pirro', nota: 'Le ganó a Roma dos veces y aun así perdió la guerra.' },
   { min: 27, name: 'Julio César', nota: 'La Galia en inferioridad; después, Roma.' },
+  { min: 28, name: 'Pompeyo', nota: 'Limpió de piratas todo el Mediterráneo en tres meses.' },
+  { min: 29, name: 'Trajano', nota: 'Llevó al imperio a su mayor extensión y volvió con Dacia.' },
   { min: 30, name: 'Zhukov', nota: 'Dio vuelta una guerra que se estaba perdiendo.' },
+  { min: 31, name: 'Rokossovsky', nota: 'Salió de una cárcel de Stalin para deshacer un frente entero.' },
+  { min: 32, name: 'Manstein', nota: 'Contraatacó cuando ya no quedaba nada con qué.' },
   { min: 33, name: 'Gustavo Adolfo', nota: 'Suecia contra el Imperio, y cambió cómo se peleaba.' },
+  { min: 34, name: 'Wallenstein', nota: 'Levantó ejércitos enteros de la nada, y los pagó de su bolsillo.' },
+  { min: 35, name: 'Turenne', nota: 'Treinta años de campañas sin un error grande.' },
   { min: 36, name: 'Tamerlán', nota: 'Rehízo un imperio partiendo de casi nada.' },
+  { min: 37, name: 'Babur', nota: 'Lo perdió todo dos veces y terminó fundando el imperio mogol.' },
+  { min: 38, name: 'Mehmed II', nota: 'Tomó Constantinopla, que llevaba mil años sin caer.' },
   { min: 39, name: 'Subotai', nota: 'Campañas en dos continentes, sin comunicaciones.' },
+  { min: 40, name: 'Atila', nota: 'Hizo temblar a los dos imperios romanos a la vez.' },
+  { min: 41, name: 'Ciro el Grande', nota: 'De reino vasallo al imperio más grande de su tiempo.' },
   { min: 42, name: 'Jaled ibn al-Walid', nota: 'Cien batallas, ninguna perdida, casi siempre en inferioridad.' },
+  { min: 43, name: 'Escanderbeg', nota: 'Veinticinco años aguantando al Imperio Otomano casi solo.' },
+  { min: 44, name: 'Bai Qi', nota: 'Treinta y siete años de campañas sin una sola derrota.' },
   { min: 45, name: 'Alejandro Magno', nota: 'Heredó el mejor ejército y aun así hizo lo improbable.' },
+  { min: 46, name: 'Suvórov', nota: 'Sesenta batallas, sesenta victorias, ni una excepción.' },
+  { min: 47, name: 'Nader Shah', nota: 'De bandido a emperador, y saqueó Delhi en el camino.' },
   { min: 48, name: 'Napoleón', nota: 'De teniente sin fortuna a dueño de Europa, contra siete coaliciones.' },
+  { min: 49, name: 'Carlos XII', nota: 'A los dieciocho años deshizo un ejército cuatro veces mayor.' },
+  { min: 50, name: 'Aureliano', nota: 'Reunificó en cinco años un imperio que estaba partido en tres.' },
   { min: 51, name: 'Federico el Grande', nota: 'Prusia sola contra Austria, Francia y Rusia. Sobrevivió.' },
+  { min: 52, name: 'Heraclio', nota: 'Recuperó el imperio con la capital sitiada y el tesoro vacío.' },
+  { min: 53, name: 'Tariq ibn Ziyad', nota: 'Quemó las naves y no les dejó a los suyos otra opción que ganar.' },
   { min: 54, name: 'Belisario', nota: 'Recuperó medio Imperio con ejércitos diminutos y un emperador en contra.' },
+  { min: 55, name: 'Juan Hunyadi', nota: 'Frenó a los otomanos en los Balcanes cuando nadie más pudo.' },
+  { min: 56, name: 'Shaka Zulu', nota: 'De un clan chico a una nación, con un ejército que inventó él.' },
   { min: 57, name: 'Aníbal', nota: 'Quince años en territorio enemigo, sin refuerzos, invicto en campo.' },
+  { min: 58, name: 'Yi Sun-sin', nota: 'Trece barcos contra trescientos treinta y tres. Ganó.' },
+  { min: 59, name: 'Chandragupta', nota: 'Echó a los griegos y unificó la India partiendo de nadie.' },
   { min: 60, name: 'Gengis Kan', nota: 'Empezó huérfano y esclavo. Terminó con el imperio más grande jamás unido.' },
 ];
 
