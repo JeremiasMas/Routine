@@ -285,6 +285,7 @@ export const GYM_TEMPLATES = [
       { name: 'Pecho plano', grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
       { name: 'Pecho inclinado', grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
       { name: 'Aperturas inclinadas', db: true, grupo: 'pecho', rango: 'medio' },
+      { name: 'Pec deck', grupo: 'pecho', rango: 'medio' },
       { name: 'Sentadilla con barra', grupo: 'cuadriceps', tambien: ['gluteos'], rango: 'pesado' },
       { name: 'Sillón de cuádriceps', grupo: 'cuadriceps', rango: 'medio' },
       { name: 'Camilla de isquiotibiales', grupo: 'isquios', rango: 'medio' },
