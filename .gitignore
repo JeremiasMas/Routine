@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 *.log
+
+# La copia de la web dentro del APK la genera Gradle en cada build.
+android/app/src/main/assets/

@@ -37,8 +37,30 @@ android {
   }
 }
 
+/**
+ * Una copia de la web adentro del APK.
+ *
+ * La app carga la web de GitHub Pages para actualizarse sola, pero sin
+ * conexión esa carga falla y el WebView muestra su pantalla de error: el
+ * service worker no llega a intervenir en la navegación principal. Esta copia
+ * es el respaldo, y se sirve en el mismo origen para no perder el
+ * localStorage, que es donde viven todos los datos.
+ */
+val copiarWeb = tasks.register<Copy>("copiarWeb") {
+  val raiz = rootProject.projectDir.parentFile
+  from(raiz) {
+    include("index.html", "manifest.webmanifest", "sw.js")
+    include("css/**", "js/**", "icons/**")
+  }
+  into(layout.projectDirectory.dir("src/main/assets"))
+}
+tasks.named("preBuild") { dependsOn(copiarWeb) }
+
 dependencies {
   implementation("androidx.core:core-ktx:1.15.0")
+  // WebViewAssetLoader: sirve los archivos del APK bajo el mismo dominio que
+  // la web, así el origen no cambia y los datos siguen siendo los mismos.
+  implementation("androidx.webkit:webkit:1.12.1")
   implementation("androidx.appcompat:appcompat:1.7.0")
   implementation("androidx.activity:activity-ktx:1.9.3")
   // Health Connect: por acá Samsung Health comparte los pasos.

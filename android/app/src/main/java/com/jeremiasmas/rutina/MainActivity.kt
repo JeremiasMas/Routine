@@ -13,6 +13,9 @@ import android.provider.MediaStore
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -22,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebViewAssetLoader
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
@@ -46,6 +50,22 @@ class MainActivity : AppCompatActivity() {
   private var origenElegido: String? = null
   private var margenes = Margenes(0, 0, 0, 0)
   private var rutaPedida: String? = null
+  private var sinConexion = false
+
+  /**
+   * La copia de la web que viene adentro del APK, servida bajo el MISMO
+   * dominio y la misma ruta que GitHub Pages.
+   *
+   * Que el origen no cambie es lo único que importa acá: el localStorage está
+   * atado al origen, así que un respaldo servido desde file:// o desde
+   * cualquier otro dominio abriría la app vacía, sin un solo registro.
+   */
+  private val copiaLocal by lazy {
+    WebViewAssetLoader.Builder()
+      .setDomain(DOMINIO)
+      .addPathHandler(RUTA, WebViewAssetLoader.AssetsPathHandler(this))
+      .build()
+  }
 
   /** Los márgenes del sistema, en píxeles de CSS. */
   data class Margenes(val top: Int, val bottom: Int, val left: Int, val right: Int)
@@ -129,6 +149,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     web.webViewClient = object : WebViewClient() {
+      /**
+       * Sin conexión, cargar de la red falla y el WebView muestra su propia
+       * pantalla de error: el service worker no llega a intervenir en la
+       * navegación principal, que es lo que hacía que la app no abriera.
+       * Acá se cambia a la copia del APK y se vuelve a cargar.
+       */
+      override fun onReceivedError(
+        view: WebView,
+        request: WebResourceRequest,
+        error: WebResourceError,
+      ) {
+        if (!request.isForMainFrame || sinConexion) {
+          super.onReceivedError(view, request, error)
+          return
+        }
+        sinConexion = true
+        view.loadUrl(OFFLINE + (rutaPedida ?: ""))
+      }
+
+      override fun shouldInterceptRequest(
+        view: WebView,
+        request: WebResourceRequest,
+      ): WebResourceResponse? {
+        // Mientras haya red no se toca nada: así la app se sigue actualizando
+        // sola con lo que haya en GitHub Pages.
+        if (!sinConexion) return null
+        return copiaLocal.shouldInterceptRequest(request.url)
+      }
+
       override fun onPageFinished(view: WebView?, url: String?) {
         webLista = true
         // La web no tiene que volver a descontar los márgenes: ya los
@@ -403,6 +452,13 @@ class MainActivity : AppCompatActivity() {
     /** Con qué pantalla abrir, cuando venís de tocar una misión del widget. */
     const val EXTRA_RUTA = "ruta"
     const val WEB = "https://jeremiasmas.github.io/Routine/"
+    // Las tres piezas de WEB, separadas porque el respaldo local tiene que
+    // servirse exactamente bajo el mismo dominio y la misma ruta.
+    const val DOMINIO = "jeremiasmas.github.io"
+    const val RUTA = "/Routine/"
+    // La copia del APK se pide por su nombre: un manejador de assets no sabe
+    // servir el índice de un directorio, así que WEB a secas daría 404.
+    const val OFFLINE = WEB + "index.html"
     const val PLAY_HEALTH_CONNECT =
       "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
   }

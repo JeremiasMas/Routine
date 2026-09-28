@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // El APK sólo se puede compilar en CI, así que un error de sintaxis cuesta una
@@ -369,4 +369,76 @@ test('lo que el código le pasa a cada texto coincide con sus marcadores', () =>
     }
   }
   assert.ok(revisadas > 0, 'no revisé ninguna llamada a getString');
+});
+
+// ---------------------------------------------------------------------------
+// La copia que abre sin conexión
+//
+// Sin red, cargar de GitHub Pages falla y el WebView muestra su pantalla de
+// error: el service worker no interviene en la navegación principal. El
+// respaldo es una copia dentro del APK, y lo único que la hace segura es que
+// se sirva en el MISMO origen: el localStorage está atado al origen, así que
+// un respaldo mal apuntado no da un error, da una app vacía.
+// ---------------------------------------------------------------------------
+
+const constante = (nombre) => {
+  const m = new RegExp(`const val ${nombre} = ([^\\n]+)`).exec(leer(MAIN))?.[1]?.trim();
+  if (!m) return null;
+  // Admite "literal" y también WEB + "literal".
+  return [...m.matchAll(/"([^"]*)"/g)].map((x) => x[1]);
+};
+
+test('el respaldo local se sirve en el mismo origen que la web', () => {
+  const web = constante('WEB')?.[0];
+  const dominio = constante('DOMINIO')?.[0];
+  const ruta = constante('RUTA')?.[0];
+  assert.ok(web && dominio && ruta, 'faltan WEB, DOMINIO o RUTA');
+  assert.equal(`https://${dominio}${ruta}`, web,
+    'el dominio y la ruta del respaldo no reconstruyen WEB: offline abriría vacía');
+});
+
+test('la copia local se pide por su nombre, no por el directorio', () => {
+  // Un manejador de assets no sabe servir el índice de un directorio.
+  const partes = constante('OFFLINE');
+  assert.deepEqual(partes, ['index.html'], 'OFFLINE tiene que ser WEB + "index.html"');
+  assert.match(leer(MAIN), /const val OFFLINE = WEB \+ "index\.html"/);
+});
+
+test('el respaldo sólo se usa cuando la red falla', () => {
+  // Interceptar siempre mataría la actualización automática: la app dejaría
+  // de tomar lo que se sube a GitHub Pages.
+  const kt = leer(MAIN);
+  assert.match(kt, /if \(!sinConexion\) return null/,
+    'shouldInterceptRequest tiene que dejar pasar todo mientras haya red');
+  assert.match(kt, /request\.isForMainFrame/,
+    'sólo el fallo de la navegación principal debe disparar el cambio');
+});
+
+test('el APK se lleva todo lo que la web necesita para abrir sola', () => {
+  // Si Gradle no copia algo que el service worker cachea, ese archivo no
+  // existe sin conexión y la app abre rota en vez de no abrir.
+  const gradle = leer('android/app/build.gradle.kts');
+  const bloque = /tasks\.register<Copy>\("copiarWeb"\)[\s\S]*?\n\}/.exec(gradle)?.[0];
+  assert.ok(bloque, 'no encontré la tarea que copia la web al APK');
+  const incluidos = [...bloque.matchAll(/include\(([^)]*)\)/g)]
+    .flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  assert.ok(incluidos.length > 0, 'la tarea no incluye nada');
+
+  const cubre = (ruta) => incluidos.some((p) => (p.endsWith('/**')
+    ? ruta.startsWith(p.slice(0, -2))
+    : p === ruta));
+
+  const sw = leer('sw.js');
+  const cacheados = [...sw.matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
+  assert.ok(cacheados.length > 20, `esperaba muchos archivos, encontré ${cacheados.length}`);
+  const faltan = cacheados.filter((r) => !cubre(r));
+  assert.deepEqual(faltan, [], `el APK no se lleva: ${faltan.join(', ')}`);
+});
+
+test('todo lo que el service worker cachea existe de verdad', () => {
+  // Un archivo que no existe hace fallar cache.addAll entero, y entonces no
+  // hay modo offline en ningún lado.
+  const cacheados = [...leer('sw.js').matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
+  const faltan = cacheados.filter((r) => !existsSync(r));
+  assert.deepEqual(faltan, [], `en sw.js pero no en el repo: ${faltan.join(', ')}`);
 });
