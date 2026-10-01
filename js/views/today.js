@@ -4,7 +4,7 @@ import {
   weekStart, weekLabel, dayName, keyToDate, plural,
 } from '../utils.js';
 import { getState, backupVencido, diasSinBackup, setEntry } from '../state.js';
-import { isScheduled, goalFor } from '../derive.js';
+import { isScheduledWithPauses, goalFor } from '../derive.js';
 import { templateForDay, templateById } from '../config.js';
 import { ring, chip, xpBar } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
@@ -12,6 +12,7 @@ import { colorDe } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
 import { enApp } from '../native.js';
 import { puedeUnToque } from '../resumen.js';
+import { tramos } from '../pausas.js';
 
 let viewDate = todayKey();
 
@@ -32,10 +33,13 @@ export function render({ navigate, celebrate }) {
     el('button', { 'aria-label': 'Día siguiente', disabled: isToday, onClick: () => { viewDate = addDays(viewDate, 1); navigate(); } }, '›')));
 
   // Lo que toca hoy según tu semana; el resto queda como extra, no como falta.
-  const toca = state.activities.filter((a) => isScheduled(a, viewDate));
+  // Un permiso declarado saca su misión del tablero: si ya dijiste que ese
+  // martes no ibas a muay thai, el día no tiene por qué recordártelo.
+  const toca = state.activities.filter((a) => isScheduledWithPauses(a, viewDate, state.pausas));
   // Incluye el gimnasio y el muay thai en sus días libres (para el día 4 opcional),
-  // pero no las misiones puramente semanales como Substack.
-  const extra = state.activities.filter((a) => !isScheduled(a, viewDate)
+  // pero no las misiones puramente semanales como Substack. Lo perdonado también
+  // cae acá: queda a mano por si al final llegás a hacerlo.
+  const extra = state.activities.filter((a) => !isScheduledWithPauses(a, viewDate, state.pausas)
     && (a.streakMode !== 'weekly' || a.days?.length));
   const semanales = state.activities.filter((a) => a.streakMode === 'weekly');
   const hechas = toca.filter((a) => state.byActivity.get(a.id)?.byDate.get(viewDate)?.met).length;
@@ -47,7 +51,7 @@ export function render({ navigate, celebrate }) {
   // Lo que se pierde hoy si no hacés nada. Sólo en el día de hoy: en un día
   // pasado ya no hay nada que decidir.
   if (viewDate === state.today) {
-    const riesgo = rachasEnRiesgo([...state.byActivity.values()], (a) => isScheduled(a, viewDate));
+    const riesgo = rachasEnRiesgo([...state.byActivity.values()], (a) => isScheduledWithPauses(a, viewDate, state.pausas));
     if (riesgo.length) root.append(avisoDeRacha(riesgo));
   }
 
@@ -67,6 +71,12 @@ export function render({ navigate, celebrate }) {
         el('div', { class: 'stat__value', text: `${formatNumber(dayXp)}` }),
         el('div', { class: 'stat__label', text: 'XP del día' }))),
     el('div', { style: 'margin-top:10px' }, xpBar(toca.length ? hechas / toca.length : 0))));
+
+  // --- Lo que este día tiene perdonado ---
+  // Las misiones perdonadas desaparecen del tablero, y sin decirlo parecería
+  // que la app se las olvidó.
+  const avisos = avisoDePausa(state, viewDate);
+  if (avisos) root.append(avisos);
 
   // --- Lo que toca hoy ---
   root.append(el('div', { class: 'section-title' },
@@ -205,6 +215,31 @@ function weekStrip(state) {
 export function setViewDate(key) { viewDate = key; }
 export function getViewDate() { return viewDate; }
 
+
+/**
+ * Lo que este día tiene declarado libre, y por qué. Sin esto una misión
+ * perdonada simplemente no aparece, y eso se lee como un error de la app.
+ */
+function avisoDePausa(state, fecha) {
+  const cubren = tramos(state.pausas).filter((t) => fecha >= t.desde && fecha <= t.hasta);
+  if (!cubren.length) return null;
+
+  const lineas = cubren.map((t) => {
+    const nombres = (t.actividades || [])
+      .map((id) => state.activities.find((a) => a.id === id))
+      .filter(Boolean)
+      .map((a) => `${a.icon} ${a.name}`);
+    const alcance = t.actividades
+      ? (nombres.length ? nombres.join(', ') : 'Lo declarado')
+      : 'Todo el día';
+    return el('div', { class: 'row__sub', text: t.motivo ? `${alcance} · ${t.motivo}` : alcance });
+  });
+
+  return el('div', { class: 'card', style: 'margin-bottom:4px' },
+    el('div', { style: 'font-weight:700', text: '🌴 Declarado libre' }),
+    lineas,
+    el('div', { class: 'row__sub', style: 'margin-top:6px', text: 'No corta rachas. Si al final lo hacés, suma igual.' }));
+}
 
 /** Qué rachas están en juego hoy, en una frase que se pueda usar. */
 function avisoDeRacha(riesgo) {

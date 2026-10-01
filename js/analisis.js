@@ -82,16 +82,20 @@ export function constancia(st, hoy, opciones = {}) {
     if (w < inicio) w = addDays(w, 7);   // la primera semana arrancó incompleta
     for (; addDays(w, 6) <= hoy; w = addDays(w, 7)) {
       const dias7 = Array.from({ length: 7 }, (_, i) => addDays(w, i));
-      if (dias7.every(libre)) continue;  // semana entera de pausa: no se juzga
+      // La meta de la semana ya viene con lo que perdonó una pausa descontado,
+      // y en cero significa que no quedó nada que pedirle: no se juzga.
+      const meta = metaSemanal(a, w);
+      if (meta <= 0) continue;
       let hechas = 0;
       for (const d of dias7) {
-        if (libre(d)) continue;
+        // Las sesiones de un día perdonado cuentan igual: haber ido cuando
+        // nada te obligaba no debería restar.
         const reg = porFecha.get(d);
         if (!reg || !(reg.value > 0)) continue;
         hechas += a.kind === 'writing' ? reg.value : 1;
       }
       total += 1;
-      if (hechas >= metaSemanal(a, w)) cumplidos += 1;
+      if (hechas >= meta) cumplidos += 1;
     }
     if (!total) return null;
     return { total, cumplidos, pct: cumplidos / total, modo: 'semanal' };
@@ -100,7 +104,7 @@ export function constancia(st, hoy, opciones = {}) {
   let total = 0;
   let cumplidos = 0;
   for (let d = inicio; d <= hoy; d = addDays(d, 1)) {
-    if (libre(d)) continue;
+    if (libre(d, a.id)) continue;
     if (!tocaba(a, d)) continue;
     total += 1;
     if (porFecha.get(d)?.met) cumplidos += 1;
@@ -562,7 +566,8 @@ export function rachasEnRiesgo(estados, tocaHoy) {
  *
  * @param {object} state   el estado derivado
  * @param {string} lunes   el primer día de la semana a resumir
- * @param {function} libre   si un día estaba declarado libre
+ * @param {function} libre   si un día estaba declarado libre. Recibe también
+ *   el id de la disciplina, porque un tramo puede perdonar sólo algunas.
  * @param {function} tocaba  si una actividad estaba agendada ese día. Se pasa
  *   de afuera porque vive en el motor, y el motor ya depende de este módulo.
  */
@@ -577,7 +582,7 @@ export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () 
       let cumplidos = 0;
       let total = 0;
       for (const d of rango) {
-        if (libre(d)) continue;
+        if (libre(d, st.id)) continue;
         const reg = st.byDate.get(d);
         if (reg) { total += reg.value; if (reg.met) cumplidos += 1; }
         if (tocaba(st.activity, d)) agendados += 1;
@@ -600,7 +605,9 @@ export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () 
   const xp = dias.reduce((n, d) => n + (state.daily.get(d)?.xp || 0), 0);
   const xpAnterior = anterior.reduce((n, d) => n + (state.daily.get(d)?.xp || 0), 0);
   const perfectos = dias.filter((d) => state.daily.get(d)?.perfect).length;
-  const diasLibres = dias.filter(libre).length;
+  // Días libres de verdad, los que cubren todo: un permiso de una disciplina
+  // sola no es un día libre.
+  const diasLibres = dias.filter((d) => libre(d)).length;
 
   const subieron = porActividad.filter((x) => x.delta > 0).sort((a, b) => b.delta - a.delta);
   const cayeron = porActividad.filter((x) => x.delta < 0 && x.totalAnterior > 0)

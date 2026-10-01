@@ -8,14 +8,14 @@ import {
 import { colorDe, colorDeRango } from '../theme.js';
 import { bodySummary } from '../body.js';
 import { getData } from '../state.js';
-import { isScheduled, weeklyTargetFor } from '../derive.js';
+import { isScheduled, weeklyTargetWithPauses } from '../derive.js';
 import { esLibre } from '../pausas.js';
 import { juicioDeConstancia } from '../copys.js';
 
 /** La sección entera, para pegar en Progreso. */
 export function seccionAnalisis(state) {
   const cuerpo = el('div', { class: 'list' });
-  const libre = (f) => esLibre(getData().pausas, f);
+  const libre = (f, id) => esLibre(state.pausas, f, id);
   let algo = false;
   for (const st of state.byActivity.values()) {
     const tarjeta = tarjetaDe(st, state, libre);
@@ -36,7 +36,8 @@ function tarjetaDe(st, state, libre) {
   // Medirse más seguido no es progreso, así que la composición corporal no
   // lleva línea de tendencia: su movimiento real es la proyección de grasa.
   const t = a.kind === 'body' ? null : tendencia(st.history, state.today);
-  const c = constancia(st, state.today, { libre, tocaba: isScheduled, metaSemanal: weeklyTargetFor });
+  const metaSemanal = (act, w) => weeklyTargetWithPauses(act, w, state.pausas);
+  const c = constancia(st, state.today, { libre, tocaba: isScheduled, metaSemanal });
   const detalle = detalleDe(st, state);
   if (!t && !c && !detalle) return null;
 

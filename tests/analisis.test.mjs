@@ -134,6 +134,15 @@ test('un día de pausa no es una falta', () => {
   assert.equal(c.cumplidos, 1);
 });
 
+test('la constancia recibe el id, para saber a quién perdona la pausa', () => {
+  // La misma pausa, dos disciplinas: el permiso es sólo para una.
+  const st = estadoDe(DIARIA, [{ date: hace(3), value: 60, met: true }]);
+  const libre = (d, id) => id === 'x' && d === hace(2);
+  assert.equal(constancia(st, HOY, { libre }).total, 3, 'el permiso le saca un día');
+  const otra = estadoDe({ ...DIARIA, id: 'y' }, [{ date: hace(3), value: 60, met: true }]);
+  assert.equal(constancia(otra, HOY, { libre }).total, 4, 'a la otra no le saca nada');
+});
+
 test('con meta semanal cuenta semanas, no días', () => {
   // Mover la sesión del lunes al martes no es faltar: lo que se mide es si
   // la semana llegó al número.
@@ -152,6 +161,20 @@ test('con meta semanal cuenta semanas, no días', () => {
   assert.equal(c.modo, 'semanal');
   assert.equal(c.total, 3);
   assert.equal(c.cumplidos, 2);
+});
+
+test('la meta semanal llega con la pausa ya descontada', () => {
+  // La resta la hace weeklyTargetWithPauses: acá se comprueba que la constancia
+  // la respeta, incluido el cero, que significa "esta semana no se juzga".
+  const semanal = { id: 'gym', name: 'Gym', streakMode: 'weekly', weeklyTarget: 2, unit: 'series' };
+  const l1 = addDays(weekStart(HOY), -7);
+  const st = estadoDe(semanal, [{ date: l1, value: 8, met: false }]);
+  assert.equal(constancia(st, HOY).total, 2, 'dos semanas completas en la ventana');
+  assert.equal(constancia(st, HOY).cumplidos, 0, 'una sola sesión no llega a dos');
+  assert.equal(constancia(st, HOY, { metaSemanal: () => 1 }).cumplidos, 1,
+    'con una ocasión perdonada, la semana del registro cierra');
+  assert.equal(constancia(st, HOY, { metaSemanal: () => 0 }), null,
+    'sin nada que pedirle, no quedan semanas que juzgar');
 });
 
 test('una sesión floja igual cuenta para la semana', () => {
@@ -575,6 +598,21 @@ test('los días declarados libres no cuentan como fallo', async () => {
   const b = sinLibres.porActividad.find((x) => x.id === 'datos');
   assert.ok(a.agendados < b.agendados, 'una semana de descanso pide menos');
   assert.equal(conLibres.diasLibres, 6);
+});
+
+test('un permiso de una disciplina no se cuenta como día libre', async () => {
+  const { resumenSemanal } = await import('../js/analisis.js');
+  const { derive, isScheduled } = await import('../js/derive.js');
+  const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
+  const acts = DEFAULT_ACTIVITIES.filter((a) => ['datos', 'pasos'].includes(a.id));
+  const state = derive({ activities: acts, entries: { '2026-09-14': { datos: { value: 45 }, pasos: { value: 12000 } } },
+    unlocked: {}, settings: {} }, '2026-09-21');
+  // El permiso es sólo para análisis de datos, de martes a domingo.
+  const r = resumenSemanal(state, '2026-09-14',
+    { tocaba: isScheduled, libre: (d, id) => id === 'datos' && d >= '2026-09-15' });
+  assert.equal(r.diasLibres, 0, 'no hubo ningún día libre de verdad');
+  assert.equal(r.porActividad.find((x) => x.id === 'datos').agendados, 1, 'sólo el lunes le pide algo');
+  assert.equal(r.porActividad.find((x) => x.id === 'pasos').agendados, 7, 'los pasos siguen todos los días');
 });
 
 test('una semana sin nada se declara vacía en vez de fingir', async () => {

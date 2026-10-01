@@ -551,45 +551,74 @@ function selectorDeTema(navigate) {
  * Declarar días que no cuentan. Los escudos cubren un despiste suelto, pero un
  * viaje de una semana se los come y corta la racha igual, que es castigar por
  * vivir. Lo que no hace es regalar XP: descansar no es entrenar.
+ *
+ * Un tramo puede cubrir el día entero o una disciplina sola: un evento de
+ * trabajo que te deja sin muay thai un martes no es razón para perdonar
+ * también el gimnasio y el agua de ese martes.
  */
 function tarjetaDePausas(navigate) {
-  const lista = tramos(getData().pausas);
+  const data = getData();
+  const lista = tramos(data.pausas);
   const card = el('div', { class: 'card' });
+
+  /** Qué cubre un tramo, dicho en palabras. null = el día entero. */
+  const alcance = (t) => {
+    if (!t.actividades) return null;
+    const nombres = t.actividades
+      .map((id) => data.activities.find((a) => a.id === id))
+      .filter(Boolean)
+      .map((a) => `${a.icon} ${a.name}`);
+    return nombres.length ? `Sólo ${nombres.join(', ')}` : 'Sólo disciplinas que ya no están';
+  };
 
   card.append(el('p', { class: 'hint' },
     'Un tramo declarado libre sale del cálculo: no suma XP ni corta rachas. ',
-    'Para un viaje o una gripe, que no son falta de constancia.'));
+    'Para un viaje o una gripe, que no son falta de constancia. ',
+    'Si el que falló fue un solo entrenamiento —un evento de trabajo y te perdiste muay thai—, ',
+    'elegí esa disciplina y el resto del día sigue contando.'));
 
   if (lista.length) {
     card.append(el('div', { class: 'list', style: 'margin-top:12px' },
-      lista.slice().reverse().map((t) => el('div', { class: 'row' },
-        el('div', { class: 'row__main' },
-          el('div', { text: t.desde === t.hasta ? shortDate(t.desde) : `${shortDate(t.desde)} → ${shortDate(t.hasta)}` }),
-          el('div', { class: 'row__sub', text: `${largo(t)} ${largo(t) === 1 ? 'día' : 'días'}${t.motivo ? ` · ${t.motivo}` : ''}` })),
-        el('button', { class: 'icon-btn', 'aria-label': 'Quitar', onClick: () => {
-          quitarPausa(t.desde);
-          navigate?.();
-          toast('↩', 'Ese tramo vuelve a contar.');
-        } }, '🗑')))));
+      lista.slice().reverse().map((t) => {
+        const solo = alcance(t);
+        const partes = [`${largo(t)} ${largo(t) === 1 ? 'día' : 'días'}`];
+        if (solo) partes.push(solo);
+        if (t.motivo) partes.push(t.motivo);
+        return el('div', { class: 'row' },
+          el('div', { class: 'row__main' },
+            el('div', { text: t.desde === t.hasta ? shortDate(t.desde) : `${shortDate(t.desde)} → ${shortDate(t.hasta)}` }),
+            el('div', { class: 'row__sub', text: partes.join(' · ') })),
+          el('button', { class: 'icon-btn', 'aria-label': 'Quitar', onClick: () => {
+            quitarPausa(t.desde, t.actividades || []);
+            navigate?.();
+            toast('↩', 'Ese tramo vuelve a contar.');
+          } }, '🗑'));
+      })));
   }
 
   const desde = el('input', { type: 'date', value: todayKey() });
   const hasta = el('input', { type: 'date', value: todayKey() });
   const motivo = el('input', { type: 'text', placeholder: 'Motivo (opcional)', maxlength: '60' });
+  const quien = el('select', {},
+    el('option', { value: '', text: 'Todo el día' }),
+    data.activities.map((a) => el('option', { value: a.id, text: `Sólo ${a.icon} ${a.name}` })));
 
   card.append(
     el('div', { class: 'field-row', style: 'margin-top:12px' },
       el('div', { class: 'field' }, el('label', { text: 'Desde' }), desde),
       el('div', { class: 'field' }, el('label', { text: 'Hasta' }), hasta)),
+    el('div', { class: 'field' }, el('label', { text: 'Qué protege' }), quien),
     el('div', { class: 'field' }, el('label', { text: 'Motivo' }), motivo),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn btn--primary', style: '--c:#f59e0b', onClick: () => {
         if (!desde.value) return;
         const fin = hasta.value && hasta.value >= desde.value ? hasta.value : desde.value;
-        agregarPausa({ desde: desde.value, hasta: fin, motivo: motivo.value });
+        const actividades = quien.value ? [quien.value] : [];
+        agregarPausa({ desde: desde.value, hasta: fin, motivo: motivo.value, actividades });
         motivo.value = '';
         navigate?.();
-        toast('🌴', 'Esos días dejan de contar.');
+        const nombre = data.activities.find((a) => a.id === quien.value)?.name;
+        toast('🌴', nombre ? `${nombre} deja de contar esos días.` : 'Esos días dejan de contar.');
       } }, 'Declarar libres')));
 
   return card;
@@ -607,7 +636,7 @@ function tarjetaDePausas(navigate) {
  */
 function doExportCsv() {
   const state = getState();
-  const libre = (fecha) => esLibre(getData().pausas, fecha);
+  const libre = (fecha, id) => esLibre(state.pausas, fecha, id);
   const fecha = todayKey();
   const archivos = [
     [`rutina-diario-${fecha}.csv`, filasACsv(filasDeHistorial(state, { libre }), COLUMNAS)],

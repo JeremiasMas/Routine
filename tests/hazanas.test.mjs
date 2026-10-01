@@ -299,3 +299,27 @@ test('el completista pide todos los demás', () => {
   assert.equal(def.progress({ logrosDesbloqueados: 97, logrosTotales: 97 }), 1);
   assert.equal(def.progress({ logrosDesbloqueados: 0, logrosTotales: 0 }), 0, 'cero de cero no cuenta');
 });
+
+test('"En vacaciones no" avanza cuando cumplís igual estando de pausa', () => {
+  // Siete días seguidos cumpliendo análisis de datos, los siete declarados
+  // libres. Sin la pausa el logro no tendría sentido; con la pausa y sin
+  // mirar `perfectoIgual` no avanzaba nunca, porque un día libre no agenda nada.
+  const entries = {};
+  for (let i = 6; i >= 0; i--) entries[addDays(HOY, -i)] = { datos: { value: 45 } };
+  const data = build(acts(['datos']), entries);
+  data.pausas = [{ desde: addDays(HOY, -6), hasta: HOY, motivo: 'Viaje' }];
+  assert.equal(logro(derive(data, HOY), 'en-vacaciones-no').progress, 7);
+
+  const sinPausa = build(acts(['datos']), entries);
+  assert.equal(logro(derive(sinPausa, HOY), 'en-vacaciones-no').progress, 0);
+});
+
+test('un permiso de una disciplina sola no infla "En vacaciones no"', () => {
+  // De pausa para el muay thai y el muay thai sin hacer: ese día no cuenta,
+  // aunque todo lo demás esté cumplido.
+  const entries = {};
+  for (let i = 6; i >= 0; i--) entries[addDays(HOY, -i)] = { datos: { value: 45 } };
+  const data = build(acts(['datos', 'muaythai']), entries);
+  data.pausas = [{ desde: addDays(HOY, -6), hasta: HOY, actividades: ['muaythai'] }];
+  assert.equal(logro(derive(data, HOY), 'en-vacaciones-no').progress, 0);
+});

@@ -580,3 +580,149 @@ test('el récord de un ejercicio de mancuerna queda marcado como tal', () => {
   assert.equal(porNombre['Vuelo lateral con mancuerna vertical'].weight, 10, 'el peso anotado, no el doble');
   assert.equal(porNombre['Press militar'].db, false);
 });
+
+// --- Días libres declarados ------------------------------------------------
+
+test('un día declarado libre no corta la racha ni gasta escudo', () => {
+  const ayer = addDays(HOY, -1);
+  const sinPausa = derive(build(acts(['datos']), dias(4, 'datos', 45, { saltar: [1] })), HOY);
+  assert.equal(sinPausa.byActivity.get('datos').streak, 1, 'sin el permiso el día perdido corta');
+
+  const data = build(acts(['datos']), dias(4, 'datos', 45, { saltar: [1] }));
+  data.pausas = [{ desde: ayer, motivo: 'Gripe' }];
+  const s = derive(data, HOY);
+  assert.equal(s.byActivity.get('datos').streak, 3, 'la racha pasa por encima del día libre');
+  assert.equal(s.byActivity.get('datos').shields, 0, 'y no se gastó ningún escudo');
+});
+
+test('un permiso para una disciplina no perdona a las otras', () => {
+  const ayer = addDays(HOY, -1);
+  const entries = {};
+  for (let i = 3; i >= 0; i--) {
+    const d = addDays(HOY, -i);
+    entries[d] = i === 1 ? {} : { datos: { value: 45 }, pasos: { value: 12000 } };
+  }
+  const data = build(acts(['datos', 'pasos']), entries);
+  data.pausas = [{ desde: ayer, actividades: ['datos'], motivo: 'Evento de trabajo' }];
+  const s = derive(data, HOY);
+  assert.equal(s.byActivity.get('datos').streak, 3, 'el permiso cubre análisis de datos');
+  assert.equal(s.byActivity.get('pasos').streak, 1, 'pasos se cortó igual, que es el punto');
+});
+
+test('un permiso de una disciplina deja el día perfecto para el resto', () => {
+  // 2026-03-24 es martes: toca muay thai, y análisis de datos toca todos los días.
+  const martes = '2026-03-24';
+  const entries = { [martes]: { datos: { value: 45 } } };
+  const data = build(acts(['muaythai', 'datos']), entries);
+  assert.equal(derive(data, HOY).daily.get(martes)?.perfect, false, 'faltó el muay thai');
+
+  data.pausas = [{ desde: martes, actividades: ['muaythai'], motivo: 'Evento de trabajo' }];
+  const dia = derive(data, HOY).daily.get(martes);
+  assert.equal(dia.perfect, true);
+  assert.equal(dia.required, 1, 'el muay thai salió del día, el resto no');
+});
+
+test('cumplir igual durante una pausa cuenta para el logro, faltar no', () => {
+  const martes = '2026-03-24';
+  const entries = { [martes]: { muaythai: { value: 90 } } };
+  const data = build(acts(['muaythai']), entries);
+  data.pausas = [{ desde: martes, motivo: 'Viaje' }];
+  const dia = derive(data, HOY).daily.get(martes);
+  assert.equal(dia.required, 0, 'la pausa no exige nada');
+  assert.equal(dia.perfect, false);
+  assert.equal(dia.perfectoEnPausa, true, 'pero lo hiciste igual');
+
+  // De pausa y con el muay thai sin hacer: el día no cuenta para el logro.
+  const faltando = build(acts(['muaythai', 'datos']), { [martes]: { datos: { value: 45 } } });
+  faltando.pausas = [{ desde: martes, motivo: 'Viaje' }];
+  assert.equal(derive(faltando, HOY).daily.get(martes).perfectoEnPausa, false);
+
+  // Un permiso que ese día no perdonó nada tampoco cuenta: el viernes no toca
+  // muay thai, así que cumplir el resto es un día normal.
+  const viernes = '2026-03-27';
+  const suelto = build(acts(['muaythai', 'datos']), { [viernes]: { datos: { value: 45 } } });
+  suelto.pausas = [{ desde: viernes, actividades: ['muaythai'] }];
+  const dv = derive(suelto, HOY).daily.get(viernes);
+  assert.equal(dv.perfect, true);
+  assert.equal(dv.perfectoEnPausa, false);
+});
+
+// El muay thai de verdad tiene historial de metas (una por semana hasta
+// septiembre de 2026), así que para hablar de "dos por semana" conviene una
+// actividad declarada acá: el punto es la pausa, no el historial.
+const MUAY = {
+  id: 'muaythai', name: 'Muay Thai', icon: '🥊', kind: 'number', unit: 'min',
+  goal: 90, streakMode: 'weekly', weeklyTarget: 2, days: [2, 4],
+};
+
+test('un permiso saca una ocasión de la semana y la racha semanal sobrevive', () => {
+  // Tres semanas yendo las dos veces, y en la última sólo el jueves porque el
+  // martes hubo un evento de trabajo.
+  const entries = {};
+  for (const lunes of ['2026-03-09', '2026-03-16', '2026-03-23']) {
+    entries[addDays(lunes, 1)] = { muaythai: { value: 90 } };
+    entries[addDays(lunes, 3)] = { muaythai: { value: 90 } };
+  }
+  delete entries['2026-03-24'];                    // el martes que no pudo ir
+  const data = build([MUAY], entries);
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').streak, 0, 'sin el permiso la racha se corta');
+
+  data.pausas = [{ desde: '2026-03-24', actividades: ['muaythai'], motivo: 'Evento de trabajo' }];
+  const s = derive(data, HOY);
+  assert.equal(s.byActivity.get('muaythai').streak, 3, 'con el permiso la semana cierra con una sola');
+  assert.equal(s.byActivity.get('muaythai').weekTarget, 2, 'la semana en curso no tiene permiso');
+});
+
+test('la meta semanal que se muestra descuenta el permiso de esta semana', () => {
+  // HOY es martes 2026-03-31: la semana en curso arranca el lunes 30.
+  const data = build([MUAY], { '2026-03-31': { muaythai: { value: 90 } } });
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').weekTarget, 2);
+
+  data.pausas = [{ desde: '2026-04-02', actividades: ['muaythai'], motivo: 'Viaje' }];
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').weekTarget, 1, 'el jueves ya está perdonado');
+});
+
+test('una semana entera de pausa no suma ni rompe la racha semanal', () => {
+  const entries = {};
+  for (const lunes of ['2026-03-09', '2026-03-16']) {
+    entries[addDays(lunes, 1)] = { muaythai: { value: 90 } };
+    entries[addDays(lunes, 3)] = { muaythai: { value: 90 } };
+  }
+  entries['2026-03-31'] = { muaythai: { value: 90 } };   // hoy, para que la semana en curso no juzgue
+  const data = build([MUAY], entries);
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').streak, 0, 'la semana del 23 quedó en blanco');
+
+  data.pausas = [{ desde: '2026-03-23', hasta: '2026-03-29', motivo: 'Viaje' }];
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').streak, 2, 'la semana de viaje no cuenta ni a favor ni en contra');
+});
+
+test('un permiso de otra disciplina no le toca la meta semanal al muay thai', () => {
+  const data = build([MUAY], { '2026-03-31': { muaythai: { value: 90 } } });
+  data.pausas = [{ desde: '2026-04-02', actividades: ['gym'], motivo: 'Viaje' }];
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').weekTarget, 2);
+});
+
+test('un permiso en días que no tocaban sólo perdona la ocasión real', () => {
+  // Muay thai es martes y jueves: un permiso de lunes a miércoles perdona el
+  // martes y nada más, así que todavía queda el jueves por hacer.
+  const data = build([MUAY], { '2026-03-31': { muaythai: { value: 90 } } });
+  data.pausas = [{ desde: '2026-03-30', hasta: '2026-04-01', actividades: ['muaythai'] }];
+  assert.equal(derive(data, HOY).byActivity.get('muaythai').weekTarget, 1);
+});
+
+// Escribir no tiene día fijo, así que no hay una ocasión concreta que perdonar.
+const SUBSTACK = {
+  id: 'substack', name: 'Escritura', icon: '✍️', kind: 'writing', unit: 'posts',
+  goal: 1, streakMode: 'weekly', weeklyTarget: 1,
+};
+
+test('sin días fijos, un permiso suelto no regala la semana', () => {
+  const data = build([SUBSTACK], { '2026-03-31': { substack: { value: 1 } } });
+  data.pausas = [{ desde: '2026-03-31', actividades: ['substack'] }];
+  assert.equal(derive(data, HOY).byActivity.get('substack').weekTarget, 1,
+    'el post se puede escribir cualquier otro día');
+
+  data.pausas = [{ desde: '2026-03-30', hasta: '2026-04-05', actividades: ['substack'] }];
+  assert.equal(derive(data, HOY).byActivity.get('substack').weekTarget, 0,
+    'la semana entera declarada libre sí la saca');
+});
