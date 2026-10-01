@@ -1,6 +1,6 @@
 // Hojas de registro: número simple, sesión de gimnasio y publicación semanal.
 import { el, formatValue, formatNumber, relativeDay, uid, keyToDate } from '../utils.js';
-import { openSheet } from './sheet.js';
+import { openSheet, closeSheet } from './sheet.js';
 import { chip, stat } from './components.js';
 import { getEntry, setEntry, getState, getData } from '../state.js';
 import { bodySummary, bodyDelta, waterGoalMl } from '../body.js';
@@ -53,7 +53,17 @@ function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getC
     save.disabled = !(value > 0);
   };
   update();
-  return { node: el('div', { class: 'logger' }, preview, el('div', { class: 'btn-row' }, save, remove)), update };
+  // La pantalla con el análisis de la actividad vivía detrás de un mantener
+  // apretado, que no se descubre nunca. Acá está a la vista, justo cuando
+  // estás pensando en esa actividad.
+  const verMas = el('a', {
+    class: 'logger__mas', href: `#/actividad/${activity.id}`,
+    onClick: () => closeSheet(),
+  }, `Ver tu análisis de ${activity.name} ›`);
+  return {
+    node: el('div', { class: 'logger' }, preview, el('div', { class: 'btn-row' }, save, remove), verMas),
+    update,
+  };
 }
 
 /** ---------- Actividades numéricas (min, pasos, XP de Duolingo, posts) ---------- */

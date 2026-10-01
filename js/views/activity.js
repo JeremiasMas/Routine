@@ -21,7 +21,16 @@ export function render({ params, navigate, celebrate }) {
   }
   const a = st.activity;
   const root = el('div', {});
-  root.append(el('a', { class: 'back', href: '#/' }, '‹ Volver al tablero'));
+  // Se llega acá desde Hoy y desde Progreso, así que la vuelta es a donde
+  // viniste y no a una pantalla fija.
+  root.append(el('a', {
+    class: 'back', href: '#/progreso',
+    onClick: (e) => {
+      if (history.length <= 1) return;        // abierto en pestaña nueva
+      e.preventDefault();
+      history.back();
+    },
+  }, '‹ Volver'));
 
   // --- Cabecera con nivel ---
   const esHabito = st.leveled === false;

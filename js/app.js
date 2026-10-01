@@ -22,7 +22,10 @@ const TABS = [
 
 const ROUTES = [
   { pattern: /^#\/?$/, view: today, tab: '#/' },
-  { pattern: /^#\/actividad\/(?<id>[^/]+)$/, view: activity, tab: '#/' },
+  // La pantalla de una actividad es análisis, así que la pestaña que marca es
+  // Progreso. Antes marcaba Hoy, y entonces la barra de abajo decía que
+  // estabas en una pantalla en la que no estabas.
+  { pattern: /^#\/actividad\/(?<id>[^/]+)$/, view: activity, tab: '#/progreso' },
   { pattern: /^#\/progreso$/, view: stats, tab: '#/progreso' },
   { pattern: /^#\/logros$/, view: awards, tab: '#/logros' },
   { pattern: /^#\/ajustes$/, view: settings, tab: '#/ajustes' },

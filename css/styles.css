@@ -756,3 +756,12 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted); text-transform: none; letter-spacing: 0;
 }
 .toast__nota { display: block; margin-top: 3px; font-size: .72rem; color: var(--muted); }
+
+/* El paso del registro al análisis de esa actividad. Era un mantener apretado
+   invisible; acá está escrito. */
+.logger__mas {
+  display: block; margin-top: 12px; text-align: center;
+  font-size: .82rem; color: var(--muted); text-decoration: none;
+  padding: 8px; border-radius: 10px;
+}
+.logger__mas:active { background: var(--panel); color: var(--text); }
