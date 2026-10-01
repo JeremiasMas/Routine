@@ -10,7 +10,7 @@ import {
   GYM_TEMPLATES, templateById, templateForDay,
   DEFAULT_SETS, esMancuerna, perfilDeEjercicio, RANGOS_REPS,
 } from '../config.js';
-import { objetivoDeHoy, textoDeObjetivo } from '../progresion.js';
+import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
 import { colorDe } from '../theme.js';
 
 /** Abre el registrador correcto para la actividad. */
@@ -104,6 +104,9 @@ function gymForm(activity, dateKey, onSaved) {
   const existing = getEntry(dateKey, activity.id);
   const gymState = getState().byActivity.get(activity.id);
   const records = gymState?.records || new Map();
+  // En los de peso corporal el récord se mide con el cuerpo adentro, así que
+  // sin esto no se puede calcular qué hace falta para superarlo.
+  const pesoCorporal = Number(getState().bodyweight) || 0;
   const lastSets = gymState?.lastSets || new Map();
   const lastByTemplate = gymState?.lastByTemplate || new Map();
 
@@ -126,18 +129,26 @@ function gymForm(activity, dateKey, onSaved) {
     return objetivoDeHoy(previas, perfilDeEjercicio(name), count);
   }
 
-  /** Series precargadas con el objetivo de hoy, o con lo último si no hay. */
+  /**
+   * Series precargadas con tu récord de ese ejercicio.
+   *
+   * Arrancar en el récord es arrancar en lo que sabés que podés: el peso ya
+   * está puesto y lo único que queda por decidir es si lo superás. Si todavía
+   * no hay récord se cae en la última sesión, y si tampoco hay, en nada.
+   */
   function seedSets(name, count = DEFAULT_SETS) {
     const previas = lastSets.get((name || '').trim().toLowerCase());
+    const record = records.get((name || '').trim().toLowerCase());
     const objetivo = objetivoDe(name, count);
     return Array.from({ length: count }, (_, i) => ({
-      weight: objetivo
-        ? objetivo.peso
-        : (previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? ''),
+      weight: record
+        ? record.weight
+        : (objetivo ? objetivo.peso
+          : (previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? '')),
       reps: '',
-      // El número gris dentro del casillero: lo que hay que hacer hoy, no lo
-      // que hiciste la vez pasada.
-      target: objetivo?.reps?.[i] ?? previas?.[i]?.reps ?? null,
+      // El número gris dentro del casillero: las repeticiones del récord, que
+      // son las que hay que igualar antes de pensar en superarlo.
+      target: record?.reps ?? objetivo?.reps?.[i] ?? previas?.[i]?.reps ?? null,
     }));
   }
 
@@ -227,15 +238,18 @@ function gymForm(activity, dateKey, onSaved) {
       ? (() => {
           const perfil = perfilDeEjercicio(ex.name);
           const objetivo = ex.objetivo ?? objetivoDe(ex.name);
-          const texto = textoDeObjetivo(objetivo, perfil);
           const rango = objetivo?.rango || RANGOS_REPS[perfil.rango] || RANGOS_REPS.medio;
+          // Con récord manda el récord: es lo que está precargado y lo que hay
+          // que batir. Sin récord todavía, el plan de hoy sale de la última
+          // sesión, que es lo único que hay.
+          const texto = rec
+            ? textoDeRecord(rec, superarRecord(rec, perfil, { pesoCorporal }), perfil)
+            : textoDeObjetivo(objetivo, perfil);
           return el('div', { style: 'flex:1;min-width:0' },
             el('div', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
             texto
-              ? el('div', { class: 'row__sub', style: objetivo.sube ? 'color:var(--ok)' : '', text: texto })
-              : el('div', { class: 'row__sub' },
-                  rec ? `Récord: ${formatNumber(rec.weight)} kg${rec.db ? ' c/u' : ''} × ${rec.reps}`
-                    : `${DEFAULT_SETS}×${rango.min}-${rango.max}`));
+              ? el('div', { class: 'row__sub', text: texto })
+              : el('div', { class: 'row__sub', text: `${DEFAULT_SETS}×${rango.min}-${rango.max}` }));
         })()
       : (() => {
           const input = el('input', { type: 'text', placeholder: 'Ejercicio', list: 'exercise-names', value: '' });

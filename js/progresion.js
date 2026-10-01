@@ -11,6 +11,7 @@
  */
 import { RANGOS_REPS, DEFAULT_SETS, perfilDeEjercicio } from './config.js';
 import { formatNumber } from './utils.js';
+import { estimatedOneRepMax, REPS_FIABLES } from './xp.js';
 
 const redondear = (n) => Math.round(n * 10) / 10;
 
@@ -109,4 +110,66 @@ export function textoDeObjetivo(objetivo, perfil) {
   if (objetivo.faltan === 0) return `${base}. Con eso subís a ${kg(objetivo.proximoPeso)}.`;
   const r = objetivo.faltan === 1 ? 'repetición' : 'repeticiones';
   return `${base}. A ${objetivo.faltan} ${r} de subir a ${kg(objetivo.proximoPeso)}.`;
+}
+
+/**
+ * Qué hace falta para superar tu récord en un ejercicio.
+ *
+ * No alcanza con "una repetición más": a veces el récord ya está arriba del
+ * rango y lo que corresponde es subir carga, y entonces hay que saber cuántas
+ * repeticiones hacen falta con ese peso nuevo para que de verdad sea un
+ * récord. Eso se calcula con el mismo 1RM que marca el récord, no a ojo: con
+ * 2,5 kg más y el piso del rango se suele quedar corto.
+ *
+ * @param {object} record  el mejor de ese ejercicio, como lo guarda derive
+ * @param {object} perfil  el de `perfilDeEjercicio`
+ * @param {{pesoCorporal?:number}} ctx
+ * @returns {?{conReps:?number, conPeso:?{peso:number, reps:number}, rango:object}}
+ */
+export function superarRecord(record, perfil, { pesoCorporal = 0 } = {}) {
+  const e1rm = Number(record?.e1rm) || 0;
+  if (!(e1rm > 0)) return null;
+  const rango = RANGOS_REPS[perfil?.rango] || RANGOS_REPS.medio;
+  const salto = Number(perfil?.salto) || 2.5;
+  const peso = Number(record.weight) || 0;
+  const manos = record.db === true ? 2 : 1;
+  const carga = (extra) => (record.bw ? pesoCorporal + extra : extra * manos);
+
+  /** Las repeticiones mínimas con ese peso que dejan el récord atrás. */
+  const repsPara = (kg) => {
+    for (let r = 1; r <= REPS_FIABLES; r += 1) {
+      if (estimatedOneRepMax(carga(kg), r) > e1rm) return r;
+    }
+    return null;
+  };
+
+  // Con el mismo peso: sólo si todavía queda rango por arriba, y sólo si de
+  // verdad hacen falta MÁS repeticiones que las del récord. Sin este segundo
+  // control, un redondeo del 1RM alcanzaba para decir "superalo con las
+  // mismas seis repeticiones que ya hiciste".
+  const mismasReps = record.reps < rango.max ? repsPara(peso) : null;
+  const conReps = mismasReps != null && mismasReps > record.reps ? mismasReps : null;
+  // Con un escalón más: siempre que exista una cantidad de repeticiones
+  // razonable que alcance.
+  const masPeso = redondear(peso + salto);
+  const reps = repsPara(masPeso);
+  const conPeso = reps != null ? { peso: masPeso, reps } : null;
+
+  return (conReps == null && conPeso == null) ? null : { conReps, conPeso, rango };
+}
+
+/** El récord y cómo superarlo, en una línea. */
+export function textoDeRecord(record, superar, perfil) {
+  if (!record) return null;
+  const cada = perfil?.db ? ' c/u' : '';
+  const kg = (n) => `${formatNumber(redondear(n))} kg${cada}`;
+  const marca = record.bw && !(record.weight > 0)
+    ? `sin lastre × ${record.reps}`
+    : `${kg(record.weight)} × ${record.reps}`;
+
+  const formas = [];
+  if (superar?.conReps != null) formas.push(`${superar.conReps} repeticiones`);
+  if (superar?.conPeso) formas.push(`${kg(superar.conPeso.peso)} × ${superar.conPeso.reps}`);
+  if (!formas.length) return `Récord: ${marca}.`;
+  return `Récord: ${marca}. Lo superás con ${formas.join(', o con ')}.`;
 }

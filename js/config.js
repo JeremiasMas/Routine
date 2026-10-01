@@ -356,8 +356,10 @@ export function perfilDeEjercicio(nombre, plantillas = GYM_TEMPLATES) {
     rango: ex?.rango || 'medio',
     bw: Boolean(ex?.bw),
     db,
-    // El escalón real del gimnasio: 2,5 en barra y polea, 2 en mancuerna.
-    salto: ex?.salto ?? (db ? 2 : 2.5),
+    // El escalón real del gimnasio. Las mancuernas del tuyo van de 2,5 en
+    // 2,5 —de ahí las de 17,5— así que no hace falta distinguirlas: lo que
+    // cambia son las excepciones, como las de muñeca, que declaran su salto.
+    salto: ex?.salto ?? 2.5,
   };
 }
 

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { objetivoDeHoy, objetivoPorNombre, textoDeObjetivo } from '../js/progresion.js';
+import {
+  objetivoDeHoy, objetivoPorNombre, textoDeObjetivo, superarRecord, textoDeRecord,
+} from '../js/progresion.js';
+import { estimatedOneRepMax } from '../js/xp.js';
 import { perfilDeEjercicio, RANGOS_REPS, GRUPOS, GYM_TEMPLATES } from '../js/config.js';
 
 const serie = (weight, reps) => ({ weight, reps });
@@ -37,7 +40,7 @@ test('los movimientos grandes viven en el rango pesado', () => {
 
 test('el salto de carga es el escalón real del equipo', () => {
   assert.equal(perfilDeEjercicio('Sentadilla con barra').salto, 2.5, 'barra');
-  assert.equal(perfilDeEjercicio('Vuelo posterior').salto, 2, 'mancuerna');
+  assert.equal(perfilDeEjercicio('Vuelo posterior').salto, 2.5, 'mancuerna');
   assert.equal(perfilDeEjercicio('Dumbbell standing wrist curl').salto, 1, 'muñeca');
 });
 
@@ -97,9 +100,9 @@ test('con cargas distintas entre series no se promete un salto', () => {
 });
 
 test('cada rango tiene su propio tope', () => {
-  const liviano = perfilDeEjercicio('Vuelo lateral con mancuerna vertical'); // 12-20, +2
+  const liviano = perfilDeEjercicio('Vuelo lateral con mancuerna vertical'); // 12-20, +2,5
   const aTope = objetivoDeHoy([serie(10, 20), serie(10, 20), serie(10, 20)], liviano);
-  assert.equal(aTope.peso, 12, 'la mancuerna sube de a 2');
+  assert.equal(aTope.peso, 12.5, 'el rack sube de a 2,5, también en mancuerna');
   assert.deepEqual(aTope.reps, [12, 12, 12]);
   // Las mismas 8 repeticiones que cierran una sentadilla no cierran un vuelo.
   const corto = objetivoDeHoy([serie(10, 8), serie(10, 8), serie(10, 8)], liviano);
@@ -149,4 +152,101 @@ test('en mancuerna el texto aclara que es por mancuerna', () => {
 
 test('sin objetivo no hay texto que inventar', () => {
   assert.equal(textoDeObjetivo(null, PESADO), null);
+});
+
+// ---------------------------------------------------------------------------
+// Superar el récord
+//
+// Es lo que se lee en el gimnasio con el peso ya puesto en la barra, así que
+// tiene que ser alcanzable y cierto: una cifra que no supere el récord, o que
+// no exista en el rack, no sirve para nada.
+// ---------------------------------------------------------------------------
+
+/** Un récord con el 1RM calculado de verdad, no escrito a mano. */
+const recordDe = (nombre, weight, reps, extra = {}) => {
+  const perfil = perfilDeEjercicio(nombre);
+  const carga = extra.bw ? 61.5 + weight : weight * (perfil.db ? 2 : 1);
+  return {
+    name: nombre, weight, reps, bw: Boolean(extra.bw), db: perfil.db,
+    e1rm: estimatedOneRepMax(carga, reps),
+  };
+};
+const superarDe = (nombre, weight, reps, extra = {}) => {
+  const perfil = perfilDeEjercicio(nombre);
+  const r = recordDe(nombre, weight, reps, extra);
+  return { r, perfil, s: superarRecord(r, perfil, { pesoCorporal: 61.5 }) };
+};
+
+test('con rango por arriba, superarlo es una repetición más', () => {
+  const { s } = superarDe('Pecho plano', 70, 6);   // rango 5-8
+  assert.equal(s.conReps, 7);
+});
+
+test('nunca propone las mismas repeticiones que ya hiciste', () => {
+  // El redondeo del 1RM alcanzaba para decir "superalo con las seis que ya
+  // hiciste". Un consejo que no se puede cumplir es peor que ninguno.
+  for (let reps = 1; reps <= 11; reps += 1) {
+    for (const nombre of ['Pecho plano', 'Curl en polea baja con barra', 'Face pulls']) {
+      const { r, s } = superarDe(nombre, 40, reps);
+      if (s?.conReps != null) {
+        assert.ok(s.conReps > r.reps, `${nombre} con ${reps} reps propone ${s.conReps}`);
+      }
+    }
+  }
+});
+
+test('si engordaste, el récord de dominadas no se supera con las mismas reps', () => {
+  // El récord guarda el 1RM con el cuerpo que tenías ese día. Si hoy pesás
+  // más, las mismas repeticiones mueven más carga y la cuenta diría que ya lo
+  // superaste sin haber hecho nada. Ahí es donde hace falta exigir que la
+  // propuesta sea estrictamente mayor.
+  const perfil = perfilDeEjercicio('Dominadas agarre ancho');
+  const flaco = 61.5;
+  // Seis repeticiones, con rango de sobra por arriba (5-8): así la rama de
+  // "una repetición más" se evalúa de verdad en vez de descartarse por tope.
+  const record = {
+    name: 'Dominadas agarre ancho', weight: 0, reps: 6, bw: true,
+    e1rm: estimatedOneRepMax(flaco, 6),
+  };
+  const s = superarRecord(record, perfil, { pesoCorporal: flaco + 5 });
+  assert.ok(s.conReps == null || s.conReps > record.reps,
+    `pesando 4 kg más propone ${s.conReps} repeticiones contra las ${record.reps} del récord`);
+});
+
+test('con el rango cerrado, la única forma es más peso', () => {
+  const { s } = superarDe('Pecho plano', 70, 8);   // 8 es el tope de 5-8
+  assert.equal(s.conReps, null, 'no tiene sentido pedir 9 en un rango que termina en 8');
+  assert.equal(s.conPeso.peso, 72.5);
+});
+
+test('las repeticiones del salto se calculan, no se asumen', () => {
+  // Con 2,5 kg más y el piso del rango uno se queda corto: 52,5 × 8 NO supera
+  // un récord de 50 × 12. Hay que resolver cuántas hacen falta de verdad.
+  const { r, perfil, s } = superarDe('Curl en polea baja con barra', 50, 12);
+  const conElSalto = estimatedOneRepMax(s.conPeso.peso, s.conPeso.reps);
+  assert.ok(conElSalto > r.e1rm, 'la propuesta tiene que superar el récord');
+  const unaMenos = estimatedOneRepMax(s.conPeso.peso, s.conPeso.reps - 1);
+  assert.ok(unaMenos <= r.e1rm, 'y tiene que ser la mínima que lo logra');
+  assert.ok(perfil.salto === 2.5);
+});
+
+test('en peso corporal el récord cuenta el cuerpo', () => {
+  const { s } = superarDe('Dominadas agarre ancho', 0, 8, { bw: true });
+  assert.ok(s.conPeso.peso > 0, 'lo que sube es el lastre');
+  assert.ok(s.conPeso.reps < 8, 'con lastre hacen falta menos repeticiones');
+});
+
+test('en mancuerna habla por mancuerna, no del total', () => {
+  const { r, perfil, s } = superarDe('Press militar', 17.5, 11);
+  const texto = textoDeRecord(r, s, perfil);
+  assert.match(texto, /17,5 kg c\/u × 11/);
+  assert.match(texto, /c\/u/, 'la propuesta también tiene que ser por mancuerna');
+  assert.ok(s.conPeso.peso === 20, `el rack sube a 20, no a ${s.conPeso.peso}`);
+});
+
+test('sin récord no hay nada que superar', () => {
+  const perfil = perfilDeEjercicio('Pecho plano');
+  assert.equal(superarRecord(null, perfil), null);
+  assert.equal(superarRecord({ e1rm: 0 }, perfil), null);
+  assert.equal(textoDeRecord(null, null, perfil), null);
 });
