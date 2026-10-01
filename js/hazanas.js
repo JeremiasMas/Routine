@@ -11,7 +11,6 @@
  */
 import { addDays, daysBetween, weekStart } from './utils.js';
 import { GRUPOS, perfilDeEjercicio } from './config.js';
-import { esLibre } from './pausas.js';
 import { bodySummary } from './body.js';
 import { EJERCICIO_A_LIFT } from './strength.js';
 
@@ -34,7 +33,7 @@ export function hazanas(ctx) {
   const peso = Number(data?.settings?.weight) || 0;
 
   return {
-    ...rachasFinas(daily, dates, today, data),
+    ...rachasFinas(daily, dates, today),
     ...deFuerza(strength, gym, peso, today),
     ...delGimnasio(gym, today),
     ...delCuerpo(byActivity, bodyFat, gym, today, data?.settings),
@@ -49,11 +48,10 @@ export function hazanas(ctx) {
 // Rachas
 // ---------------------------------------------------------------------------
 
-function rachasFinas(daily, dates, today, data) {
+function rachasFinas(daily, dates, today) {
   let perfectStreak = 0;
   let actual = 0;
   let diasPerfectosEnPausa = 0;
-  const pausas = data?.pausas;
 
   const primero = dates.length ? dates[0] : today;
   for (let d = primero; d <= today; d = addDays(d, 1)) {
@@ -61,11 +59,13 @@ function rachasFinas(daily, dates, today, data) {
     if (dia?.perfect) {
       actual += 1;
       perfectStreak = Math.max(perfectStreak, actual);
-      // Cumplir todo durante un viaje, cuando nada te obligaba, cuenta aparte.
-      if (esLibre(pausas, d)) diasPerfectosEnPausa += 1;
     } else {
       actual = 0;
     }
+    // Cumplir todo durante un viaje, cuando nada te obligaba, cuenta aparte.
+    // No se puede mirar `perfect`: una pausa saca lo agendado del día, así que
+    // un día libre nunca figura como perfecto por más que lo hayas hecho todo.
+    if (dia?.perfectoEnPausa) diasPerfectosEnPausa += 1;
   }
   return { perfectStreak, diasPerfectosEnPausa };
 }

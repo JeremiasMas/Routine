@@ -10,7 +10,7 @@ import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from 
 import { hazanas } from './hazanas.js';
 import { bodySummary, bodyFatBand } from './body.js';
 import { descomponerProgreso } from './analisis.js';
-import { esLibre } from './pausas.js';
+import { esLibre, tramos } from './pausas.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
@@ -88,6 +88,47 @@ export function weeklyTargetFor(activity, weekStartKey) {
 }
 
 /**
+ * ¿Toca esta actividad este día, descontando lo que perdonó una pausa?
+ *
+ * Es lo que hay que preguntar para armar las misiones del día: un permiso para
+ * el muay thai del martes saca esa misión del tablero —y del aviso de racha en
+ * riesgo— sin tocar las demás.
+ */
+export function isScheduledWithPauses(activity, dateKey, pausas) {
+  return isScheduled(activity, dateKey) && !esLibre(pausas, dateKey, activity.id);
+}
+
+/**
+ * El objetivo semanal descontando lo que perdonó una pausa.
+ *
+ * Un permiso para el martes de muay thai saca esa ocasión de la semana: perder
+ * un entrenamiento por un evento de trabajo no es falta de constancia, y sin
+ * esto la racha semanal se cortaba igual aunque el día estuviera declarado.
+ * Las sesiones que hiciste en un día perdonado siguen contando: hacer de más
+ * nunca penaliza.
+ *
+ * Devuelve 0 cuando la pausa se llevó todas las ocasiones de la semana. Esa
+ * semana no se juzga: ni suma a la racha ni la rompe, igual que un día libre.
+ *
+ * @param {object} activity
+ * @param {string} weekStartKey  el lunes de la semana
+ * @param {Array} pausas  los tramos declarados
+ */
+export function weeklyTargetWithPauses(activity, weekStartKey, pausas) {
+  const meta = weeklyTargetFor(activity, weekStartKey);
+  if (!pausas?.length) return meta;
+  const dias = Array.from({ length: 7 }, (_, i) => addDays(weekStartKey, i));
+  const libres = dias.filter((d) => esLibre(pausas, d, activity.id));
+  if (!libres.length) return meta;
+  // Sin días fijos no hay una ocasión concreta que perdonar —escribir un post
+  // no tiene día—, así que sólo una semana entera libre saca la semana.
+  const perdonadas = activity.days?.length
+    ? libres.filter((d) => isScheduled(activity, d)).length
+    : (libres.length === 7 ? meta : 0);
+  return Math.max(0, meta - perdonadas);
+}
+
+/**
  * ¿Toca esta actividad este día? Sin `days` se espera todos los días.
  * Los días libres no suman ni rompen rachas: descansar no es fallar.
  */
@@ -154,6 +195,8 @@ export function derive(data, today = todayKey()) {
 
   const span = Math.max(0, daysBetween(start, end));
 
+  const pausas = tramos(data.pausas);
+
   // ---- Pasada 1: semanas (para actividades con objetivo semanal) ----
   for (const a of activities) {
     if (a.streakMode !== 'weekly') continue;
@@ -175,7 +218,9 @@ export function derive(data, today = todayKey()) {
     const firstWeek = weekStart(start);
     const currentWeek = weekStart(today);
     for (let w = firstWeek; w <= currentWeek; w = addDays(w, 7)) {
-      const target = weeklyTargetFor(a, w);
+      const target = weeklyTargetWithPauses(a, w, pausas);
+      // La pausa se llevó todas las ocasiones de la semana: no se juzga.
+      if (target <= 0) continue;
       const count = weekly.get(`${a.id}|${w}`) || 0;
       if (count >= target) {
         streak += 1;
@@ -204,13 +249,21 @@ export function derive(data, today = todayKey()) {
     // Un día declarado libre sale del cálculo: no suma ni rompe nada. Estar
     // de viaje o con fiebre no es falta de constancia, y los escudos —que
     // cubren un despiste suelto— se gastarían igual.
-    const diaLibre = esLibre(data.pausas, date);
+    //
+    // Un tramo puede perdonar el día entero o sólo algunas disciplinas: un
+    // evento de trabajo que te deja sin muay thai no perdona el gimnasio.
+    const libreDe = (actId) => esLibre(pausas, date, actId);
     const pesado = Number(dayEntries.cuerpo?.weight) || 0;
     if (pesado > 0) pesoCorporal = pesado;
     pesoPorFecha.set(date, pesoCorporal);
     let dayXp = 0;
     let metCount = 0;
     let required = 0;
+    // Lo mismo pero ignorando la pausa: en un día libre no hay nada agendado,
+    // así que nunca puede salir "perfecto" y el logro de cumplir igual estando
+    // de pausa no se podía ganar nunca.
+    let metIgual = 0;
+    let requiredIgual = 0;
 
     for (const a of activities) {
       const st = byActivity.get(a.id);
@@ -218,7 +271,8 @@ export function derive(data, today = todayKey()) {
       const value = entryValue(a, raw);
       const goal = goalFor(a, raw);
       const met = value >= goal;
-      const scheduled = isScheduled(a, date) && !diaLibre;
+      const agendado = isScheduled(a, date);
+      const scheduled = agendado && !libreDe(a.id);
       const ss = streakState.get(a.id);
 
       if (raw !== undefined && value > 0) totalEntries += 1;
@@ -333,7 +387,7 @@ export function derive(data, today = todayKey()) {
           if (ss.streak % SHIELD_EVERY === 0) ss.shields = Math.min(MAX_SHIELDS, ss.shields + 1);
           st.bestStreak = Math.max(st.bestStreak, ss.streak);
           st.noShieldStreak = Math.max(st.noShieldStreak, ss.limpia);
-        } else if (date < today && scheduled && !diaLibre) {
+        } else if (date < today && scheduled) {
           if (ss.shields > 0) {
             ss.shields -= 1;                 // la racha sobrevive
             st.shieldSaveBest = Math.max(st.shieldSaveBest, ss.streak);
@@ -350,10 +404,20 @@ export function derive(data, today = todayKey()) {
         required += 1;
         if (met) metCount += 1;
       }
+      if (agendado) {
+        requiredIgual += 1;
+        if (met) metIgual += 1;
+      }
     }
 
     const ratio = required > 0 ? metCount / required : 0;
     const perfect = required > 0 && metCount === required;
+    // Cumpliste todo lo que tocaba aunque la pausa te lo hubiera sacado de
+    // encima. Es lo que premia "En vacaciones no", y hace falta medirlo aparte
+    // porque un día de pausa no agenda nada y por eso nunca sale "perfecto".
+    // `requiredIgual > required` es justamente "la pausa perdonó algo": sin eso
+    // un permiso de muay thai regalaría también los viernes, que no tocaba.
+    const perfectoEnPausa = requiredIgual > required && metIgual === requiredIgual;
     // Fallar una misión no debería valer lo mismo que fallar todas: del 80%
     // para arriba hay un bonus menor, para que no se abandone el día entero.
     const almost = !perfect && ratio >= BONUS.almostThreshold;
@@ -364,7 +428,7 @@ export function derive(data, today = todayKey()) {
       dayXp += bonusDia;
     }
     if (dayXp > 0 || perfect) {
-      daily.set(date, { date, xp: dayXp, perfect, almost, met: metCount, required, ratio });
+      daily.set(date, { date, xp: dayXp, perfect, perfectoEnPausa, almost, met: metCount, required, ratio });
     }
   }
 
@@ -389,7 +453,7 @@ export function derive(data, today = todayKey()) {
       st.streak = w.streak;
       st.bestStreak = w.best;
       st.weekCount = weekly.get(`${a.id}|${weekStart(today)}`) || 0;
-      st.weekTarget = weeklyTargetFor(a, weekStart(today));
+      st.weekTarget = weeklyTargetWithPauses(a, weekStart(today), pausas);
     } else {
       st.streak = ss.streak;
       st.shields = ss.shields;
@@ -628,6 +692,7 @@ export function derive(data, today = todayKey()) {
 
   return {
     today,
+    pausas,
     bodyweight: pesoCorporal,
     bodyFat,
     strength,

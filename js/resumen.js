@@ -9,7 +9,7 @@
  * que el widget necesita decidir tiene que estar acá adentro, porque del otro
  * lado no hay con qué calcular nada.
  */
-import { isScheduled, goalFor } from './derive.js';
+import { isScheduledWithPauses, goalFor } from './derive.js';
 import { formatValue, formatNumber, esFechaValida } from './utils.js';
 
 /** Versión del formato. Si cambia la forma, la app vieja no lo interpreta mal. */
@@ -43,7 +43,7 @@ export function puedeUnToque(activity, { enApp = false } = {}) {
  */
 export function resumenDelDia(state, { enApp = false, fecha = null } = {}) {
   const hoy = fecha || state.today;
-  const toca = state.activities.filter((a) => isScheduled(a, hoy));
+  const toca = state.activities.filter((a) => isScheduledWithPauses(a, hoy, state.pausas));
 
   const misiones = toca.map((a) => {
     const st = state.byActivity.get(a.id);

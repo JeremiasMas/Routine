@@ -1,6 +1,6 @@
 // Progreso global: mapa de calor, XP por semana y ranking de actividades.
 import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween, plural } from '../utils.js';
-import { getState, getData } from '../state.js';
+import { getState } from '../state.js';
 import { stat, xpBar, chip, barChart } from '../ui/components.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { seccionAnalisis } from './analisis.js';
@@ -123,7 +123,7 @@ function heatmap(state) {
  * cambiar; el lunes ya muestra la cerrada.
  */
 function tarjetaSemanal(state) {
-  const libre = (f) => esLibre(getData().pausas, f);
+  const libre = (f, id) => esLibre(state.pausas, f, id);
   const dow = new Date(`${state.today}T00:00:00Z`).getUTCDay();
   // El lunes conviene ver la semana que cerró, no una de un día.
   const lunes = dow === 1 ? addDays(weekStart(state.today), -7) : weekStart(state.today);

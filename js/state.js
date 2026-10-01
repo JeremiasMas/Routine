@@ -214,9 +214,13 @@ export function agregarPausa(tramo) {
   return mutate((d) => { d.pausas = agregar(d.pausas, tramo); });
 }
 
-/** Saca un tramo por su fecha de inicio. */
-export function quitarPausa(desde) {
-  return mutate((d) => { d.pausas = quitar(d.pausas, desde); });
+/**
+ * Saca un tramo. Se le pasa el tramo entero porque el mismo día puede tener
+ * unas vacaciones y una excusa de una disciplina, y la fecha sola no alcanza
+ * para saber cuál de los dos se quiere borrar.
+ */
+export function quitarPausa(tramo) {
+  return mutate((d) => { d.pausas = quitar(d.pausas, tramo); });
 }
 
 export function updateSettings(patch) {

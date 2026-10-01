@@ -45,6 +45,17 @@ test('marca los días declarados libres', () => {
   assert.equal(filas[0].dia_libre, 1);
 });
 
+test('la columna dia_libre es por disciplina, no por día', () => {
+  // Un permiso para el piano no marca libre la fila de análisis de datos.
+  const acts = DEFAULT_ACTIVITIES.filter((a) => ['piano', 'datos'].includes(a.id));
+  const state = derive({ activities: acts,
+    entries: { '2026-09-18': { piano: { value: 30 }, datos: { value: 45 } } },
+    unlocked: {}, settings: {} }, '2026-09-20');
+  const filas = filasDeHistorial(state, { libre: (f, id) => id === 'piano' });
+  assert.equal(filas.find((f) => f.actividad === 'piano').dia_libre, 1);
+  assert.equal(filas.find((f) => f.actividad === 'datos').dia_libre, 0);
+});
+
 test('el gimnasio sale serie por serie, que es donde está el dato', () => {
   const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'gym');
   const entries = { '2026-09-18': { gym: { exercises: [

@@ -52,7 +52,7 @@ export function filasDeHistorial(state, { libre = () => false } = {}) {
         cumplida: h.met ? 1 : 0,
         xp: redondear(h.xp),
         tocaba: h.goal > 0 ? 1 : 0,
-        dia_libre: libre(h.date) ? 1 : 0,
+        dia_libre: libre(h.date, a.id) ? 1 : 0,
       });
     }
   }
