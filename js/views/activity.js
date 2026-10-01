@@ -7,7 +7,7 @@ import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { EQUIV_MANCUERNA } from '../strength.js';
-import { explicarProgreso } from '../analisis.js';
+import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
 import { getData } from '../state.js';
@@ -77,10 +77,11 @@ export function render({ params, navigate, celebrate }) {
         : el('div', {},
             el('div', { style: 'margin-top:12px' },
               xpBar(st.level.pct, { left: `${formatNumber(st.level.into)} / ${formatNumber(st.level.need)} XP`, right: `Nivel ${st.level.level + 1} en ${formatNumber(st.level.need - st.level.into)} XP` })),
+            lineaDeNivel(st, state),
             st.nextTier
-              ? el('p', { class: 'hint', style: 'margin-top:10px' },
+              ? el('p', { class: 'hint', style: 'margin-top:6px' },
                   `Próximo rango: ${st.nextTier.name} en el nivel ${st.nextTier.min}.`)
-              : el('p', { class: 'hint', style: 'margin-top:10px' }, 'Último rango de la escalera. 🐐')),
+              : el('p', { class: 'hint', style: 'margin-top:6px' }, 'Último rango de la escalera. 🐐')),
     a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
   root.append(el('div', { style: 'margin-top:12px' },
@@ -377,6 +378,25 @@ function progresionPorEjercicio(st, a) {
 
   caja.append(el('div', { style: 'margin-bottom:8px' }, selector), panel);
   return caja;
+}
+
+/**
+ * Cuándo cae el próximo nivel, no sólo cuánta XP falta.
+ *
+ * "1.900 XP" no significa nada hasta que se traduce a días. Si el nivel que
+ * viene estrena rango, se dice: es el que de verdad se espera.
+ */
+function lineaDeNivel(st, state) {
+  const p = proyeccionDeNivel(st, state.today);
+  if (!p) return null;
+
+  const rango = p.tier ? `, que estrena ${p.tier.name},` : '';
+  const texto = p.estado === 'en-camino'
+    ? `El nivel ${p.nivel}${rango} cae alrededor del ${shortDate(p.fecha)}, en ${plural(p.dias, 'día', 'días')}, al ritmo de las últimas 4 semanas.`
+    : p.estado === 'lejos'
+      ? `Al ritmo de las últimas 4 semanas, el nivel ${p.nivel} queda a más de dos años: la fecha no diría nada.`
+      : `En las últimas 4 semanas no sumaste XP acá, así que no hay ritmo del cual proyectar el nivel ${p.nivel}.`;
+  return el('p', { class: 'hint', style: 'margin-top:10px', text: texto });
 }
 
 function strengthHeader(st, a) {

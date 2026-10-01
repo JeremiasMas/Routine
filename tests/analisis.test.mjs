@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   tendencia, constancia, proximosSaltos, impactoDeSubir, estancados,
-  proyeccionGrasa, repartoDeFuentes, volumenPorGrupo, proyeccionDeRango,
+  proyeccionGrasa, repartoDeFuentes, volumenPorGrupo, proyeccionDeRango, proyeccionDeNivel,
   VENTANA, DIAS_PARA_ESTANCARSE,
 } from '../js/analisis.js';
 import { addDays, weekStart } from '../js/utils.js';
 import { isScheduled } from '../js/derive.js';
 import { STANDARDS } from '../js/strength.js';
+import { DEFAULT_ACTIVITIES } from '../js/config.js';
 
 const PESO = 61.5;
 
@@ -715,4 +716,69 @@ test('en el último rango no hay nada que proyectar', () => {
 test('sin jugador no rompe', () => {
   assert.equal(proyeccionDeRango({}, HOY), null);
   assert.equal(proyeccionDeRango(null, HOY), null);
+});
+
+// ---------------------------------------------------------------------------
+// Cuándo cae el próximo nivel de una disciplina
+// ---------------------------------------------------------------------------
+
+/** Un estado de actividad con XP repartida a ritmo parejo. */
+const conRitmo = (activity, xpPorDia, { into = 0, need = 1000, level = 5, nextTier = null, dias = VENTANA } = {}) => ({
+  activity,
+  level: { level, into, need, pct: into / need },
+  nextTier,
+  history: Array.from({ length: dias }, (_, i) => ({ date: addDays(HOY, -i), xp: xpPorDia, value: 1, met: true })),
+});
+
+const actividadDe = (id) => DEFAULT_ACTIVITIES.find((a) => a.id === id);
+
+test('traduce la XP que falta a una fecha', () => {
+  const p = proyeccionDeNivel(conRitmo(actividadDe('piano'), 100, { into: 0, need: 1000 }), HOY);
+  assert.equal(p.estado, 'en-camino');
+  assert.equal(p.nivel, 6);
+  assert.equal(p.xpFaltante, 1000);
+  assert.equal(p.porDia, 100);
+  assert.equal(p.dias, 10);
+  assert.equal(p.fecha, addDays(HOY, 10));
+});
+
+test('lo que ya llevás dentro del nivel descuenta', () => {
+  const entero = proyeccionDeNivel(conRitmo(actividadDe('piano'), 100, { into: 0, need: 1000 }), HOY);
+  const casi = proyeccionDeNivel(conRitmo(actividadDe('piano'), 100, { into: 800, need: 1000 }), HOY);
+  assert.equal(casi.xpFaltante, 200);
+  assert.ok(casi.dias < entero.dias);
+});
+
+test('sólo nombra el rango si lo estrena el nivel que viene', () => {
+  const act = actividadDe('piano');
+  const ahora = proyeccionDeNivel(conRitmo(act, 100, { level: 9, nextTier: { name: 'Intérprete', min: 10 } }), HOY);
+  assert.equal(ahora.tier.name, 'Intérprete', 'el nivel 10 sí lo estrena');
+
+  const lejos = proyeccionDeNivel(conRitmo(act, 100, { level: 5, nextTier: { name: 'Intérprete', min: 10 } }), HOY);
+  assert.equal(lejos.tier, null, 'faltan cinco niveles: nombrarlo sería mentir');
+});
+
+test('sin XP en el último mes no se inventa una fecha', () => {
+  const p = proyeccionDeNivel(conRitmo(actividadDe('piano'), 0), HOY);
+  assert.equal(p.estado, 'sin-ritmo');
+  assert.equal(p.fecha, undefined);
+});
+
+test('un ritmo que daría más de dos años no se proyecta', () => {
+  const p = proyeccionDeNivel(conRitmo(actividadDe('piano'), 1, { need: 900000 }), HOY);
+  assert.equal(p.estado, 'lejos');
+  assert.equal(p.fecha, undefined);
+});
+
+test('las disciplinas que no suben por XP quedan afuera', () => {
+  // El gimnasio sube por fuerza y la composición corporal por grasa: ahí el
+  // nivel no se alcanza acumulando, así que proyectar XP no significa nada.
+  assert.equal(proyeccionDeNivel(conRitmo(actividadDe('gym'), 100), HOY), null);
+  assert.equal(proyeccionDeNivel(conRitmo(actividadDe('cuerpo'), 100), HOY), null);
+  assert.equal(proyeccionDeNivel(conRitmo(actividadDe('agua'), 100), HOY), null, 'el agua no tiene niveles');
+});
+
+test('sin estado no rompe', () => {
+  assert.equal(proyeccionDeNivel(null, HOY), null);
+  assert.equal(proyeccionDeNivel({ activity: actividadDe('piano') }, HOY), null);
 });

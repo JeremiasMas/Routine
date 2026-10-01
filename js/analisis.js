@@ -353,6 +353,56 @@ export function proyeccionDeRango(state, hoy, dias = VENTANA) {
 }
 
 /**
+ * Cuándo cae el próximo nivel de una disciplina, al ritmo de las últimas
+ * semanas.
+ *
+ * La barra de XP ya dice cuánta falta; lo que no dice es cuándo. Una cifra
+ * como "1.900 XP" no significa nada hasta que se traduce a días.
+ *
+ * Misma honestidad que el resto: sin ritmo no se proyecta, y una fecha a más
+ * de dos años no informa nada porque nadie sostiene un ritmo tanto tiempo.
+ * Las disciplinas cuyo nivel no sale de la XP —el gimnasio, que sale de la
+ * fuerza, y la composición corporal, que sale del porcentaje de grasa— no
+ * entran: ahí el nivel no se alcanza acumulando.
+ *
+ * @returns {?{estado:string, nivel:number, xpFaltante:number, porDia?:number,
+ *             dias?:number, fecha?:string, tier?:object}}
+ */
+export function proyeccionDeNivel(st, hoy, dias = VENTANA) {
+  if (!st || st.activity?.leveled === false || st.activity?.rankBy) return null;
+  const nivel = st.level;
+  if (!nivel) return null;
+
+  const xpFaltante = Math.max(0, (nivel.need || 0) - (nivel.into || 0));
+  const siguiente = nivel.level + 1;
+  // El rango sólo se nombra si de verdad lo estrena el nivel que viene: decir
+  // "y además subís de rango" cuando faltan diez niveles sería mentir.
+  const tier = st.nextTier && st.nextTier.min === siguiente ? st.nextTier : null;
+
+  const desde = addDays(hoy, -dias);
+  const ganada = (st.history || [])
+    .filter((h) => h.date > desde)
+    .reduce((n, h) => n + (h.xp || 0), 0);
+  const porDia = ganada / dias;
+
+  if (!(porDia > 0)) return { estado: 'sin-ritmo', nivel: siguiente, xpFaltante, tier };
+
+  const diasRestantes = Math.ceil(xpFaltante / porDia);
+  if (diasRestantes > 365 * 2) {
+    return { estado: 'lejos', nivel: siguiente, xpFaltante, porDia: Math.round(porDia), tier };
+  }
+  return {
+    estado: 'en-camino',
+    nivel: siguiente,
+    xpFaltante,
+    porDia: Math.round(porDia),
+    dias: diasRestantes,
+    fecha: addDays(hoy, diasRestantes),
+    tier,
+  };
+}
+
+/**
  * Reparto entre las fuentes de una actividad múltiple (el francés: Duolingo y
  * el podcast). Apoyarse en una sola fuente deja un agujero: Duolingo casi no
  * entrena el oído, y el podcast casi no hace producir.
