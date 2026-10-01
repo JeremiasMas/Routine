@@ -765,8 +765,15 @@ export const ACHIEVEMENTS = [
   { id: 'ruta-40', name: 'Ruta 40', icon: '🛣️', xp: 500, target: 6900000,
     desc: 'Los 5.200 km de la Ruta 40, en pasos.',
     progress: (s) => s.totals.pasos || 0 },
-  { id: 'vuelta-al-mundo', name: 'La vuelta al mundo', icon: '🌎', xp: 3000, target: 53000000,
-    desc: 'Los 40.075 km de la circunferencia de la Tierra, caminando.',
+  // La vuelta al mundo entera —40.075 km, 53 millones de pasos— son catorce años
+  // a diez mil pasos por día: cinco veces el escalón anterior. Un logro que no
+  // se puede alcanzar no es difícil, es decorado. Van dos destinos reales en su
+  // lugar, que es además el hueco que faltaba entre los diez millones y nada.
+  { id: 'steps-14m', name: 'Buenos Aires–Madrid', icon: '🧭', xp: 1000, target: 14000000,
+    desc: 'Los 10.000 km que separan Buenos Aires de Madrid, en pasos.',
+    progress: (s) => s.totals.pasos || 0 },
+  { id: 'steps-19m', name: 'Buenos Aires–Moscú', icon: '🌎', xp: 1500, target: 19000000,
+    desc: 'Los 13.500 km hasta Moscú: un tercio de la vuelta al mundo.',
     progress: (s) => s.totals.pasos || 0 },
   { id: 'steps-30k', name: 'Treinta mil', icon: '🦿', xp: 200, target: 30000,
     desc: '30.000 pasos en un solo día.',

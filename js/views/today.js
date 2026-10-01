@@ -229,14 +229,16 @@ function avisoDePausa(state, fecha) {
       .map((id) => state.activities.find((a) => a.id === id))
       .filter(Boolean)
       .map((a) => `${a.icon} ${a.name}`);
-    const alcance = t.actividades
+    const partes = [t.tipo === 'excusa' ? '📝 Excusa' : '🌴 Vacaciones'];
+    partes.push(t.actividades
       ? (nombres.length ? nombres.join(', ') : 'Lo declarado')
-      : 'Todo el día';
-    return el('div', { class: 'row__sub', text: t.motivo ? `${alcance} · ${t.motivo}` : alcance });
+      : 'Todo el día');
+    if (t.motivo) partes.push(t.motivo);
+    return el('div', { class: 'row__sub', text: partes.join(' · ') });
   });
 
   return el('div', { class: 'card', style: 'margin-bottom:4px' },
-    el('div', { style: 'font-weight:700', text: '🌴 Declarado libre' }),
+    el('div', { style: 'font-weight:700', text: 'Declarado libre' }),
     lineas,
     el('div', { class: 'row__sub', style: 'margin-top:6px', text: 'No corta rachas. Si al final lo hacés, suma igual.' }));
 }

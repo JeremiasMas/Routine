@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tramos, esLibre, tramoDe, largo, agregar, quitar, normalizar } from '../js/pausas.js';
+import { tramos, esLibre, tramoDe, largo, agregar, quitar, normalizar, claveDe } from '../js/pausas.js';
 
 test('un día suelto es un tramo de un día', () => {
   assert.equal(largo({ desde: '2026-09-21' }), 1);
@@ -140,24 +140,83 @@ test('fusionar no mezcla tramos de grupos distintos aunque se intercalen', () =>
   assert.deepEqual([mt.desde, mt.hasta], ['2026-09-21', '2026-09-23']);
 });
 
-test('quitar un permiso no se lleva el tramo de día entero del mismo día', () => {
-  const l = [
-    { desde: '2026-09-22', hasta: '2026-09-22' },
-    { desde: '2026-09-22', hasta: '2026-09-22', actividades: ['muaythai'] },
-  ];
-  const sinPermiso = quitar(l, '2026-09-22', ['muaythai']);
-  assert.equal(sinPermiso.length, 1);
-  assert.equal('actividades' in sinPermiso[0], false);
+test('quitar una excusa no se lleva las vacaciones del mismo día', () => {
+  const vacaciones = { desde: '2026-09-22', hasta: '2026-09-22' };
+  const excusa = { desde: '2026-09-22', hasta: '2026-09-22', actividades: ['muaythai'] };
+  const l = [vacaciones, excusa];
 
-  const sinEntero = quitar(l, '2026-09-22', []);
-  assert.equal(sinEntero.length, 1);
-  assert.deepEqual(sinEntero[0].actividades, ['muaythai']);
+  const sinExcusa = quitar(l, excusa);
+  assert.equal(sinExcusa.length, 1);
+  assert.equal(sinExcusa[0].tipo, 'vacaciones');
 
-  assert.equal(quitar(l, '2026-09-22').length, 0, 'sin decir qué, se van los dos');
+  const sinVacaciones = quitar(l, vacaciones);
+  assert.equal(sinVacaciones.length, 1);
+  assert.deepEqual(sinVacaciones[0].actividades, ['muaythai']);
+
+  assert.equal(quitar(l, '2026-09-22').length, 0, 'con la fecha sola se van los dos');
+  assert.equal(quitar(l, null).length, 2, 'y con basura no se borra nada');
 });
 
 test('los tramos del mismo día salen en un orden estable', () => {
   const uno = tramos([{ desde: '2026-09-22', actividades: ['piano'] }, { desde: '2026-09-22' }]);
   const otro = tramos([{ desde: '2026-09-22' }, { desde: '2026-09-22', actividades: ['piano'] }]);
   assert.deepEqual(uno, otro);
+});
+
+// --- Vacaciones y excusas -------------------------------------------------
+
+test('el tipo se deduce del alcance cuando no viene declarado', () => {
+  assert.equal(normalizar({ desde: '2026-09-22' }).tipo, 'vacaciones');
+  assert.equal(normalizar({ desde: '2026-09-22', hasta: '2026-09-28' }).tipo, 'vacaciones');
+  assert.equal(normalizar({ desde: '2026-09-22', actividades: ['muaythai'] }).tipo, 'excusa',
+    'un tramo de una disciplina sola es una excusa');
+});
+
+test('el tipo declarado gana, y la basura no', () => {
+  assert.equal(normalizar({ desde: '2026-09-22', hasta: '2026-09-28', tipo: 'excusa' }).tipo, 'excusa');
+  assert.equal(normalizar({ desde: '2026-09-22', actividades: ['gym'], tipo: 'vacaciones' }).tipo, 'vacaciones',
+    'irse de viaje sin gimnasio son vacaciones del gimnasio');
+  assert.equal(normalizar({ desde: '2026-09-22', tipo: 'feriado' }).tipo, 'vacaciones');
+  assert.equal(normalizar({ desde: '2026-09-22', tipo: 7 }).tipo, 'vacaciones');
+});
+
+test('unas vacaciones y una excusa del mismo día no se fusionan', () => {
+  // Cubren lo mismo y se tocan, pero se declararon por razones distintas:
+  // fusionarlas dejaría una sola fila con un nombre que miente.
+  const r = agregar(
+    [{ desde: '2026-09-22', hasta: '2026-09-25', tipo: 'vacaciones', actividades: ['muaythai'] }],
+    { desde: '2026-09-26', tipo: 'excusa', actividades: ['muaythai'] },
+  );
+  assert.equal(r.length, 2);
+  assert.deepEqual(r.map((t) => t.tipo), ['vacaciones', 'excusa']);
+});
+
+test('dos excusas de la misma disciplina que se tocan sí se fusionan', () => {
+  const r = agregar(
+    [{ desde: '2026-09-22', tipo: 'excusa', actividades: ['muaythai'] }],
+    { desde: '2026-09-23', tipo: 'excusa', actividades: ['muaythai'] },
+  );
+  assert.equal(r.length, 1);
+  assert.equal(r[0].tipo, 'excusa');
+});
+
+test('lo que decide qué se perdona es el alcance, no el tipo', () => {
+  // Unas vacaciones acotadas al gimnasio perdonan el gimnasio y nada más, igual
+  // que una excusa: el tipo es para poder nombrarlas.
+  const v = [{ desde: '2026-09-22', hasta: '2026-09-28', tipo: 'vacaciones', actividades: ['gym'] }];
+  assert.equal(esLibre(v, '2026-09-25', 'gym'), true);
+  assert.equal(esLibre(v, '2026-09-25', 'pasos'), false);
+  assert.equal(esLibre(v, '2026-09-25'), false, 'no es un día libre entero');
+
+  const e = [{ desde: '2026-09-22', tipo: 'excusa' }];
+  assert.equal(esLibre(e, '2026-09-22'), true, 'una excusa sin disciplina cubre todo igual');
+});
+
+test('la clave distingue el tipo y el alcance, y nada más', () => {
+  const a = { desde: '2026-09-22', tipo: 'excusa', actividades: ['muaythai'], motivo: 'Trabajo' };
+  const b = { desde: '2026-10-05', hasta: '2026-10-09', tipo: 'excusa', actividades: ['muaythai'] };
+  assert.equal(claveDe(a), claveDe(b), 'ni la fecha ni el motivo entran');
+  assert.notEqual(claveDe(a), claveDe({ ...a, tipo: 'vacaciones' }));
+  assert.notEqual(claveDe(a), claveDe({ ...a, actividades: ['gym'] }));
+  assert.equal(claveDe(undefined), claveDe({}), 'y la basura no revienta');
 });

@@ -216,3 +216,29 @@ test('el catálogo está bien formado', () => {
     assert.ok(def.icon?.length > 0, `${def.id} sin ícono`);
   }
 });
+
+test('la escalera de pasos no tiene escalones imposibles', () => {
+  // "La vuelta al mundo" pedía 53 millones de pasos: catorce años a diez mil
+  // por día, y cinco veces el escalón anterior. Un logro inalcanzable no es
+  // difícil, es decorado — y desde afuera no se distingue de un error de tipeo.
+  const META_DIARIA = DEFAULT_ACTIVITIES.find((a) => a.id === 'pasos').goal;
+  const escalera = ACHIEVEMENTS
+    .filter((a) => String(a.progress).includes('totals.pasos'))
+    .map((a) => a.target)
+    .sort((a, b) => a - b);
+
+  assert.ok(escalera.length >= 3, 'tiene que haber una escalera, no un salto');
+
+  // Se mide en años a meta cumplida, no en veces: de un millón a siete son 7×
+  // y año y medio de distancia, que está bien; de diez a cincuenta y tres son
+  // 5× y doce años, que no.
+  const anios = (pasos) => pasos / (META_DIARIA * 365);
+  const cima = anios(escalera[escalera.length - 1]);
+  assert.ok(cima <= 7, `el último escalón son ${cima.toFixed(1)} años a meta cumplida`);
+
+  for (let i = 1; i < escalera.length; i++) {
+    const salto = anios(escalera[i]) - anios(escalera[i - 1]);
+    assert.ok(salto <= 3,
+      `de ${escalera[i - 1]} a ${escalera[i]} pasos hay ${salto.toFixed(1)} años sin nada en medio`);
+  }
+});

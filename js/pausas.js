@@ -9,16 +9,27 @@
  * como medida de constancia, y estar diez días con fiebre no es falta de
  * constancia. Lo que no hace es regalar XP: descansar no es entrenar.
  *
- * Un tramo puede cubrir el día entero o sólo algunas disciplinas. Un evento de
- * trabajo que te deja sin muay thai un martes no es motivo para perdonar
- * también el gimnasio y el agua de ese día: perdonar de más vacía la racha de
- * sentido tanto como cortarla de menos.
+ * Hay dos formas de declarar un día, y la diferencia es de intención:
+ *
+ * - **Vacaciones**: un tramo de días que sale del cálculo. Un viaje, una gripe,
+ *   una semana de mudanza. Por defecto cubre todo, pero se puede acotar a
+ *   algunas disciplinas: irse de viaje sin gimnasio no es irse sin caminar.
+ * - **Excusa**: un día y una disciplina. El martes que no llegaste a muay thai
+ *   por un evento de trabajo. Perdonar el día entero por eso vaciaría la racha
+ *   de sentido tanto como cortarla.
+ *
+ * El motor no mira el tipo: lo que decide qué se perdona es el alcance. El tipo
+ * está para poder nombrarlos distinto y para no fusionar dos cosas que uno
+ * declaró por razones distintas.
  */
 
 import { esFechaValida } from './utils.js';
 
+/** Los dos tipos de tramo. El primero es el que valen los tramos sin tipo. */
+export const TIPOS = ['vacaciones', 'excusa'];
+
 /**
- * Un tramo guardado: {desde, hasta, motivo, actividades?}. Las fechas son
+ * Un tramo guardado: {desde, hasta, tipo, motivo, actividades?}. Las fechas son
  * inclusivas. Sin `actividades` el tramo cubre el día entero, que es lo que
  * valen los tramos viejos guardados antes de que existieran las excepciones
  * por disciplina.
@@ -33,12 +44,22 @@ export function normalizar(tramo) {
   const t = {
     desde: desde <= hasta ? desde : hasta,
     hasta: desde <= hasta ? hasta : desde,
+    tipo: tipoDe(tramo),
     motivo: String(tramo.motivo || '').slice(0, 60),
   };
   // La clave sólo aparece cuando hay algo que limitar: así un tramo de día
   // entero se guarda exactamente igual que antes.
   if (actividades.length) t.actividades = actividades;
   return t;
+}
+
+/**
+ * El tipo de un tramo. Lo que no lo dice se deduce del alcance, que es lo que
+ * deja bien nombrados los tramos guardados antes de que el tipo existiera.
+ */
+function tipoDe(tramo) {
+  if (TIPOS.includes(tramo?.tipo)) return tramo.tipo;
+  return limpiarActividades(tramo?.actividades).length ? 'excusa' : 'vacaciones';
 }
 
 /** Los ids de actividad de un tramo, ordenados y sin repetidos ni basura. */
@@ -98,7 +119,7 @@ export function agregar(lista, nuevo) {
 
   const grupos = new Map();
   for (const actual of [...tramos(lista), t]) {
-    const k = clave(actual);
+    const k = claveDe(actual);
     if (!grupos.has(k)) grupos.set(k, []);
     grupos.get(k).push(actual);
   }
@@ -122,23 +143,33 @@ export function agregar(lista, nuevo) {
 }
 
 /**
- * Saca un tramo por su fecha de inicio. Si se dicen las actividades, saca sólo
- * el que cubre exactamente esas: el mismo día puede tener un permiso de día
- * entero y otro de una disciplina sola, y borrar los dos de un toque sería
- * borrar lo que no se pidió.
+ * Saca un tramo.
+ *
+ * Con el tramo entero saca exactamente ése: el mismo día puede tener unas
+ * vacaciones y una excusa de muay thai, y borrar las dos de un toque sería
+ * borrar lo que no se pidió. Con una fecha suelta saca todos los que arrancan
+ * ese día.
  */
-export function quitar(lista, desde, actividades) {
-  const k = actividades === undefined ? null : clave({ actividades: limpiarActividades(actividades) });
-  return tramos(lista).filter((t) => t.desde !== desde || (k !== null && clave(t) !== k));
+export function quitar(lista, cual) {
+  if (typeof cual === 'string') return tramos(lista).filter((t) => t.desde !== cual);
+  const t = normalizar(cual);
+  if (!t) return tramos(lista);
+  const k = claveDe(t);
+  return tramos(lista).filter((x) => !(x.desde === t.desde && claveDe(x) === k));
 }
 
-/** Qué cubre un tramo, como texto comparable. Vacío = el día entero. */
-function clave(t) {
-  return (t.actividades || []).join('|');
+/**
+ * Qué es y qué cubre un tramo, como texto comparable. Es lo que decide si dos
+ * tramos son "el mismo descanso": unas vacaciones y una excusa del mismo día
+ * no lo son, aunque cubran lo mismo.
+ */
+export function claveDe(tramo) {
+  const actividades = limpiarActividades(tramo?.actividades);
+  return `${tipoDe(tramo)}:${actividades.join('|')}`;
 }
 
 function porFecha(a, b) {
-  return a.desde.localeCompare(b.desde) || clave(a).localeCompare(clave(b));
+  return a.desde.localeCompare(b.desde) || claveDe(a).localeCompare(claveDe(b));
 }
 
 function diaSiguiente(fecha) {
