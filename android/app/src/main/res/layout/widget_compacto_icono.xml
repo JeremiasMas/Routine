@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Un ícono de la tira. El color dice si está hecha. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tira_icono"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:textSize="17sp"
+    android:paddingEnd="7dp"
+    android:paddingRight="7dp"
+    android:textColor="@color/widget_texto" />

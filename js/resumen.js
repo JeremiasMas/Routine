@@ -11,6 +11,7 @@
  */
 import { isScheduledWithPauses, goalFor } from './derive.js';
 import { formatValue, formatNumber, esFechaValida } from './utils.js';
+import { colorDe } from './theme.js';
 
 /** Versión del formato. Si cambia la forma, la app vieja no lo interpreta mal. */
 export const VERSION_RESUMEN = 1;
@@ -45,13 +46,17 @@ export function resumenDelDia(state, { enApp = false, fecha = null } = {}) {
   const hoy = fecha || state.today;
   const toca = state.activities.filter((a) => isScheduledWithPauses(a, hoy, state.pausas));
 
-  const misiones = toca.map((a) => {
+  const misiones = toca.map((a, i) => {
     const st = state.byActivity.get(a.id);
     const dia = st?.byDate.get(hoy);
     const meta = goalFor(a, dia?.entry);
     const valor = Number(dia?.value) || 0;
     return {
       id: a.id,
+      // El orden del día, que no cambia con lo que vayas cumpliendo. La lista
+      // sale ordenada por lo que falta primero, y un widget que le da un
+      // anillo fijo a cada disciplina necesita un orden que no se mueva.
+      orden: i,
       icono: a.icon,
       nombre: a.name,
       hecho: Boolean(dia?.met),
@@ -62,6 +67,11 @@ export function resumenDelDia(state, { enApp = false, fecha = null } = {}) {
         : `${formatNumber(valor)} / ${formatValue(meta, a.unit)}`,
       meta,
       unidad: a.unit,
+      // Para los widgets que dibujan anillos: cuánto llevás de la meta, y de
+      // qué color es esta disciplina en el tema puesto. Del otro lado no hay
+      // CSS del que sacarlo ni con qué calcularlo.
+      pct: meta > 0 ? Math.max(0, Math.min(1, valor / meta)) : (dia?.met ? 1 : 0),
+      color: colorDe(a) || '#ef2b34',
       // Si se puede marcar desde el widget, y con qué valor.
       unToque: puedeUnToque(a, { enApp }) && !dia?.met ? meta : 0,
     };

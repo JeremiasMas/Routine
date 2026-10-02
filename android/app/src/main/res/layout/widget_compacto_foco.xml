@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Una sola misión: la que está más cerca de romperte una racha. No resume
+     el día, dice qué hacer ahora. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compacto_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_fondo"
+    android:padding="10dp">
+
+  <TextView
+      android:id="@+id/compacto_aviso"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:visibility="gone"
+      android:gravity="center"
+      android:textColor="@color/widget_suave"
+      android:textSize="11sp"
+      android:maxLines="2"
+      android:ellipsize="end" />
+
+  <LinearLayout
+      android:id="@+id/compacto_contenido"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+    <LinearLayout
+        android:id="@+id/foco_cuerpo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/foco_nombre"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:textColor="@color/widget_texto"
+          android:textSize="14sp"
+          android:textStyle="bold"
+          android:maxLines="1"
+          android:ellipsize="end" />
+
+      <TextView
+          android:id="@+id/foco_detalle"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:textColor="@color/widget_suave"
+          android:textSize="11sp"
+          android:maxLines="1"
+          android:ellipsize="end" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/foco_boton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_boton"
+        android:textColor="@color/widget_acento"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:minWidth="38dp"
+        android:gravity="center"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginLeft="8dp"
+        android:background="@drawable/widget_boton_fondo" />
+  </LinearLayout>
+</LinearLayout>

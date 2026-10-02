@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Una barra ancha y baja: ocupa el alto de una fila de íconos y dice de un
+     vistazo cuánto del día va. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compacto_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_fondo"
+    android:padding="10dp">
+
+  <TextView
+      android:id="@+id/compacto_aviso"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:visibility="gone"
+      android:gravity="center"
+      android:textColor="@color/widget_suave"
+      android:textSize="11sp"
+      android:maxLines="2"
+      android:ellipsize="end" />
+
+  <LinearLayout
+      android:id="@+id/compacto_contenido"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+      <TextView
+          android:id="@+id/barra_titulo"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:textColor="@color/widget_texto"
+          android:textSize="13sp"
+          android:textStyle="bold"
+          android:maxLines="1"
+          android:ellipsize="end" />
+
+      <TextView
+          android:id="@+id/barra_xp"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:textColor="@color/widget_suave"
+          android:textSize="11sp"
+          android:maxLines="1"
+          android:paddingStart="8dp"
+          android:paddingLeft="8dp" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/barra_imagen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:contentDescription="@string/widget_barra_desc" />
+
+    <TextView
+        android:id="@+id/barra_falta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/widget_suave"
+        android:textSize="11sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+  </LinearLayout>
+</LinearLayout>

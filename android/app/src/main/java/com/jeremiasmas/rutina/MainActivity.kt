@@ -398,14 +398,16 @@ class MainActivity : AppCompatActivity() {
     @JavascriptInterface
     fun guardarResumen(json: String) {
       Resumen.guardar(this@MainActivity, json)
-      WidgetRutina.refrescar(this@MainActivity)
+      // Se pueden tener varios widgets puestos a la vez: el que no se
+      // redibuja queda mostrando lo de antes sin que nada falle.
+      Widgets.refrescarTodos(this@MainActivity)
     }
 
     /** La web terminó de aplicar la cola del widget: ya se puede vaciar. */
     @JavascriptInterface
     fun pendientesAplicados() {
       Resumen.limpiarPendientes(this@MainActivity)
-      runOnUiThread { WidgetRutina.refrescar(this@MainActivity) }
+      runOnUiThread { Widgets.refrescarTodos(this@MainActivity) }
     }
 
     @JavascriptInterface

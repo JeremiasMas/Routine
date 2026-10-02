@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Una disciplina en una línea: el ícono la nombra, así no hace falta el
+     nombre y entra el número, que es lo que se mira. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fila_compacta"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+  <TextView
+      android:id="@+id/compacta_icono"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:textSize="11sp"
+      android:paddingEnd="5dp"
+      android:paddingRight="5dp"
+      android:textColor="@color/widget_texto" />
+
+  <TextView
+      android:id="@+id/compacta_texto"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textColor="@color/widget_suave"
+      android:textSize="11sp"
+      android:maxLines="1"
+      android:ellipsize="end" />
+</LinearLayout>

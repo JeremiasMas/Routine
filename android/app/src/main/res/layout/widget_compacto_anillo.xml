@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Anillo a la izquierda, lo que toca hoy a la derecha. Lo usan los dos
+     widgets de anillos: cambia el bitmap, no la estructura. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compacto_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_fondo"
+    android:padding="8dp">
+
+  <TextView
+      android:id="@+id/compacto_aviso"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:visibility="gone"
+      android:gravity="center"
+      android:textColor="@color/widget_suave"
+      android:textSize="11sp"
+      android:maxLines="2"
+      android:ellipsize="end" />
+
+  <LinearLayout
+      android:id="@+id/compacto_contenido"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/anillo_imagen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/widget_anillo_desc" />
+
+    <LinearLayout
+        android:id="@+id/anillo_filas"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingStart="8dp"
+        android:paddingLeft="8dp" />
+  </LinearLayout>
+</LinearLayout>
