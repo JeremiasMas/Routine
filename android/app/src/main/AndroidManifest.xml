@@ -35,8 +35,8 @@
       </intent-filter>
     </activity>
 
-    <!-- El widget de la pantalla de inicio. Dibuja el resumen que la web deja
-         escrito y encola lo que tocás con la app cerrada. -->
+    <!-- El widget grande: las misiones de hoy en lista. Dibuja el resumen que la
+         web deja escrito y encola lo que tocás con la app cerrada. -->
     <receiver
         android:name=".WidgetRutina"
         android:exported="false">
@@ -47,6 +47,76 @@
       <meta-data
           android:name="android.appwidget.provider"
           android:resource="@xml/widget_info" />
+    </receiver>
+
+    <!-- Compacto: un anillo con el día y lo que falta al lado. -->
+    <receiver
+        android:name=".WidgetAnillo"
+        android:label="@string/widget_nombre_anillo"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.REGISTRAR" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_anillo_info" />
+    </receiver>
+
+    <!-- Compacto: un anillo por disciplina. -->
+    <receiver
+        android:name=".WidgetAnillos"
+        android:label="@string/widget_nombre_anillos"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.REGISTRAR" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_anillos_info" />
+    </receiver>
+
+    <!-- Compacto: un ícono por misión, apagado el que falta. -->
+    <receiver
+        android:name=".WidgetTira"
+        android:label="@string/widget_nombre_tira"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.REGISTRAR" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_tira_info" />
+    </receiver>
+
+    <!-- Compacto: sólo la misión que está en juego, con su botón de un toque. -->
+    <receiver
+        android:name=".WidgetFoco"
+        android:label="@string/widget_nombre_foco"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.REGISTRAR" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_foco_info" />
+    </receiver>
+
+    <!-- Compacto: cuánto va del día en una barra. -->
+    <receiver
+        android:name=".WidgetBarra"
+        android:label="@string/widget_nombre_barra"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.REGISTRAR" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_barra_info" />
     </receiver>
 
     <!-- Health Connect pregunta por acá para qué queremos los datos. -->

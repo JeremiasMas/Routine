@@ -237,24 +237,64 @@ test('los layouts y el manifiesto sólo apuntan a recursos que existen', () => {
   }
 });
 
-test('el widget está declarado en el manifiesto', () => {
+/** Los widgets que existen en el código, y el <receiver> de cada uno. */
+function proveedoresDeWidget() {
+  // La clase base es abstracta: no es un widget, es el andamiaje.
+  const clases = [...fuentesKotlin.matchAll(/(abstract )?class (\w+) : (?:WidgetCompacto|AppWidgetProvider)\(\)/g)]
+    .filter((m) => !m[1])
+    .map((m) => m[2]);
   const manifest = leer(MANIFEST);
+  // Cada <receiver ...>...</receiver> entero, para poder mirarlo por separado.
+  const receivers = new Map();
+  for (const m of manifest.matchAll(/<receiver\s[\s\S]*?<\/receiver>/g)) {
+    const nombre = /android:name="\.(\w+)"/.exec(m[0])?.[1];
+    if (nombre) receivers.set(nombre, m[0]);
+  }
+  return { clases, receivers };
+}
+
+test('todo widget del código está declarado en el manifiesto', () => {
   // Sin el receiver no aparece en la lista de widgets del teléfono, y no hay
-  // ningún error: simplemente no está.
-  assert.match(manifest, /<receiver\s[\s\S]*?android:name="\.WidgetRutina"/,
-    'falta el <receiver> del widget');
-  assert.match(manifest, /android\.appwidget\.action\.APPWIDGET_UPDATE/,
-    'sin APPWIDGET_UPDATE el widget nunca se dibuja');
-  assert.match(manifest, /android:name="android\.appwidget\.provider"/,
-    'falta el meta-data que apunta a widget_info');
+  // ningún error: simplemente no está. Con seis widgets, olvidarse de uno es
+  // lo más fácil del mundo.
+  const { clases, receivers } = proveedoresDeWidget();
+  assert.ok(clases.length >= 2, `encontré ${clases.length} widgets, esperaba varios`);
+  const xmls = new Set(readdirSync(join(RES, 'xml')).map((n) => n.replace(/\.xml$/, '')));
+
+  for (const clase of clases) {
+    const receiver = receivers.get(clase);
+    assert.ok(receiver, `falta el <receiver> de ${clase}: no aparecería en el teléfono`);
+    assert.match(receiver, /android\.appwidget\.action\.APPWIDGET_UPDATE/,
+      `${clase}: sin APPWIDGET_UPDATE nunca se dibuja`);
+    const info = /android:resource="@xml\/(\w+)"/.exec(receiver)?.[1];
+    assert.ok(info && xmls.has(info), `${clase}: el meta-data no apunta a un xml que exista`);
+  }
 });
 
-test('la acción del widget dice lo mismo en el manifiesto y en el código', () => {
-  const kt = leer('android/app/src/main/java/com/jeremiasmas/rutina/WidgetRutina.kt');
-  const accion = /const val ACCION_REGISTRAR = "([^"]+)"/.exec(kt)?.[1];
-  assert.ok(accion, 'no encontré ACCION_REGISTRAR');
-  assert.ok(leer(MANIFEST).includes(accion),
-    `el manifiesto no filtra "${accion}": el botón del widget no haría nada`);
+test('cada widget filtra la acción de su botón de un toque', () => {
+  // La acción la maneja la clase base, así que la hereda cualquier widget. Si
+  // el manifiesto no la filtra, el botón no hace nada y tampoco falla.
+  const accion = /const val ACCION_REGISTRAR = "([^"]+)"/.exec(fuentesKotlin)?.[1];
+  assert.ok(accion, 'no encontré ACCION_REGISTRAR en ningún fuente');
+  const { clases, receivers } = proveedoresDeWidget();
+  for (const clase of clases) {
+    assert.ok(receivers.get(clase)?.includes(accion),
+      `${clase} no filtra "${accion}": su botón de un toque no haría nada`);
+  }
+});
+
+test('los layouts compactos traen las vistas que usa la clase base', () => {
+  // conElDia esconde el contenido y muestra el aviso. setViewVisibility sobre
+  // un id que ese layout no tiene no falla: deja el widget en blanco.
+  const usados = [...fuentesKotlin.matchAll(/conElDia\(c, R\.layout\.(\w+)/g)].map((m) => m[1]);
+  assert.ok(usados.length > 0, 'no encontré ningún layout compacto');
+  for (const layout of new Set(usados)) {
+    const src = leer(join(RES, 'layout', `${layout}.xml`));
+    for (const id of ['compacto_aviso', 'compacto_contenido']) {
+      // Con includes, un id renombrado a compacto_aviso_viejo seguía pasando.
+      assert.match(src, new RegExp(`@\\+id/${id}"`), `${layout}.xml no declara ${id}`);
+    }
+  }
 });
 
 test('el nombre del evento de pendientes coincide entre la app y la web', () => {
@@ -441,4 +481,28 @@ test('todo lo que el service worker cachea existe de verdad', () => {
   const cacheados = [...leer('sw.js').matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
   const faltan = cacheados.filter((r) => !existsSync(r));
   assert.deepEqual(faltan, [], `en sw.js pero no en el repo: ${faltan.join(', ')}`);
+});
+
+test('los widgets sólo meten filas adentro de un contenedor', () => {
+  // addView sobre un TextView no falla: el widget queda sin las filas y no
+  // hay ningún error que lo diga.
+  const destinos = [
+    ...fuentesKotlin.matchAll(/\.addView\(R\.id\.(\w+)/g),
+    ...fuentesKotlin.matchAll(/\.removeAllViews\(R\.id\.(\w+)/g),
+  ].map((m) => m[1]);
+  assert.ok(destinos.length > 0, 'no encontré ningún addView');
+
+  // Qué etiqueta declara cada id, mirando todos los layouts.
+  const etiquetaDe = new Map();
+  for (const nombre of readdirSync(join(RES, 'layout'))) {
+    const src = leer(join(RES, 'layout', nombre));
+    for (const m of src.matchAll(/<(\w+)[^>]*?android:id="@\+id\/(\w+)"/g)) etiquetaDe.set(m[2], m[1]);
+  }
+
+  for (const id of new Set(destinos)) {
+    const etiqueta = etiquetaDe.get(id);
+    assert.ok(etiqueta, `R.id.${id} no está declarado en ningún layout`);
+    assert.match(etiqueta, /Layout$/,
+      `se le agregan filas a R.id.${id}, que es un <${etiqueta}> y no un contenedor`);
+  }
 });

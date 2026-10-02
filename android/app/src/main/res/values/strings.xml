@@ -14,4 +14,32 @@
   <string name="widget_encolada">✓ al abrir</string>
   <string name="widget_boton">✓</string>
   <string name="widget_mas">y %1$d más</string>
+
+  <!-- Los widgets compactos. Cinco formas de mirar el mismo día: se ponen los
+       que quieras y se saca el resto. -->
+  <string name="widget_nombre_anillo">Rutina · anillo</string>
+  <string name="widget_nombre_anillos">Rutina · anillos</string>
+  <string name="widget_nombre_tira">Rutina · tira</string>
+  <string name="widget_nombre_foco">Rutina · foco</string>
+  <string name="widget_nombre_barra">Rutina · barra</string>
+
+  <string name="widget_desc_anillo">Un anillo con el día y lo que falta al lado.</string>
+  <string name="widget_desc_anillos">Un anillo por disciplina, como el de salud.</string>
+  <string name="widget_desc_tira">Un ícono por misión: se apagan las que faltan.</string>
+  <string name="widget_desc_foco">Sólo la misión que está en juego ahora.</string>
+  <string name="widget_desc_barra">Cuánto va del día en una barra.</string>
+
+  <string name="widget_anillo_desc">Avance del día</string>
+  <string name="widget_barra_desc">Barra de avance del día</string>
+
+  <string name="widget_compacto_vacio">Abrí la app una vez</string>
+  <string name="widget_compacto_viejo">Día nuevo · abrí la app</string>
+  <string name="widget_compacto_sin_misiones">Hoy no toca nada</string>
+
+  <string name="widget_cuenta">%1$d/%2$d</string>
+  <string name="widget_racha_corta">🔥 %1$d</string>
+  <string name="widget_barra_titulo">%1$d de %2$d misiones</string>
+  <string name="widget_xp">%1$d XP</string>
+  <string name="widget_falta">Falta: %1$s</string>
+  <string name="widget_todo_hecho">Todo hecho ⭐</string>
 </resources>

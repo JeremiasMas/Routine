@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Una tira: un ícono por misión, apagado el que falta. De un vistazo se ve
+     cuántas quedan y cuáles, que es lo que un número solo no dice. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compacto_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_fondo"
+    android:padding="8dp">
+
+  <TextView
+      android:id="@+id/compacto_aviso"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:visibility="gone"
+      android:gravity="center"
+      android:textColor="@color/widget_suave"
+      android:textSize="11sp"
+      android:maxLines="2"
+      android:ellipsize="end" />
+
+  <LinearLayout
+      android:id="@+id/compacto_contenido"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+    <LinearLayout
+        android:id="@+id/tira_iconos"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical" />
+
+    <TextView
+        android:id="@+id/tira_cuenta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/widget_texto"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:paddingStart="6dp"
+        android:paddingLeft="6dp" />
+
+    <TextView
+        android:id="@+id/tira_racha"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/widget_pendiente"
+        android:textSize="11sp"
+        android:maxLines="1"
+        android:paddingStart="8dp"
+        android:paddingLeft="8dp" />
+  </LinearLayout>
+</LinearLayout>

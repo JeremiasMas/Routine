@@ -158,3 +158,51 @@ test('una cola vacía o rota no rompe', () => {
   assert.deepEqual(pendientesAAplicar(null, {}), []);
   assert.deepEqual(pendientesAAplicar([null, undefined], {}), []);
 });
+
+// ---------------------------------------------------------------------------
+// El contrato con los widgets
+// ---------------------------------------------------------------------------
+
+test('todo lo que los widgets leen del resumen existe en el resumen', async () => {
+  // Los widgets corren en otro proceso y leen este JSON con optString/optInt.
+  // Una clave que no existe no da error: devuelve "" o 0, y el widget muestra
+  // un vacío que parece un dato. Es el mismo error que ya se coló en logros.
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const dir = 'android/app/src/main/java/com/jeremiasmas/rutina';
+  const fuentes = readdirSync(dir)
+    .filter((n) => n.startsWith('Widget'))
+    .map((n) => readFileSync(`${dir}/${n}`, 'utf8'))
+    .join('\n');
+  assert.ok(fuentes.includes('opt'), 'no encontré los fuentes de los widgets');
+
+  const s = estado(acts(['datos', 'pasos', 'agua']), { [HOY]: { pasos: { value: 12000 } } });
+  const r = resumenDelDia(s);
+  const disponibles = new Set([...Object.keys(r), ...Object.keys(r.misiones[0])]);
+
+  const leidas = new Set([...fuentes.matchAll(/\.opt\w+\("(\w+)"/g)].map((m) => m[1]));
+  assert.ok(leidas.size > 5, `sólo encontré ${leidas.size} claves leídas`);
+  for (const clave of leidas) {
+    assert.ok(disponibles.has(clave),
+      `los widgets leen "${clave}" y el resumen no lo manda: mostrarían un vacío`);
+  }
+});
+
+test('el resumen trae lo que necesitan los anillos', () => {
+  // pct y color los dibuja el widget; orden es el que no se mueve al cumplir.
+  const s = estado(acts(['datos', 'pasos']), { [HOY]: { pasos: { value: 6280 } } });
+  const m = resumenDelDia(s).misiones.find((x) => x.id === 'pasos');
+  assert.ok(m.pct > 0.6 && m.pct < 0.65, `pct = ${m.pct}`);
+  assert.match(m.color, /^#[0-9a-fA-F]{3,8}$/, `color = ${m.color}`);
+  assert.equal(typeof m.orden, 'number');
+
+  // El orden no depende de lo cumplido: la lista sale con lo que falta
+  // primero, y un anillo fijo por disciplina necesita un orden estable.
+  const otro = estado(acts(['datos', 'pasos']), { [HOY]: { datos: { value: 60 } } });
+  const porOrden = (x) => x.misiones.slice().sort((a, b) => a.orden - b.orden).map((y) => y.id);
+  assert.deepEqual(porOrden(resumenDelDia(s)), porOrden(resumenDelDia(otro)));
+});
+
+test('el pct no se pasa de uno aunque te pases de la meta', () => {
+  const s = estado(acts(['pasos']), { [HOY]: { pasos: { value: 40000 } } });
+  assert.equal(resumenDelDia(s).misiones[0].pct, 1);
+});
