@@ -237,4 +237,37 @@ export function guardarArchivo(nombre, contenido) {
 export function pedirPermiso() { window.RutinaNativa?.pedirPermiso?.(); }
 export function instalarHealthConnect() { window.RutinaNativa?.instalarHealthConnect?.(); }
 export function refrescar() { window.RutinaNativa?.refrescar?.(); }
+
+/**
+ * El número de Android a partir del nivel de API.
+ *
+ * El puente manda `Build.VERSION.SDK_INT`, que es 35 donde el teléfono dice
+ * "Android 15". La traducción va acá y no en Kotlin a propósito: así un
+ * Android nuevo se nombra bien sin reinstalar el APK.
+ */
+export function versionDeAndroid(sdk) {
+  const POR_API = {
+    26: '8.0', 27: '8.1', 28: '9', 29: '10', 30: '11', 31: '12', 32: '12L',
+    33: '13', 34: '14', 35: '15', 36: '16',
+  };
+  const n = Number(sdk);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return POR_API[n] || `API ${n}`;
+}
+
+/**
+ * Qué versión de la app es esta, o null en el navegador.
+ *
+ * Es una llamada propia y no el diagnóstico de pasos porque ese sólo llega
+ * cuando Health Connect contesta, y la versión hay que poder verla siempre —
+ * sobre todo en el teléfono donde algo no anda.
+ */
+export function versionNativa() {
+  if (typeof window?.RutinaNativa?.version !== 'function') return null;
+  try {
+    return JSON.parse(window.RutinaNativa.version());
+  } catch {
+    return null;
+  }
+}
 export function usarSoloOrigen(paquete) { window.RutinaNativa?.usarSoloOrigen?.(paquete || ''); }

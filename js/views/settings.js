@@ -1,5 +1,5 @@
 // Ajustes: metas, actividades, copia de seguridad.
-import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey, addDays } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey, addDays, plural } from '../utils.js';
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
@@ -13,7 +13,7 @@ import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
   COLUMNAS, COLUMNAS_GIMNASIO, COLUMNAS_CUERPO,
 } from '../csv.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades, hayConflictoDeOrigenes, usarSoloOrigen } from '../native.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -134,10 +134,35 @@ export function render({ navigate }) {
       el('button', { class: 'btn', onClick: doExportCsv }, '📊 CSV'),
       el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo'))));
 
-  root.append(el('p', { class: 'hint', style: 'margin-top:18px;text-align:center' },
-    `Rutina RPG · ${state.activities.length} disciplinas · ${Object.keys(data.entries).length} días registrados`));
+  root.append(pieDeVersion(state, data));
 
   return root;
+}
+
+/**
+ * Qué versión tenés puesta.
+ *
+ * Con la app instalada de costado y un APK nuevo cada vez, "¿tenés el build
+ * con el arreglo?" no se podía contestar mirando la pantalla.
+ *
+ * El origen va al lado del número porque sin eso el número engaña: con
+ * conexión la app carga la web, que puede ser más nueva que el APK; la copia
+ * que el APK trae es la que se usa cuando la red falla, y esa sí es
+ * exactamente de esta versión.
+ */
+function pieDeVersion(state, data) {
+  const v = versionNativa();
+  const lineas = [];
+
+  lineas.push(v
+    ? `Rutina ${v.nombre} · build ${v.codigo} · ${v.offline ? 'copia del APK' : 'en línea'}`
+    : 'Rutina · web');
+  lineas.push(`${state.activities.length} disciplinas · ${plural(Object.keys(data.entries).length, 'día registrado', 'días registrados')}`);
+  if (v?.telefono) lineas.push(`Android ${versionDeAndroid(v.android)} · ${v.telefono}`);
+  if (v?.offline) lineas.push('Sin conexión: esto es lo que el APK trajo adentro.');
+
+  return el('p', { class: 'hint', style: 'margin-top:18px;text-align:center' },
+    lineas.map((t, i) => el('div', { text: t, style: i === 0 ? 'font-weight:650' : '' })));
 }
 
 function toggle(label, hint, checked, onChange) {

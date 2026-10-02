@@ -331,6 +331,28 @@ class MainActivity : AppCompatActivity() {
     @JavascriptInterface
     fun disponible(): Boolean = true
 
+    /**
+     * Qué versión es esta, y de dónde salió lo que estás viendo.
+     *
+     * El número ya viajaba adentro del diagnóstico de pasos, pero ese sólo
+     * llega cuando Health Connect contesta: justo en el teléfono donde los
+     * pasos no andan, no había forma de saber qué APK tenías puesto.
+     *
+     * `offline` importa tanto como el número: con conexión la app carga la web
+     * de GitHub Pages, que puede ser más nueva que el APK; sin conexión muestra
+     * la copia que el APK se trajo, que es exactamente de esta versión.
+     */
+    @JavascriptInterface
+    fun version(): String {
+      val j = JSONObject()
+      j.put("nombre", BuildConfig.VERSION_NAME)
+      j.put("codigo", BuildConfig.VERSION_CODE)
+      j.put("android", Build.VERSION.SDK_INT)
+      j.put("telefono", "${Build.MANUFACTURER} ${Build.MODEL}")
+      j.put("offline", sinConexion)
+      return j.toString()
+    }
+
     /** Abre la pantalla donde Health Connect pide el permiso de lectura. */
     @JavascriptInterface
     fun pedirPermiso() {
