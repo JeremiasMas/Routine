@@ -160,3 +160,13 @@ test('un identificador desconocido no se muestra entero', async () => {
   assert.ok(nombre.length <= 25, `"${nombre}" tiene ${nombre.length} caracteres`);
   assert.ok(!nombre.includes(' '), 'no debería inventar espacios');
 });
+
+test('el nivel de API se traduce al número que dice el teléfono', async () => {
+  const { versionDeAndroid } = await import('../js/native.js');
+  assert.equal(versionDeAndroid(35), '15', 'SDK 35 es Android 15, no "Android 35"');
+  assert.equal(versionDeAndroid(26), '8.0', 'el mínimo que soporta la app');
+  assert.equal(versionDeAndroid(99), 'API 99', 'uno que no conozco se dice como lo que es');
+  assert.equal(versionDeAndroid(0), '');
+  assert.equal(versionDeAndroid(undefined), '');
+  assert.equal(versionDeAndroid('ocho'), '');
+});
