@@ -271,32 +271,34 @@ class WidgetAnillo : WidgetCompacto() {
 }
 
 /**
- * Anillos concéntricos, uno por disciplina que toca hoy.
+ * Anillos para lo que se acumula solo, y al lado lo que hay que sentarse a hacer.
  *
- * Lo mínimo que puede decir el día entero: cada aro es una disciplina y cuánto
- * llevás de su meta. Sin fondo, sin números y sin nombres — se apoya sobre el
- * fondo de pantalla como el widget de salud del teléfono.
+ * Son dos formas de cumplir que no se parecen. El agua, los pasos y el francés
+ * se van llenando durante el día sin que te sientes a nada: eso es un progreso
+ * y se mira como un aro que sube. El gimnasio, el piano o el análisis de datos
+ * son cosas que empezás y terminás: eso es un pendiente y se mira como una
+ * lista. Meterlas en el mismo dibujo hacía que ninguna de las dos se leyera.
  *
- * Las puramente semanales —la medición, escribir— no entran, porque no son de
- * hoy: eso ya lo resuelve el resumen, que trae nada más lo que toca.
+ * Los aros van concéntricos en el orden fijo del día, no en el de lo que falta:
+ * un aro que cambia de disciplina según cómo venís no se puede leer de reojo, y
+ * acá no hay un nombre al lado que lo aclare. Las puramente semanales —la
+ * medición, escribir— no entran: el resumen trae nada más lo que toca hoy.
  *
- * El orden es el fijo del día, no el de lo que falta: un aro que cambia de
- * disciplina según cómo venís no se puede leer de reojo, y acá no hay un
- * nombre al lado que lo aclare.
+ * Sin fondo, para que se apoye sobre el fondo de pantalla.
  */
 class WidgetAnillos : WidgetCompacto() {
 
   companion object {
     /** Más grande deja de ser un detalle de la pantalla y pasa a ser el tema. */
-    private const val LADO_MAX = 76
+    private const val LADO_MAX = 64
     private const val LADO_MIN = 28
 
     /** Aire contra los bordes de la celda. */
-    private const val MARGEN = 6
+    private const val MARGEN = 8
 
     /**
      * Cuánto se aclara el aro de más adentro respecto del de afuera. Con una
-     * paleta cálida, seis aros del mismo tono serían una mancha.
+     * paleta cálida, varios aros del mismo tono serían una mancha.
      */
     private const val ESCALON_TOTAL = 0.55f
   }
@@ -304,30 +306,42 @@ class WidgetAnillos : WidgetCompacto() {
   override fun construir(c: Context, opciones: Bundle?): RemoteViews =
     conElDia(c, R.layout.widget_compacto_anillos) { vista, resumen, _ ->
       val delDia = Widgets.misionesEnOrden(resumen)
+      val continuas = delDia.filter { it.optBoolean("continua") }
+      val tareas = delDia.filterNot { it.optBoolean("continua") }
       val respaldo = color(c, R.color.widget_acento)
-      val ultimo = max(1, delDia.size - 1)
 
-      vista.setImageViewBitmap(
-        R.id.anillos_imagen,
-        Dibujo.anillos(
-          c,
-          ladoDeLosAnillos(opciones),
-          delDia.mapIndexed { i, m ->
-            Dibujo.Arco(
-              m.optDouble("pct", 0.0).toFloat(),
-              Dibujo.aclarar(Dibujo.color(m.optString("color"), respaldo), ESCALON_TOTAL * i / ultimo),
-            )
-          },
-        ),
-      )
-      vista.setOnClickPendingIntent(R.id.anillos_imagen, Widgets.abrirApp(c, null))
+      if (continuas.isEmpty()) {
+        vista.setViewVisibility(R.id.anillos_imagen, View.GONE)
+      } else {
+        val ultimo = max(1, continuas.size - 1)
+        vista.setViewVisibility(R.id.anillos_imagen, View.VISIBLE)
+        vista.setImageViewBitmap(
+          R.id.anillos_imagen,
+          Dibujo.anillos(
+            c,
+            ladoDeLosAnillos(opciones),
+            continuas.mapIndexed { i, m ->
+              Dibujo.Arco(
+                m.optDouble("pct", 0.0).toFloat(),
+                Dibujo.aclarar(Dibujo.color(m.optString("color"), respaldo), ESCALON_TOTAL * i / ultimo),
+              )
+            },
+          ),
+        )
+        vista.setOnClickPendingIntent(R.id.anillos_imagen, Widgets.abrirApp(c, null))
+      }
+
+      vista.removeAllViews(R.id.anillos_tareas)
+      for (m in tareas.take(filasQueEntran(opciones))) {
+        val tono = if (m.optBoolean("hecho")) R.color.widget_ok else R.color.widget_texto
+        vista.addView(R.id.anillos_tareas, filaDeDisciplina(c, m, color(c, tono)))
+      }
     }
 
-  /** Lo más grande que entre en la celda, sin pasarse. */
+  /** Lo más grande que entre a lo alto, que es lo que limita al lado de la lista. */
   private fun ladoDeLosAnillos(opciones: Bundle?): Float {
-    val ancho = Widgets.anchoDp(opciones).takeIf { it > 0 } ?: LADO_MAX
     val alto = Widgets.altoDp(opciones).takeIf { it > 0 } ?: LADO_MAX
-    return min(min(ancho, alto) - MARGEN, LADO_MAX).coerceAtLeast(LADO_MIN).toFloat()
+    return min(alto - MARGEN, LADO_MAX).coerceAtLeast(LADO_MIN).toFloat()
   }
 }
 

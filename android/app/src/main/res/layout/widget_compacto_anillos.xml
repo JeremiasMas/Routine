@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Anillos concéntricos y nada más: sin fondo, sin números, sin nombres.
-     Cada aro es una disciplina del día y cuánto llevás de su meta. -->
+<!-- Los anillos de lo que se acumula solo durante el día, y al lado lo que hay
+     que sentarse a hacer. Sin fondo: se apoya sobre el fondo de pantalla, así
+     que los textos llevan sombra, que es lo único que ahí necesita contraste. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/compacto_raiz"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:padding="2dp">
+    android:padding="4dp">
 
   <TextView
       android:id="@+id/compacto_aviso"
@@ -16,25 +17,34 @@
       android:visibility="gone"
       android:gravity="center"
       android:textColor="@color/widget_suave"
-      android:textSize="10sp"
+      android:textSize="11sp"
       android:maxLines="3"
       android:ellipsize="end"
       android:shadowColor="@color/widget_fondo"
-      android:shadowRadius="3"
+      android:shadowRadius="4"
       android:shadowDx="0"
-      android:shadowDy="0" />
+      android:shadowDy="1" />
 
   <LinearLayout
       android:id="@+id/compacto_contenido"
-      android:layout_width="wrap_content"
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:orientation="vertical"
-      android:gravity="center">
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
 
     <ImageView
         android:id="@+id/anillos_imagen"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:contentDescription="@string/widget_anillo_desc" />
+
+    <LinearLayout
+        android:id="@+id/anillos_tareas"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingStart="8dp"
+        android:paddingLeft="8dp" />
   </LinearLayout>
 </LinearLayout>

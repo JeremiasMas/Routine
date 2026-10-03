@@ -206,3 +206,43 @@ test('el pct no se pasa de uno aunque te pases de la meta', () => {
   const s = estado(acts(['pasos']), { [HOY]: { pasos: { value: 40000 } } });
   assert.equal(resumenDelDia(s).misiones[0].pct, 1);
 });
+
+test('separa lo que se acumula solo de lo que hay que sentarse a hacer', () => {
+  // El agua, los pasos y el francés se llenan durante el día sin que te
+  // sientes a nada: eso es un progreso. El resto se empieza y se termina: eso
+  // es un pendiente. El widget los dibuja distinto y la diferencia sale de acá.
+  const s = estado(acts(['agua', 'pasos', 'frances', 'datos', 'piano', 'gym', 'muaythai']));
+  const m = resumenDelDia(s).misiones;
+  const de = (continua) => m.filter((x) => x.continua === continua).map((x) => x.id).sort();
+
+  assert.deepEqual(de(true), ['agua', 'frances', 'pasos']);
+  assert.ok(de(false).includes('datos'), 'análisis de datos es de sentarse');
+  assert.ok(de(false).includes('muaythai'), 'y el muay thai también');
+  assert.equal(de(true).length + de(false).length, m.length, 'nadie queda sin clasificar');
+});
+
+test('una copia vieja sin el campo nuevo igual sale bien clasificada', async () => {
+  // Las actividades guardadas se expanden SOBRE el default, así que un campo
+  // nuevo llega solo a quien ya tenía datos. Si eso se diera vuelta, el widget
+  // pondría el agua entre los pendientes y nadie se enteraría.
+  // El nombre cambiado es la prueba de que se usó LA actividad guardada y no
+  // una de fábrica: la meta no sirve, porque la del agua se deriva del peso.
+  const guardado = {
+    activities: [{
+      id: 'agua', name: 'Agua mía', icon: '💧', color: '#22d3ee',
+      kind: 'number', goal: 2000, unit: 'ml', streakMode: 'daily',
+    }],
+    entries: {}, unlocked: {}, settings: {},
+  };
+  const antes = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => JSON.stringify(guardado), setItem: () => {} };
+  try {
+    const { load } = await import('../js/state.js');
+    const agua = load().activities.find((a) => a.id === 'agua');
+    assert.equal(agua.name, 'Agua mía', 'tiene que ser la guardada, no una de fábrica');
+    assert.equal(agua.continua, true, 'y el campo nuevo del default tiene que llegarle igual');
+  } finally {
+    if (antes === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = antes;
+  }
+});

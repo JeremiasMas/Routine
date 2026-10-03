@@ -63,7 +63,7 @@
           android:resource="@xml/widget_anillo_info" />
     </receiver>
 
-    <!-- Compacto: anillos concéntricos, uno por disciplina del día. -->
+    <!-- Compacto: anillos para lo que se acumula solo, lista para el resto. -->
     <receiver
         android:name=".WidgetAnillos"
         android:label="@string/widget_nombre_anillos"

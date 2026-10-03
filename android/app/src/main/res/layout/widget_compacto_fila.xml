@@ -10,6 +10,10 @@
 
   <TextView
       android:id="@+id/compacta_icono"
+      android:shadowColor="@color/widget_fondo"
+      android:shadowRadius="4"
+      android:shadowDx="0"
+      android:shadowDy="1"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:textSize="11sp"
@@ -19,6 +23,10 @@
 
   <TextView
       android:id="@+id/compacta_texto"
+      android:shadowColor="@color/widget_fondo"
+      android:shadowRadius="4"
+      android:shadowDx="0"
+      android:shadowDy="1"
       android:layout_width="0dp"
       android:layout_height="wrap_content"
       android:layout_weight="1"

@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lo más chico que tiene sentido: una celda. Son anillos y nada más, así que
-     no necesita ancho para texto. Estirándolo, crecen. -->
+<!-- 2x1: los aros no necesitan ancho, pero la lista de al lado sí. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="40dp"
+    android:minWidth="110dp"
     android:minHeight="40dp"
-    android:minResizeWidth="40dp"
+    android:minResizeWidth="110dp"
     android:minResizeHeight="40dp"
-    android:targetCellWidth="1"
+    android:targetCellWidth="2"
     android:targetCellHeight="1"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
