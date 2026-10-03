@@ -20,9 +20,37 @@ android {
     buildConfig = true
   }
 
+  /**
+   * La clave con la que se firma, versionada a propósito.
+   *
+   * Para Android la firma ES la identidad de la app: una actualización tiene
+   * que venir firmada con la misma clave que la instalada, o el instalador
+   * corta con INSTALL_FAILED_UPDATE_INCOMPATIBLE —en pantalla, el genérico
+   * "La app no se instaló"— y hay que desinstalar antes.
+   *
+   * Sin esto Gradle usaba ~/.android/debug.keystore, que en un runner de CI no
+   * existe y se crea en el momento. Los parámetros son siempre los mismos pero
+   * la clave es aleatoria, así que cada build salía firmado por una identidad
+   * distinta y ninguno podía actualizar a ninguno. Desinstalar borra el
+   * localStorage del WebView, o sea el historial entero: la molestia era lo
+   * de menos.
+   *
+   * La contraseña es la de debug de toda la vida y está a la vista. No es un
+   * secreto: esta app no se publica en ninguna tienda, y lo único que la clave
+   * decide es qué APK puede actualizar a cuál en este teléfono.
+   */
+  signingConfigs {
+    getByName("debug") {
+      storeFile = file("debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
+  }
+
   buildTypes {
-    // Se instala de costado, no por Play Store: el APK de debug alcanza y se
-    // firma solo, sin tener que manejar un keystore.
+    // Se instala de costado, no por Play Store: el APK de debug alcanza. Lo
+    // firma la clave de acá arriba, que es siempre la misma.
     getByName("debug") {
       isMinifyEnabled = false
     }
