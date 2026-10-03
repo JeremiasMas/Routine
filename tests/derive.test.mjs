@@ -117,7 +117,8 @@ test('cada rutina se mide contra SUS series planificadas', () => {
   const sesion = (template) => ({
     templateId: template.id,
     exercises: template.exercises.map((ex) => ({
-      name: ex.name, sets: Array.from({ length: 3 }, () => ({ weight: 40, reps: 12 })),
+      name: ex.name,
+      sets: Array.from({ length: ex.sets || DEFAULT_SETS }, () => ({ weight: 40, reps: 12 })),
     })),
   });
   const xpDe = (template) => derive(build([gym], { [HOY]: { gym: sesion(template) } }), HOY)
@@ -272,12 +273,44 @@ test('las sesiones planificadas coinciden con la rutina real', () => {
   for (const dia of [1, 3, 5]) {
     const t = templateForDay(dia);
     assert.ok(t, `falta la rutina del día ${dia}`);
-    assert.equal(plannedSets(t), t.exercises.length * DEFAULT_SETS,
-      `${t.name}: ${t.exercises.length} ejercicios × ${DEFAULT_SETS}`);
+    // La cuenta se rehace acá: si plannedSets se olvidara del `sets` propio de
+    // un ejercicio, la meta del día quedaría corta y nadie lo vería —el
+    // gimnasio daría por cumplida una sesión a la que le faltan series.
+    const aMano = t.exercises.reduce((n, ex) => n + (ex.sets || DEFAULT_SETS), 0);
+    assert.equal(plannedSets(t), aMano, `${t.name}: la meta no coincide con la rutina`);
     assert.ok(t.exercises.length >= 9, `${t.name} quedó con sólo ${t.exercises.length} ejercicios`);
+    for (const ex of t.exercises) {
+      if (ex.sets === undefined) continue;
+      assert.ok(Number.isInteger(ex.sets) && ex.sets >= 1 && ex.sets <= 10,
+        `${t.name}: ${ex.name} planea ${ex.sets} series`);
+    }
   }
   assert.equal(templateForDay(2), null, 'los martes no hay gimnasio');
   assert.equal(templateForDay(0), null, 'los domingos tampoco');
+});
+
+test('la meta de cada día es la que pide la rutina escrita', () => {
+  // Acá sí van los números a mano, y a propósito: el test de arriba rehace la
+  // cuenta desde la misma plantilla, así que si alguien le saca un `sets` al
+  // sillón de cuádriceps los dos lados bajan juntos y nadie se entera. Estas
+  // tres cifras son la prescripción, no un detalle de la implementación.
+  assert.equal(plannedSets(templateForDay(1)), 36, 'lunes: espalda y bíceps');
+  assert.equal(plannedSets(templateForDay(3)), 42, 'miércoles: hombros y tríceps');
+  assert.equal(plannedSets(templateForDay(5)), 39, 'viernes: pecho y piernas');
+});
+
+test('el volumen semanal de piernas es el prescripto', () => {
+  const porGrupo = new Map();
+  for (const t of GYM_TEMPLATES) {
+    for (const ex of t.exercises) {
+      porGrupo.set(ex.grupo, (porGrupo.get(ex.grupo) || 0) + (ex.sets || DEFAULT_SETS));
+    }
+  }
+  // Sólo el grupo principal: lo que un ejercicio toca de costado («tambien»)
+  // no es volumen dirigido y no entra en la cuenta semanal.
+  assert.equal(porGrupo.get('cuadriceps'), 9, 'cuádriceps');
+  assert.equal(porGrupo.get('isquios'), 9, 'isquiotibiales');
+  assert.equal(porGrupo.get('pantorrillas'), 6, 'pantorrillas');
 });
 
 test('ningún ejercicio está repetido dentro de una rutina', () => {

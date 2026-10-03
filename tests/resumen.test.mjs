@@ -99,6 +99,19 @@ test('el gimnasio nunca trae botón de un toque', () => {
   assert.equal(r.misiones[0].unToque, 0);
 });
 
+test('la meta del gimnasio es la del día, aun sin ninguna serie cargada', () => {
+  // El widget se dibuja antes de que exista el registro de la sesión. Si ahí
+  // cayera en la meta suelta de la actividad, mostraría la misma cifra los
+  // tres días y el anillo del viernes se llenaría nueve series antes.
+  const metaDe = (fecha) => {
+    const s = derive({ activities: acts(['gym']), entries: {}, unlocked: {} }, fecha);
+    return resumenDelDia(s, { fecha }).misiones.find((m) => m.id === 'gym').meta;
+  };
+  assert.equal(metaDe('2026-09-21'), 36, 'lunes');
+  assert.equal(metaDe('2026-09-23'), 42, 'miércoles');
+  assert.equal(metaDe('2026-09-25'), 39, 'viernes');
+});
+
 test('viaja el rango y la racha, que el widget no sabe calcular', () => {
   const s = estado(acts(['datos']), { [HOY]: { datos: { value: 60 } } });
   const r = resumenDelDia(s);
