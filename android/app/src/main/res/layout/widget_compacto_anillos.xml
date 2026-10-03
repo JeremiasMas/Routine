@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Anillos concéntricos y nada más: sin fondo, sin números, sin nombres.
+     Cada aro es una disciplina del día y cuánto llevás de su meta. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compacto_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="2dp">
+
+  <TextView
+      android:id="@+id/compacto_aviso"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:visibility="gone"
+      android:gravity="center"
+      android:textColor="@color/widget_suave"
+      android:textSize="10sp"
+      android:maxLines="3"
+      android:ellipsize="end"
+      android:shadowColor="@color/widget_fondo"
+      android:shadowRadius="3"
+      android:shadowDx="0"
+      android:shadowDy="0" />
+
+  <LinearLayout
+      android:id="@+id/compacto_contenido"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:gravity="center">
+
+    <ImageView
+        android:id="@+id/anillos_imagen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/widget_anillo_desc" />
+  </LinearLayout>
+</LinearLayout>

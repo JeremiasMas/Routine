@@ -11,6 +11,8 @@ import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 import java.time.LocalDate
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Lo que todos los widgets comparten.
@@ -269,46 +271,64 @@ class WidgetAnillo : WidgetCompacto() {
 }
 
 /**
- * Un anillo por disciplina, como el de salud del teléfono.
+ * Anillos concéntricos, uno por disciplina que toca hoy.
  *
- * Son los tres primeros del día en su orden fijo, no los tres que falten: un
- * anillo que cambia de disciplina según cómo venís no se puede leer de reojo.
+ * Lo mínimo que puede decir el día entero: cada aro es una disciplina y cuánto
+ * llevás de su meta. Sin fondo, sin números y sin nombres — se apoya sobre el
+ * fondo de pantalla como el widget de salud del teléfono.
+ *
+ * Las puramente semanales —la medición, escribir— no entran, porque no son de
+ * hoy: eso ya lo resuelve el resumen, que trae nada más lo que toca.
+ *
+ * El orden es el fijo del día, no el de lo que falta: un aro que cambia de
+ * disciplina según cómo venís no se puede leer de reojo, y acá no hay un
+ * nombre al lado que lo aclare.
  */
 class WidgetAnillos : WidgetCompacto() {
 
   companion object {
-    /** Tres entran sin que el de adentro quede del tamaño de un punto. */
-    private const val CUANTOS = 3
+    /** Más grande deja de ser un detalle de la pantalla y pasa a ser el tema. */
+    private const val LADO_MAX = 76
+    private const val LADO_MIN = 28
 
-    /** Cuánto se aclara cada anillo respecto del de afuera. */
-    private const val ESCALON = 0.2f
+    /** Aire contra los bordes de la celda. */
+    private const val MARGEN = 6
+
+    /**
+     * Cuánto se aclara el aro de más adentro respecto del de afuera. Con una
+     * paleta cálida, seis aros del mismo tono serían una mancha.
+     */
+    private const val ESCALON_TOTAL = 0.55f
   }
 
   override fun construir(c: Context, opciones: Bundle?): RemoteViews =
-    conElDia(c, R.layout.widget_compacto_anillo) { vista, resumen, _ ->
+    conElDia(c, R.layout.widget_compacto_anillos) { vista, resumen, _ ->
+      val delDia = Widgets.misionesEnOrden(resumen)
       val respaldo = color(c, R.color.widget_acento)
-      // Cada anillo con su disciplina y su tinte, calculados una sola vez: la
-      // fila de al lado tiene que salir exactamente del mismo color, o el
-      // dibujo deja de explicarse solo.
-      val conAnillo = Widgets.misionesEnOrden(resumen).take(CUANTOS).mapIndexed { i, m ->
-        m to Dibujo.aclarar(Dibujo.color(m.optString("color"), respaldo), ESCALON * i)
-      }
+      val ultimo = max(1, delDia.size - 1)
 
       vista.setImageViewBitmap(
-        R.id.anillo_imagen,
+        R.id.anillos_imagen,
         Dibujo.anillos(
           c,
-          ladoDelAnillo(opciones),
-          conAnillo.map { (m, tinte) -> Dibujo.Arco(m.optDouble("pct", 0.0).toFloat(), tinte) },
+          ladoDeLosAnillos(opciones),
+          delDia.mapIndexed { i, m ->
+            Dibujo.Arco(
+              m.optDouble("pct", 0.0).toFloat(),
+              Dibujo.aclarar(Dibujo.color(m.optString("color"), respaldo), ESCALON_TOTAL * i / ultimo),
+            )
+          },
         ),
       )
-      vista.setOnClickPendingIntent(R.id.anillo_imagen, Widgets.abrirApp(c, null))
-
-      vista.removeAllViews(R.id.anillo_filas)
-      for ((m, tinte) in conAnillo.take(filasQueEntran(opciones))) {
-        vista.addView(R.id.anillo_filas, filaDeDisciplina(c, m, tinte))
-      }
+      vista.setOnClickPendingIntent(R.id.anillos_imagen, Widgets.abrirApp(c, null))
     }
+
+  /** Lo más grande que entre en la celda, sin pasarse. */
+  private fun ladoDeLosAnillos(opciones: Bundle?): Float {
+    val ancho = Widgets.anchoDp(opciones).takeIf { it > 0 } ?: LADO_MAX
+    val alto = Widgets.altoDp(opciones).takeIf { it > 0 } ?: LADO_MAX
+    return min(min(ancho, alto) - MARGEN, LADO_MAX).coerceAtLeast(LADO_MIN).toFloat()
+  }
 }
 
 // ---------------------------------------------------------------------------

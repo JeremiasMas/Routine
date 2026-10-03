@@ -533,3 +533,39 @@ test('la app se firma siempre con la misma clave', () => {
   const seguido = execFileSync('git', ['ls-files', '--', ruta], { encoding: 'utf8' }).trim();
   assert.equal(seguido, ruta, `${ruta} no está versionado: en CI no va a existir`);
 });
+
+test('la vista previa de cada widget es la que el widget dibuja', () => {
+  // El initialLayout es lo que se ve en el selector del teléfono y mientras el
+  // widget carga. Si apunta a otro layout no falla nada: el selector muestra
+  // una cosa y al soltarlo aparece otra. Al reescribir un widget es lo primero
+  // que queda viejo.
+  const { clases, receivers } = proveedoresDeWidget();
+
+  // El cuerpo de cada clase, para saber qué layouts usa de verdad.
+  const cuerpos = new Map();
+  for (const ruta of archivos) {
+    const src = leer(ruta);
+    const partes = src.split(/^(?=(?:abstract )?class )/m);
+    for (const parte of partes) {
+      const nombre = /^(?:abstract )?class (\w+)/.exec(parte)?.[1];
+      if (nombre) cuerpos.set(nombre, parte);
+    }
+  }
+
+  for (const clase of clases) {
+    const info = /android:resource="@xml\/(\w+)"/.exec(receivers.get(clase))?.[1];
+    const xml = leer(join(RES, 'xml', `${info}.xml`));
+    const cuerpo = cuerpos.get(clase);
+    assert.ok(cuerpo, `no encontré el cuerpo de ${clase}`);
+    const usados = [...cuerpo.matchAll(/R\.layout\.(\w+)/g)].map((m) => m[1]);
+
+    // initialLayout es el de siempre; previewLayout es el que mira Android 12
+    // para arriba, que es el que vas a ver vos en el selector.
+    for (const cual of ['initialLayout', 'previewLayout']) {
+      const previa = new RegExp(`android:${cual}="@layout/(\\w+)"`).exec(xml)?.[1];
+      assert.ok(previa, `${info}.xml no declara ${cual}`);
+      assert.ok(usados.includes(previa),
+        `${clase} dibuja ${usados.join(', ') || 'nada'} pero su ${cual} es ${previa}`);
+    }
+  }
+});

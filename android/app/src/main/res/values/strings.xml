@@ -24,7 +24,7 @@
   <string name="widget_nombre_barra">Rutina · barra</string>
 
   <string name="widget_desc_anillo">Un anillo con el día y lo que falta al lado.</string>
-  <string name="widget_desc_anillos">Un anillo por disciplina, como el de salud.</string>
+  <string name="widget_desc_anillos">Anillos concéntricos, uno por disciplina del día.</string>
   <string name="widget_desc_tira">Un ícono por misión: se apagan las que faltan.</string>
   <string name="widget_desc_foco">Sólo la misión que está en juego ahora.</string>
   <string name="widget_desc_barra">Cuánto va del día en una barra.</string>
