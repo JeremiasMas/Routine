@@ -225,14 +225,17 @@ test('los layouts y el manifiesto sólo apuntan a recursos que existen', () => {
   const drawables = new Set(readdirSync(join(RES, 'drawable')).map((n) => n.replace(/\.xml$/, '')));
   const layouts = new Set(readdirSync(join(RES, 'layout')).map((n) => n.replace(/\.xml$/, '')));
   const xmls = new Set(readdirSync(join(RES, 'xml')).map((n) => n.replace(/\.xml$/, '')));
-  const tablas = { string: strings, color: colors, drawable: drawables, layout: layouts, xml: xmls };
+  const tablas = {
+    string: strings, color: colors, drawable: drawables, layout: layouts, xml: xmls,
+    style: valores('style'),
+  };
 
   const aRevisar = [MANIFEST];
   for (const carpeta of ['layout', 'xml', 'drawable']) {
     for (const n of readdirSync(join(RES, carpeta))) aRevisar.push(join(RES, carpeta, n));
   }
   for (const ruta of aRevisar) {
-    for (const m of leer(ruta).matchAll(/"@(string|color|drawable|layout|xml)\/(\w+)"/g)) {
+    for (const m of leer(ruta).matchAll(/"@(string|color|drawable|layout|xml|style)\/([\w.]+)"/g)) {
       assert.ok(tablas[m[1]].has(m[2]), `${ruta} usa @${m[1]}/${m[2]}, que no existe`);
     }
   }
@@ -566,6 +569,41 @@ test('la vista previa de cada widget es la que el widget dibuja', () => {
       assert.ok(previa, `${info}.xml no declara ${cual}`);
       assert.ok(usados.includes(previa),
         `${clase} dibuja ${usados.join(', ') || 'nada'} pero su ${cual} es ${previa}`);
+    }
+  }
+});
+
+test('los widgets no llevan fondo y sus textos se siguen viendo', () => {
+  // Sin fondo quedan apoyados sobre el fondo de pantalla, que puede ser
+  // cualquier cosa. Un TextView que se olvide la sombra no falla: desaparece
+  // sobre un fondo claro, y sólo se nota en el teléfono de quien lo tenga.
+  // Y que el estilo de verdad tenga una sombra: vacío pasaría igual, y cada
+  // texto del teléfono quedaría sin contraste sin que nada avise.
+  const estilo = readdirSync(join(RES, 'values'))
+    .map((n) => /<style name="TextoDeWidget">([\s\S]*?)<\/style>/.exec(leer(join(RES, 'values', n)))?.[1])
+    .find(Boolean);
+  assert.ok(estilo, 'falta el estilo con la sombra');
+  assert.match(estilo, /android:shadowColor">@color\/\w+/, 'el estilo no define el color de la sombra');
+  assert.match(estilo, /android:shadowRadius">\s*[1-9]/, 'el estilo no define un radio de sombra');
+
+  const layouts = readdirSync(join(RES, 'layout')).filter((n) => n.startsWith('widget'));
+  assert.ok(layouts.length >= 5, `sólo encontré ${layouts.length} layouts de widget`);
+
+  for (const nombre of layouts) {
+    const src = leer(join(RES, 'layout', nombre));
+    // La píldora del botón de un toque es lo único que lleva fondo propio:
+    // es la que lo hace parecer un botón.
+    for (const m of src.matchAll(/android:background="([^"]+)"/g)) {
+      assert.equal(m[1], '@drawable/widget_boton_fondo',
+        `${nombre} lleva un fondo (${m[1]}) y los widgets van sobre el fondo de pantalla`);
+    }
+
+    const textos = [...src.matchAll(/<TextView\b[\s\S]*?\/>/g)];
+    assert.ok(textos.length > 0, `${nombre} no declara ningún TextView`);
+    for (const t of textos) {
+      const id = /android:id="@\+id\/(\w+)"/.exec(t[0])?.[1] || '¿sin id?';
+      assert.match(t[0], /style="@style\/TextoDeWidget"/,
+        `${nombre}: ${id} no lleva la sombra y se pierde sobre un fondo claro`);
     }
   }
 });

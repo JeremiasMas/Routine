@@ -7,10 +7,10 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center_vertical"
-    android:background="@drawable/widget_fondo"
     android:padding="10dp">
 
   <TextView
+      style="@style/TextoDeWidget"
       android:id="@+id/compacto_aviso"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
@@ -34,6 +34,7 @@
         android:gravity="center_vertical">
 
       <TextView
+          style="@style/TextoDeWidget"
           android:id="@+id/barra_titulo"
           android:layout_width="0dp"
           android:layout_height="wrap_content"
@@ -45,6 +46,7 @@
           android:ellipsize="end" />
 
       <TextView
+          style="@style/TextoDeWidget"
           android:id="@+id/barra_xp"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
@@ -63,6 +65,7 @@
         android:contentDescription="@string/widget_barra_desc" />
 
     <TextView
+        style="@style/TextoDeWidget"
         android:id="@+id/barra_falta"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

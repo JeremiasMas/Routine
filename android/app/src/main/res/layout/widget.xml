@@ -5,7 +5,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@drawable/widget_fondo"
     android:padding="12dp">
 
   <LinearLayout
@@ -16,6 +15,7 @@
       android:paddingBottom="8dp">
 
     <TextView
+        style="@style/TextoDeWidget"
         android:id="@+id/widget_titulo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -27,6 +27,7 @@
         android:text="@string/widget_vacio_titulo" />
 
     <TextView
+        style="@style/TextoDeWidget"
         android:id="@+id/widget_detalle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -5,4 +5,17 @@
     <item name="android:statusBarColor">@color/fondo</item>
     <item name="android:navigationBarColor">@color/fondo</item>
   </style>
+
+  <!--
+    Los widgets no llevan fondo: se apoyan sobre el fondo de pantalla. Eso les
+    saca el único contraste que tenían, así que cada texto lleva un halo del
+    color del tema. Está acá y no repetido en cada layout porque un TextView
+    que se olvide la sombra no falla: desaparece sobre un fondo claro.
+  -->
+  <style name="TextoDeWidget">
+    <item name="android:shadowColor">@color/widget_fondo</item>
+    <item name="android:shadowRadius">4</item>
+    <item name="android:shadowDx">0</item>
+    <item name="android:shadowDy">1</item>
+  </style>
 </resources>

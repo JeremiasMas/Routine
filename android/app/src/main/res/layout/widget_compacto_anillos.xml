@@ -11,6 +11,7 @@
     android:padding="4dp">
 
   <TextView
+      style="@style/TextoDeWidget"
       android:id="@+id/compacto_aviso"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
@@ -19,11 +20,7 @@
       android:textColor="@color/widget_suave"
       android:textSize="11sp"
       android:maxLines="3"
-      android:ellipsize="end"
-      android:shadowColor="@color/widget_fondo"
-      android:shadowRadius="4"
-      android:shadowDx="0"
-      android:shadowDy="1" />
+      android:ellipsize="end" />
 
   <LinearLayout
       android:id="@+id/compacto_contenido"

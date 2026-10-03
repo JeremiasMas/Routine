@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Un ícono de la tira. El color dice si está hecha. -->
+<!-- Un ícono de la tira. La transparencia dice si está hecha: el color no,
+     porque un emoji no se tiñe con setTextColor. -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/TextoDeWidget"
     android:id="@+id/tira_icono"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
