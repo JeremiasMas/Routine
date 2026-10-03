@@ -8,6 +8,15 @@ export const SCHEMA_VERSION = 1;
  *  - kind: 'number' (un valor), 'gym' (ejercicios con series), 'writing' (posts)
  *  - streakMode: 'daily' (se espera todos los días) o 'weekly' (N veces por semana)
  */
+/**
+ * Las disciplinas de fábrica.
+ *
+ * `continua` separa dos formas de cumplir que no se parecen en nada: el agua,
+ * los pasos y el francés se van acumulando solos durante el día, y el resto son
+ * cosas a las que te tenés que sentar. Lo primero se mira como un progreso que
+ * sube; lo segundo, como una lista de pendientes. Sin marcar, una actividad es
+ * de las de sentarse, que es el caso común.
+ */
 export const DEFAULT_ACTIVITIES = [
   {
     id: 'datos',
@@ -89,6 +98,7 @@ export const DEFAULT_ACTIVITIES = [
   },
   {
     id: 'pasos',
+    continua: true,
     name: 'Pasos',
     icon: '👟',
     color: '#34d399',
@@ -103,6 +113,7 @@ export const DEFAULT_ACTIVITIES = [
   },
   {
     id: 'frances',
+    continua: true,
     name: 'Francés',
     icon: '🇫🇷',
     color: '#84cc16',
@@ -131,6 +142,7 @@ export const DEFAULT_ACTIVITIES = [
   },
   {
     id: 'agua',
+    continua: true,
     name: 'Agua',
     icon: '💧',
     color: '#22d3ee',

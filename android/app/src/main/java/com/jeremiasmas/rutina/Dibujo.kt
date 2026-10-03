@@ -28,11 +28,20 @@ object Dibujo {
   /** Lo que queda del anillo sin cumplir, en el mismo color pero apagado. */
   private const val ALFA_PISTA = 46
 
-  /** Qué parte del radio ocupa el trazo. Más fino se pierde de lejos. */
+  /** Qué parte del lado ocupa el trazo cuando hay un solo anillo. */
   private const val GROSOR = 0.17f
 
-  /** Cuánto se separa un anillo del de adentro. */
-  private const val SEPARACION = 1.55f
+  /** Y qué parte de su franja cuando son varios. El resto es el aire entre ellos. */
+  private const val PARTE_DE_LA_FRANJA = 0.62f
+
+  /**
+   * Qué parte del radio queda libre en el medio.
+   *
+   * Sin esto, repartir el radio entre seis aros deja al de más adentro con el
+   * tamaño de un punto: deja de leerse como un aro. El hueco le saca a todos
+   * un poco de grosor y le devuelve al último su forma.
+   */
+  private const val HUECO = 0.22f
 
   private fun px(c: Context, dp: Float) = dp * c.resources.displayMetrics.density
 
@@ -50,10 +59,10 @@ object Dibujo {
   /**
    * El mismo color, un poco más claro.
    *
-   * En los temas cálidos toda la paleta es roja y naranja: tres anillos
-   * concéntricos con los colores tal cual quedarían indistinguibles. Aclarar
+   * En los temas cálidos toda la paleta es roja y naranja: media docena de
+   * anillos concéntricos con los colores tal cual serían una mancha. Aclarar
    * cada uno un escalón los separa sin perder de qué disciplina es cada cual,
-   * y sobre un fondo negro aclarar se ve mejor que oscurecer.
+   * y sobre un fondo oscuro aclarar se ve mejor que oscurecer.
    *
    * @param parte de 0 (igual) a 1 (blanco)
    */
@@ -64,12 +73,15 @@ object Dibujo {
   }
 
   /**
-   * Uno o varios anillos concéntricos, el primero por fuera.
+   * Anillos concéntricos, el primero por fuera.
+   *
+   * El radio se reparte en una franja por anillo, así que entran los que sean
+   * sin que el de adentro se cierre sobre sí mismo. El trazo nunca pasa del
+   * grosor de un anillo solo: si no, con uno quedaría un disco en vez de un aro.
    *
    * @param ladoDp el lado del cuadrado, en dp
    * @param arcos  de afuera hacia adentro
    * @param centro texto en el medio, o null
-   * @param colorCentro color de ese texto
    */
   fun anillos(
     c: Context,
@@ -86,30 +98,27 @@ object Dibujo {
       style = Paint.Style.STROKE
       strokeCap = Paint.Cap.ROUND
     }
-
-    // Con varios anillos cada trazo tiene que ser más fino para que entren los
-    // tres sin comerse el agujero del medio.
-    val grosor = lado * GROSOR / if (arcos.size > 1) 1.9f else 1f
+    val medio = lado / 2f
+    // El píxel de más es para que el suavizado del borde no quede cortado.
+    val radioMax = medio - 1f
+    val franja = radioMax * (1f - HUECO) / max(1, arcos.size)
+    val grosor = min(franja * PARTE_DE_LA_FRANJA, lado * GROSOR)
     pincel.strokeWidth = grosor
-    val centroXY = lado / 2f
 
     for ((i, arco) in arcos.withIndex()) {
-      // Cada anillo hacia adentro: el grosor propio más un respiro. El píxel
-      // de más es para que el suavizado del borde no quede cortado.
-      val radio = centroXY - grosor / 2f - 1f - i * grosor * SEPARACION
-      if (radio <= grosor) break
-      val caja = RectF(centroXY - radio, centroXY - radio, centroXY + radio, centroXY + radio)
+      val radio = radioMax - franja * i - grosor / 2f
+      if (radio <= 0f) break
 
       pincel.color = arco.color
       pincel.alpha = ALFA_PISTA
-      lienzo.drawCircle(centroXY, centroXY, radio, pincel)
+      lienzo.drawCircle(medio, medio, radio, pincel)
 
-      val pct = min(1f, max(0f, arco.pct))
-      if (pct <= 0f) continue
-      pincel.color = arco.color
+      val parte = min(1f, max(0f, arco.pct))
+      if (parte <= 0f) continue
       pincel.alpha = 255
+      val caja = RectF(medio - radio, medio - radio, medio + radio, medio + radio)
       // Arranca arriba y gira como un reloj, que es como se lee un progreso.
-      lienzo.drawArc(caja, -90f, pct * 360f, false, pincel)
+      lienzo.drawArc(caja, -90f, parte * 360f, false, pincel)
     }
 
     if (!centro.isNullOrEmpty()) {
@@ -120,8 +129,7 @@ object Dibujo {
         textSize = lado * if (centro.length > 3) 0.21f else 0.26f
       }
       // baseline, no centro: drawText apoya el texto en la línea de base.
-      val alto = (texto.descent() + texto.ascent()) / 2f
-      lienzo.drawText(centro, centroXY, centroXY - alto, texto)
+      lienzo.drawText(centro, medio, medio - (texto.descent() + texto.ascent()) / 2f, texto)
     }
     return bitmap
   }

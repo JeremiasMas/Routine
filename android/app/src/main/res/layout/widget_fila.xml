@@ -18,6 +18,7 @@
       android:gravity="center_vertical">
 
     <TextView
+        style="@style/TextoDeWidget"
         android:id="@+id/fila_icono"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -27,6 +28,7 @@
         android:textColor="@color/widget_texto" />
 
     <TextView
+        style="@style/TextoDeWidget"
         android:id="@+id/fila_nombre"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -37,6 +39,7 @@
         android:ellipsize="end" />
 
     <TextView
+        style="@style/TextoDeWidget"
         android:id="@+id/fila_valor"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -48,6 +51,7 @@
   </LinearLayout>
 
   <TextView
+      style="@style/TextoDeWidget"
       android:id="@+id/fila_boton"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"

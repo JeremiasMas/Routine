@@ -72,6 +72,9 @@ export function resumenDelDia(state, { enApp = false, fecha = null } = {}) {
       // CSS del que sacarlo ni con qué calcularlo.
       pct: meta > 0 ? Math.max(0, Math.min(1, valor / meta)) : (dia?.met ? 1 : 0),
       color: colorDe(a) || '#ef2b34',
+      // Si se acumula sola durante el día o si hay que sentarse a hacerla: un
+      // widget muestra lo primero como anillo y lo segundo como pendiente.
+      continua: a.continua === true,
       // Si se puede marcar desde el widget, y con qué valor.
       unToque: puedeUnToque(a, { enApp }) && !dia?.met ? meta : 0,
     };

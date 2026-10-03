@@ -7,10 +7,10 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center_vertical"
-    android:background="@drawable/widget_fondo"
     android:padding="8dp">
 
   <TextView
+      style="@style/TextoDeWidget"
       android:id="@+id/compacto_aviso"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
