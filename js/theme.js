@@ -3,6 +3,8 @@
  * de qué tema se trata, así que agregar uno nuevo es agregar un bloque en el
  * CSS y una línea acá.
  */
+import { DEFAULT_ACTIVITIES } from './config.js';
+
 export const TEMAS = [
   { id: 'consola', nombre: 'Consola', desc: 'El original: azul noche.',
     muestra: ['#080b16', '#7dd3fc', '#fbbf24'] },
@@ -66,10 +68,22 @@ function temaActual() {
   return (typeof document !== 'undefined' && document.documentElement.dataset.tema) || TEMA_POR_DEFECTO;
 }
 
-/** El color de una actividad en el tema puesto. */
+/** El color con el que viene cada disciplina de fábrica. */
+const DE_FABRICA = new Map(DEFAULT_ACTIVITIES.map((a) => [a.id, a.color]));
+
+/**
+ * El color de una actividad en el tema puesto.
+ *
+ * La paleta cálida existe para que los colores de fábrica —pensados para el
+ * tema azul— no desentonen en un tema rojo. No para pisar una decisión: si
+ * elegiste un color a mano, ese gana en cualquier tema. Una actividad que
+ * agregaste vos no tiene color de fábrica, así que siempre usa el suyo.
+ */
 export function colorDe(actividad, tema = temaActual()) {
-  if (!CALIDOS.has(tema)) return actividad?.color;
-  return PALETA_CALIDA[actividad?.id] || actividad?.color;
+  const propio = actividad?.color;
+  if (!CALIDOS.has(tema)) return propio;
+  if (propio && propio !== DE_FABRICA.get(actividad?.id)) return propio;
+  return PALETA_CALIDA[actividad?.id] || propio;
 }
 
 /** El color de un rango en el tema puesto. */

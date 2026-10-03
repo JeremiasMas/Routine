@@ -11,7 +11,6 @@ import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 import java.time.LocalDate
-import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -296,11 +295,6 @@ class WidgetAnillos : WidgetCompacto() {
     /** Aire contra los bordes de la celda. */
     private const val MARGEN = 8
 
-    /**
-     * Cuánto se aclara el aro de más adentro respecto del de afuera. Con una
-     * paleta cálida, varios aros del mismo tono serían una mancha.
-     */
-    private const val ESCALON_TOTAL = 0.55f
   }
 
   override fun construir(c: Context, opciones: Bundle?): RemoteViews =
@@ -313,18 +307,16 @@ class WidgetAnillos : WidgetCompacto() {
       if (continuas.isEmpty()) {
         vista.setViewVisibility(R.id.anillos_imagen, View.GONE)
       } else {
-        val ultimo = max(1, continuas.size - 1)
         vista.setViewVisibility(R.id.anillos_imagen, View.VISIBLE)
         vista.setImageViewBitmap(
           R.id.anillos_imagen,
           Dibujo.anillos(
             c,
             ladoDeLosAnillos(opciones),
-            continuas.mapIndexed { i, m ->
-              Dibujo.Arco(
-                m.optDouble("pct", 0.0).toFloat(),
-                Dibujo.aclarar(Dibujo.color(m.optString("color"), respaldo), ESCALON_TOTAL * i / ultimo),
-              )
+            // El color tal cual, sin retocar: es el que la disciplina tiene
+            // en la app, y el que elegiste si lo cambiaste.
+            continuas.map { m ->
+              Dibujo.Arco(m.optDouble("pct", 0.0).toFloat(), Dibujo.color(m.optString("color"), respaldo))
             },
           ),
         )

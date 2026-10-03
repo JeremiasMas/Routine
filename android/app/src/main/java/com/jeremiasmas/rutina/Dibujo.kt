@@ -57,22 +57,6 @@ object Dibujo {
   }
 
   /**
-   * El mismo color, un poco más claro.
-   *
-   * En los temas cálidos toda la paleta es roja y naranja: media docena de
-   * anillos concéntricos con los colores tal cual serían una mancha. Aclarar
-   * cada uno un escalón los separa sin perder de qué disciplina es cada cual,
-   * y sobre un fondo oscuro aclarar se ve mejor que oscurecer.
-   *
-   * @param parte de 0 (igual) a 1 (blanco)
-   */
-  fun aclarar(color: Int, parte: Float): Int {
-    val p = min(1f, max(0f, parte))
-    val mezcla = { canal: Int -> (canal + (255 - canal) * p).toInt().coerceIn(0, 255) }
-    return Color.argb(Color.alpha(color), mezcla(Color.red(color)), mezcla(Color.green(color)), mezcla(Color.blue(color)))
-  }
-
-  /**
    * Anillos concéntricos, el primero por fuera.
    *
    * El radio se reparte en una franja por anillo, así que entran los que sean
