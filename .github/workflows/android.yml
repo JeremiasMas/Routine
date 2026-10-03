@@ -24,8 +24,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # El APK de debug se firma solo con la clave de debug: alcanza para
-      # instalarlo de costado y evita tener que guardar un keystore.
+      # Firma con android/app/debug.keystore, que está versionado. Sin una
+      # clave fija, cada runner genera la suya y el teléfono no deja actualizar
+      # encima: hay que desinstalar, y eso se lleva el historial.
       - name: Compilar
         working-directory: android
         run: gradle --no-daemon assembleDebug -PversionName=1.0.${{ github.run_number }} -PversionCode=${{ github.run_number }}

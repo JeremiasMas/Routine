@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 // El APK sólo se puede compilar en CI, así que un error de sintaxis cuesta una
 // vuelta entera de GitHub Actions. Estas comprobaciones son las que ya nos
@@ -505,4 +506,30 @@ test('los widgets sólo meten filas adentro de un contenedor', () => {
     assert.match(etiqueta, /Layout$/,
       `se le agregan filas a R.id.${id}, que es un <${etiqueta}> y no un contenedor`);
   }
+});
+
+test('la app se firma siempre con la misma clave', () => {
+  // Para Android la firma ES la identidad de la app. Sin una clave fija cada
+  // runner de CI genera la suya —mismos parámetros, clave aleatoria—, así que
+  // cada build sale firmado por alguien distinto y el teléfono no deja
+  // actualizar encima: hay que desinstalar, y eso borra el localStorage del
+  // WebView, que es el historial entero. Y no falla nada: el APK compila,
+  // sube y recién revienta en el teléfono.
+  const gradle = leer('android/app/build.gradle.kts');
+  const declarado = /storeFile\s*=\s*file\("([^"]+)"\)/.exec(gradle)?.[1];
+  assert.ok(declarado, 'no hay storeFile: Gradle volvería a inventarse una clave en cada build');
+  assert.match(gradle, /getByName\("debug"\)\s*\{[\s\S]*?storeFile/,
+    'el storeFile no está en la config de firma de debug, que es la que usa este APK');
+
+  const ruta = join('android/app', declarado);
+  assert.ok(existsSync(ruta), `${ruta} no existe y el build.gradle lo pide`);
+  // Un keystore PKCS12 arranca con una SEQUENCE de DER. Un archivo vacío, un
+  // texto o un puntero de Git LFS, no.
+  assert.deepEqual([...readFileSync(ruta).subarray(0, 2)], [0x30, 0x82],
+    `${ruta} no parece un keystore`);
+
+  // Y tiene que estar versionado: si queda afuera de git, CI compila sin él y
+  // Gradle se inventa una clave igual que antes, sin decir nada.
+  const seguido = execFileSync('git', ['ls-files', '--', ruta], { encoding: 'utf8' }).trim();
+  assert.equal(seguido, ruta, `${ruta} no está versionado: en CI no va a existir`);
 });
