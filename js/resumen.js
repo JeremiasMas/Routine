@@ -1,4 +1,22 @@
 /**
+ * La meta del gimnasio sale de las series que planea la rutina de ese día —el
+ * lunes 36, el miércoles 42, el viernes 39—, y eso vive en la plantilla, no en
+ * un número fijo.
+ *
+ * goalFor la saca del registro, pero antes de cargar la primera serie no hay
+ * registro: ahí caía en la meta suelta de la actividad y el widget decía 30
+ * cualquiera fuera el día. La pantalla de hoy ya pasaba la plantilla; esto es
+ * lo mismo del lado del widget.
+ */
+function conLaRutinaDelDia(activity, entry, fecha) {
+  // El filtro por kind le sobra a goalFor, que ya mira lo mismo. Está igual
+  // para no devolverle una sesión de gimnasio inventada a la caminata.
+  if (entry || activity.kind !== 'gym') return entry;
+  const plantilla = templateForDay(keyToDate(fecha).getDay());
+  return plantilla ? { templateId: plantilla.id } : entry;
+}
+
+/**
  * El día de hoy, resumido para que lo pueda mostrar algo que no es la web.
  *
  * El widget de Android corre en otro proceso: no tiene WebView, no puede leer
@@ -10,7 +28,8 @@
  * lado no hay con qué calcular nada.
  */
 import { isScheduledWithPauses, goalFor } from './derive.js';
-import { formatValue, formatNumber, esFechaValida } from './utils.js';
+import { templateForDay } from './config.js';
+import { formatValue, formatNumber, esFechaValida, keyToDate } from './utils.js';
 import { colorDe } from './theme.js';
 
 /** Versión del formato. Si cambia la forma, la app vieja no lo interpreta mal. */
@@ -49,7 +68,7 @@ export function resumenDelDia(state, { enApp = false, fecha = null } = {}) {
   const misiones = toca.map((a, i) => {
     const st = state.byActivity.get(a.id);
     const dia = st?.byDate.get(hoy);
-    const meta = goalFor(a, dia?.entry);
+    const meta = goalFor(a, conLaRutinaDelDia(a, dia?.entry, hoy));
     const valor = Number(dia?.value) || 0;
     return {
       id: a.id,
