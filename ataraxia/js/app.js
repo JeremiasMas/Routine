@@ -1,8 +1,8 @@
 // La interfaz: tres pantallas (Hoy, Progreso, Ajustes) y la rutina guiada.
 import {
   claveDe, fechaDe, sumarDias, diaSemana, estadoInicial, normalizar, derivar,
-  metaPasos, comidasActivas, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
-  TIPOS_EJERCICIO, XP_SESION, sesionesDeLaSemana,
+  metaPasos, comidasActivas, ejercicioDelDia, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
+  TIPOS_EJERCICIO, MINUTOS_EJERCICIO, sesionesDeLaSemana,
 } from './logica.js';
 import { FILOSOFOS } from './filosofos.js';
 import { RUTINA_POSTURA, duracionRutina } from './postura.js';
@@ -246,28 +246,52 @@ function tarjetaComidas(r) {
     </section>`;
 }
 
+function duracion(min) {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} h ${m}` : h === 1 ? '1 hora' : `${h} horas`;
+}
+
 function tarjetaEjercicio(r) {
-  const meta = estado.config.ejercicio.porSemana;
+  const { dias, minimo, maximo } = estado.config.ejercicio;
+  const meta = dias.length;
   const hechas = sesionesDeLaSemana(estado, diaVisto, claveDe());
+  const ses = r.ejercicio;
   const puntos = Array.from({ length: Math.max(meta, hechas) }, (_, i) =>
     `<i class="${i < hechas ? 'lleno' : ''} ${i >= meta ? 'extra' : ''}"></i>`).join('');
   const chips = TIPOS_EJERCICIO.map((t) => `
-    <button class="ej-chip ${r.ejercicio === t.id ? 'activo' : ''}" data-accion="ejercicio-tipo" data-valor="${t.id}"
-      aria-pressed="${r.ejercicio === t.id}"><span aria-hidden="true">${t.icono}</span>${t.nombre}</button>`).join('');
-  const faltan = meta - hechas;
-  const txt = faltan > 0
-    ? `${faltan === 1 ? 'Falta 1 sesión' : `Faltan ${faltan} sesiones`} esta semana`
-    : hechas > meta ? '¡Semana cumplida, y con extra!' : '¡Semana cumplida!';
+    <button class="ej-chip ${ses?.tipo === t.id ? 'activo' : ''}" data-accion="ejercicio-tipo" data-valor="${t.id}"
+      aria-pressed="${ses?.tipo === t.id}"><span aria-hidden="true">${t.icono}</span>${t.nombre}</button>`).join('');
+  const minutos = MINUTOS_EJERCICIO.map((m) => `
+    <button class="segmento ${ses?.minutos === m ? 'activo' : ''}" data-accion="ejercicio-min" data-valor="${m}">${m}′</button>`).join('');
+  const queDias = [1, 2, 3, 4, 5, 6, 0].filter((d) => dias.includes(d)).map((d) => DIAS_LARGOS[d]);
+  const rango = minimo === maximo ? duracion(minimo) : `${duracion(minimo)} a ${duracion(maximo)}`;
+  const hoyTxt = r.toca.ejercicio
+    ? `${diaVisto === claveDe() ? 'Hoy' : 'Este día'} toca: ${rango}.`
+    : `${diaVisto === claveDe() ? 'Hoy' : 'Este día'} no toca, pero si hacés, suma.`;
+  let estadoTxt = meta
+    ? (hechas >= meta ? '¡Semana cumplida!' : `${hechas} de ${meta} esta semana`)
+    : 'Sin días elegidos';
+  if (ses) {
+    estadoTxt = ses.completa
+      ? `${duracion(ses.minutos)} · +${ses.xp} XP`
+      : `${duracion(ses.minutos)} · para que cuente, desde ${duracion(minimo)}`;
+  }
   return `
     <section class="tarjeta" aria-labelledby="t-ejercicio">
       <header class="tarjeta-cab">
         <h2 id="t-ejercicio">💪 Ejercicio</h2>
-        <span class="pildora ${hechas >= meta ? 'ok' : ''}">${hechas} de ${meta} esta semana</span>
+        <span class="pildora ${meta && hechas >= meta ? 'ok' : ''}">${hechas} de ${meta} esta semana</span>
       </header>
       <div class="sesiones" aria-hidden="true">${puntos}</div>
-      <p class="estado-txt">${txt}</p>
-      <p class="chico">${r.ejercicio ? `Anotado: +${XP_SESION} XP. Tocalo de nuevo para borrarlo.` : `¿Hiciste ejercicio ${diaVisto === claveDe() ? 'hoy' : 'este día'}? Elegí qué.`}</p>
+      <p class="estado-txt">${hoyTxt}</p>
+      <p class="chico">${queDias.length ? `Los ${queDias.join(' y ')}. Si un día se complica, otro de la misma semana también vale.` : 'Elegí los días en Ajustes.'}</p>
       <div class="ej-chips">${chips}</div>
+      <p class="chico">¿Cuánto duró?</p>
+      <div class="segmentos" role="group" aria-label="Duración">${minutos}</div>
+      <p class="estado-txt">${estadoTxt}</p>
+      ${ses ? '<p class="chico">Tocá el tipo de nuevo para borrar la sesión.</p>' : ''}
     </section>`;
 }
 
@@ -412,6 +436,12 @@ function pantallaAjustes() {
       aria-label="${DIAS_LARGOS[i]}: ${ETIQUETA_TIPO[tipo]}">
       <b>${DIAS_CORTOS[i]}</b><small>${tipo === 'libre' ? '—' : `${Math.round((tipo === 'alta' ? pasos.alta : pasos.suave) / 1000)}k`}</small>
     </button>`).join('');
+  const ej = estado.config.ejercicio;
+  const chipsEjercicio = [1, 2, 3, 4, 5, 6, 0].map((i) => `
+    <button class="dia-chip ${ej.dias.includes(i) ? 'tipo-alta' : 'tipo-libre'}" data-accion="ejercicio-dia" data-valor="${i}"
+      aria-pressed="${ej.dias.includes(i)}" aria-label="${DIAS_LARGOS[i]}">
+      <b>${DIAS_CORTOS[i]}</b><small>${ej.dias.includes(i) ? '✓' : '—'}</small>
+    </button>`).join('');
   const chipsPostura = [1, 2, 3, 4, 5, 6, 0].map((i) => `
     <button class="dia-chip ${postura.dias.includes(i) ? 'tipo-alta' : 'tipo-libre'}" data-accion="postura-dia" data-valor="${i}"
       aria-pressed="${postura.dias.includes(i)}" aria-label="${DIAS_LARGOS[i]}">
@@ -454,14 +484,14 @@ function pantallaAjustes() {
 
     <section class="tarjeta">
       <h2>💪 Ejercicio físico</h2>
-      <p class="chico">Cuántas sesiones por semana. Cualquier día sirve; la semana va de lunes a domingo.</p>
-      <div class="contador">
-        <button class="icono-btn" data-accion="ejercicio-semana" data-valor="-1" aria-label="Una sesión menos"
-          ${estado.config.ejercicio.porSemana <= 1 ? 'disabled' : ''}>−</button>
-        <b>${estado.config.ejercicio.porSemana} ${estado.config.ejercicio.porSemana === 1 ? 'sesión' : 'sesiones'} por semana</b>
-        <button class="icono-btn" data-accion="ejercicio-semana" data-valor="1" aria-label="Una sesión más"
-          ${estado.config.ejercicio.porSemana >= 7 ? 'disabled' : ''}>+</button>
-      </div>
+      <p class="chico">Qué días toca. La semana se cumple con tantas sesiones como días marcados, aunque cambies alguno de lugar.</p>
+      <div class="semana">${chipsEjercicio}</div>
+      <p class="chico">Cuánto dura una sesión. Llegar al mínimo cumple; hasta el máximo suma un poco más.</p>
+      <form class="metas" data-form="ejercicio">
+        <label>Mínimo (min)<input name="minimo" type="number" inputmode="numeric" min="5" max="240" step="5" value="${ej.minimo}"></label>
+        <label>Máximo (min)<input name="maximo" type="number" inputmode="numeric" min="5" max="300" step="5" value="${ej.maximo}"></label>
+        <button class="btn primario" type="submit">Guardar</button>
+      </form>
     </section>
 
     <section class="tarjeta">
@@ -529,13 +559,21 @@ document.addEventListener('click', (ev) => {
   } else if (accion === 'ejercicio-tipo') {
     cambiar(() => {
       const dia = diaEditable(diaVisto);
-      if (dia.ejercicio === valor) delete dia.ejercicio;
-      else dia.ejercicio = valor;
+      const actual = ejercicioDelDia(estado, diaVisto);
+      if (actual?.tipo === valor) delete dia.ejercicio;
+      else dia.ejercicio = { tipo: valor, minutos: actual?.minutos || estado.config.ejercicio.minimo };
     });
-  } else if (accion === 'ejercicio-semana') {
+  } else if (accion === 'ejercicio-min') {
     cambiar(() => {
-      const ej = estado.config.ejercicio;
-      ej.porSemana = Math.min(7, Math.max(1, ej.porSemana + Number(valor)));
+      const dia = diaEditable(diaVisto);
+      const actual = ejercicioDelDia(estado, diaVisto);
+      dia.ejercicio = { tipo: actual?.tipo || 'otro', minutos: Number(valor) };
+    });
+  } else if (accion === 'ejercicio-dia') {
+    cambiar(() => {
+      const i = Number(valor);
+      const dias = estado.config.ejercicio.dias;
+      estado.config.ejercicio.dias = dias.includes(i) ? dias.filter((x) => x !== i) : [...dias, i];
     });
   } else if (accion === 'postura-dia') {
     cambiar(() => {
@@ -594,6 +632,15 @@ document.addEventListener('submit', (ev) => {
     }
     cambiar(() => { estado.config.pasos.alta = alta; estado.config.pasos.suave = suave; });
     aviso('Metas guardadas');
+  } else if (form.dataset.form === 'ejercicio') {
+    const minimo = Math.round(Number(datos.get('minimo')));
+    const maximo = Math.round(Number(datos.get('maximo')));
+    if (!(minimo >= 5 && minimo <= 240 && maximo >= minimo && maximo <= 300)) {
+      aviso('El mínimo va de 5 a 240 minutos y el máximo no puede ser menor.');
+      return;
+    }
+    cambiar(() => { estado.config.ejercicio.minimo = minimo; estado.config.ejercicio.maximo = maximo; });
+    aviso('Duración guardada');
   } else if (form.dataset.form === 'nombre') {
     cambiar(() => { estado.nombre = String(datos.get('nombre') || '').trim().slice(0, 30); });
     aviso('Guardado');

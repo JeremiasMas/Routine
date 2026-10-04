@@ -395,5 +395,3 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); 
   background: linear-gradient(135deg, var(--accent-2), #2563eb); border-color: transparent;
   color: #fff; font-weight: 600;
 }
-.contador { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
-.contador b { text-align: center; flex: 1; }

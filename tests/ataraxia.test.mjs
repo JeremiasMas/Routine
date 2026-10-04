@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import {
   estadoInicial, normalizar, metaPasos, xpPasos, semaforoDelDia, comidasCumplidas,
   resumenDia, nivelDesdeXp, xpParaSubir, rachaActual, derivar, sumarDias, diaSemana, LOGROS,
-  lunesDe, sesionesDeLaSemana, XP_SESION,
+  lunesDe, sesionesDeLaSemana, xpEjercicio, ejercicioDelDia,
 } from '../ataraxia/js/logica.js';
 import { FILOSOFOS, filosofoDe } from '../ataraxia/js/filosofos.js';
 import { RUTINA_POSTURA } from '../ataraxia/js/postura.js';
@@ -29,13 +29,20 @@ test('las fechas usan el día de la semana local', () => {
 
 test('la meta de pasos sale del plan semanal', () => {
   const e = estadoInicial();
-  assert.deepEqual(metaPasos(e, LUNES), { tipo: 'alta', meta: 10000, cambiada: false });
-  assert.deepEqual(metaPasos(e, DOMINGO), { tipo: 'suave', meta: 6000, cambiada: false });
+  const tipo = (k) => metaPasos(e, k).tipo;
+  // 8.000 de lunes a viernes, 4.000 el sábado, nada domingo ni miércoles.
+  assert.deepEqual(metaPasos(e, LUNES), { tipo: 'alta', meta: 8000, cambiada: false });
+  assert.equal(tipo(sumarDias(LUNES, 1)), 'alta');
+  assert.equal(tipo(sumarDias(LUNES, 2)), 'libre', 'miércoles');
+  assert.equal(tipo(sumarDias(LUNES, 3)), 'alta');
+  assert.equal(tipo(sumarDias(LUNES, 4)), 'alta');
+  assert.deepEqual(metaPasos(e, sumarDias(LUNES, 5)), { tipo: 'suave', meta: 4000, cambiada: false });
+  assert.equal(tipo(DOMINGO), 'libre');
 });
 
 test('un día puntual se puede cambiar sin tocar el plan', () => {
   const e = con({ [LUNES]: { tipoPasos: 'suave' } });
-  assert.deepEqual(metaPasos(e, LUNES), { tipo: 'suave', meta: 6000, cambiada: true });
+  assert.deepEqual(metaPasos(e, LUNES), { tipo: 'suave', meta: 4000, cambiada: true });
   assert.equal(metaPasos(e, sumarDias(LUNES, 7)).tipo, 'alta');
 });
 
@@ -72,7 +79,7 @@ test('un día de comidas se cumple con todas anotadas y a lo sumo una roja', () 
 
 test('un día pleno es cumplir todo lo que tocaba', () => {
   const comidas = { desayuno: 'verde', almuerzo: 'verde', merienda: 'verde', cena: 'verde' };
-  const e = con({ [LUNES]: { pasos: 10000, comidas, postura: todaLaPostura } });
+  const e = con({ [LUNES]: { pasos: 8000, comidas, postura: todaLaPostura } });
   const r = resumenDia(e, LUNES);
   assert.ok(r.pleno);
   assert.equal(r.xp, 100 + 100 + 100 + 50);
@@ -104,13 +111,14 @@ test('la racha saltea los días libres y no se corta por hoy', () => {
 
 test('derivar junta XP, rachas y logros del historial', () => {
   const dias = {};
-  for (let i = 0; i < 7; i += 1) {
-    const k = sumarDias('2026-09-28', i);
-    dias[k] = { pasos: 10000 };
+  for (let i = 0; i < 14; i += 1) {
+    const k = sumarDias('2026-09-21', i);
+    dias[k] = { pasos: 8000 };
   }
   const d = derivar(con(dias), '2026-10-04');
-  assert.equal(d.rachas.pasos, 7);
-  assert.equal(d.totales.pasos, 70000);
+  // Dos semanas con 5 días de pasos cada una: domingo y miércoles no cuentan.
+  assert.equal(d.rachas.pasos, 10);
+  assert.equal(d.totales.pasos, 112000);
   assert.ok(d.logros.find((l) => l.id === 'peripatetica').hecho);
   assert.ok(d.nivel.nivel > 1);
   assert.equal(d.filosofo.nivel, d.nivel.nivel);
@@ -120,48 +128,70 @@ test('derivar junta XP, rachas y logros del historial', () => {
 test('normalizar repara un estado viejo o roto', () => {
   const e = normalizar({ config: { pasos: { plan: ['x'], alta: -3 } }, dias: { [LUNES]: { pasos: 5 } } });
   assert.equal(e.config.pasos.plan.length, 7);
-  assert.equal(e.config.pasos.alta, 10000);
+  assert.equal(e.config.pasos.alta, 8000);
   assert.equal(e.dias[LUNES].pasos, 5);
   assert.deepEqual(normalizar(null), estadoInicial());
 });
 
-test('la semana del ejercicio va de lunes a domingo', () => {
-  assert.equal(lunesDe(LUNES), LUNES);
-  assert.equal(lunesDe(DOMINGO), '2026-09-28');
-  const e = con({ '2026-09-29': { ejercicio: 'yoga' }, [DOMINGO]: { ejercicio: 'baile' }, [LUNES]: { ejercicio: 'bici' } });
-  assert.equal(sesionesDeLaSemana(e, DOMINGO), 2);
-  assert.equal(sesionesDeLaSemana(e, LUNES), 1);
-  assert.equal(sesionesDeLaSemana(con({ [LUNES]: { ejercicio: 'inventado' } }), LUNES), 0);
+const MIERCOLES = '2026-09-30';
+const SABADO = '2026-10-03';
+const ses = (tipo, minutos) => ({ ejercicio: { tipo, minutos } });
+
+test('el ejercicio toca miércoles y sábado, de 45 minutos a una hora', () => {
+  const e = estadoInicial();
+  assert.deepEqual(e.config.ejercicio, { dias: [3, 6], minimo: 45, maximo: 60 });
+  assert.ok(resumenDia(e, MIERCOLES).toca.ejercicio);
+  assert.ok(resumenDia(e, SABADO).toca.ejercicio);
+  assert.ok(!resumenDia(e, LUNES).toca.ejercicio);
 });
 
-test('cada sesión de ejercicio suma XP pero no entra en el día pleno', () => {
-  const r = resumenDia(con({ [LUNES]: { ejercicio: 'pilates' } }), LUNES);
-  assert.equal(r.xp, XP_SESION);
-  assert.ok(!r.pleno);
+test('45 minutos cumplen y la hora suma un poco más', () => {
+  assert.equal(xpEjercicio(45, 45, 60), 100);
+  assert.equal(xpEjercicio(60, 45, 60), 130);
+  assert.equal(xpEjercicio(90, 45, 60), 130, 'pasarse de la hora no suma');
+  assert.equal(xpEjercicio(30, 45, 60), 67);
+  const corta = ejercicioDelDia(con({ [MIERCOLES]: ses('yoga', 30) }), MIERCOLES);
+  assert.equal(corta.completa, false);
+  // Las primeras versiones guardaban sólo el tipo: cuenta como el mínimo.
+  assert.equal(ejercicioDelDia(con({ [MIERCOLES]: { ejercicio: 'yoga' } }), MIERCOLES).minutos, 45);
+  assert.equal(ejercicioDelDia(con({ [MIERCOLES]: ses('inventado', 45) }), MIERCOLES), null);
+});
+
+test('el día de ejercicio pide la sesión para ser pleno', () => {
   const comidas = { desayuno: 'verde', almuerzo: 'verde', merienda: 'verde', cena: 'verde' };
-  const sin = resumenDia(con({ [LUNES]: { pasos: 10000, comidas, postura: todaLaPostura } }), LUNES);
-  assert.ok(sin.pleno, 'un día sin ejercicio puede ser pleno');
+  const base = { comidas, postura: todaLaPostura };
+  // Miércoles: sin pasos, pero con ejercicio.
+  assert.ok(!resumenDia(con({ [MIERCOLES]: base }), MIERCOLES).pleno);
+  assert.ok(!resumenDia(con({ [MIERCOLES]: { ...base, ...ses('pilates', 30) } }), MIERCOLES).pleno);
+  assert.ok(resumenDia(con({ [MIERCOLES]: { ...base, ...ses('pilates', 50) } }), MIERCOLES).pleno);
+  // Un lunes no la pide, y si se hace, suma igual.
+  const lunes = resumenDia(con({ [LUNES]: { ...base, pasos: 8000, ...ses('baile', 45) } }), LUNES);
+  assert.ok(lunes.pleno);
+  assert.equal(lunes.xp, 100 + 100 + 100 + 100 + 50);
+});
+
+test('la semana se cumple con dos sesiones completas, en el día que sea', () => {
+  assert.equal(lunesDe(LUNES), LUNES);
+  assert.equal(lunesDe(DOMINGO), '2026-09-28');
+  const e = con({ '2026-10-01': ses('yoga', 45), [SABADO]: ses('baile', 60), [MIERCOLES]: ses('bici', 20) });
+  assert.equal(sesionesDeLaSemana(e, DOMINGO), 2, 'el jueves reemplaza al miércoles; la de 20 min no cuenta');
 });
 
 test('la racha de ejercicio se cuenta en semanas y la actual no corta', () => {
-  // Dos semanas completas (dos sesiones cada una) y la semana en curso vacía.
   const e = con({
-    '2026-09-15': { ejercicio: 'yoga' }, '2026-09-18': { ejercicio: 'yoga' },
-    '2026-09-22': { ejercicio: 'baile' }, '2026-09-26': { ejercicio: 'bici' },
+    '2026-09-16': ses('yoga', 45), '2026-09-20': ses('yoga', 60),
+    '2026-09-23': ses('baile', 45), '2026-09-26': ses('bici', 50),
   });
   assert.equal(derivar(e, '2026-09-29').rachas.ejercicio, 2);
-  // Si la semana termina sin sesiones, se corta.
   assert.equal(derivar(e, '2026-10-06').rachas.ejercicio, 0);
   assert.equal(derivar(e, '2026-10-06').mejores.ejercicio, 2);
-  // Con una sola sesión por semana pedida, también cuentan las de una.
-  const una = con({ '2026-09-22': { ejercicio: 'yoga' } }, (x) => { x.config.ejercicio.porSemana = 1; return x; });
-  assert.equal(derivar(una, '2026-09-28').rachas.ejercicio, 1);
 });
 
-test('normalizar acota las sesiones por semana', () => {
-  assert.equal(normalizar({ config: { ejercicio: { porSemana: 12 } } }).config.ejercicio.porSemana, 2);
-  assert.equal(normalizar({ config: { ejercicio: { porSemana: 3 } } }).config.ejercicio.porSemana, 3);
-  assert.equal(normalizar({}).config.ejercicio.porSemana, 2);
+test('normalizar repara la configuración del ejercicio', () => {
+  const n = (ej) => normalizar({ config: { ejercicio: ej } }).config.ejercicio;
+  assert.deepEqual(n(undefined), { dias: [3, 6], minimo: 45, maximo: 60 });
+  assert.deepEqual(n({ porSemana: 2 }), { dias: [3, 6], minimo: 45, maximo: 60 });
+  assert.deepEqual(n({ dias: [1, 9, 1], minimo: 30, maximo: 20 }), { dias: [1], minimo: 30, maximo: 30 });
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {

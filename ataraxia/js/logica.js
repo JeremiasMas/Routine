@@ -69,15 +69,17 @@ export function estadoInicial() {
     nombre: '',
     config: {
       pasos: {
-        alta: 10000,
-        suave: 6000,
-        // Por día de la semana, empezando el domingo. Arranca con los días de
-        // semana en 10.000 y el fin de semana en 6.000; se cambia en Ajustes.
-        plan: ['suave', 'alta', 'alta', 'alta', 'alta', 'alta', 'suave'],
+        alta: 8000,
+        suave: 4000,
+        // Por día de la semana, empezando el domingo: 8.000 de lunes a
+        // viernes, 4.000 el sábado, y ni el domingo ni el miércoles —que es
+        // día de ejercicio— piden pasos. Se cambia en Ajustes.
+        plan: ['libre', 'alta', 'alta', 'libre', 'alta', 'alta', 'suave'],
       },
       comidas: ['desayuno', 'almuerzo', 'merienda', 'cena'],
       postura: { dias: [0, 1, 2, 3, 4, 5, 6] },
-      ejercicio: { porSemana: 2 },
+      // Miércoles y sábado, de 45 minutos a una hora.
+      ejercicio: { dias: [3, 6], minimo: 45, maximo: 60 },
     },
     dias: {},
   };
@@ -111,10 +113,19 @@ export function normalizar(crudo) {
       pasos,
       comidas,
       postura: { dias: diasPostura },
-      ejercicio: { porSemana: entre(c.ejercicio?.porSemana, 1, 7, base.config.ejercicio.porSemana) },
+      ejercicio: normalizarEjercicio(c.ejercicio, base.config.ejercicio),
     },
     dias: crudo.dias && typeof crudo.dias === 'object' ? crudo.dias : {},
   };
+}
+
+function normalizarEjercicio(crudo, base) {
+  const dias = Array.isArray(crudo?.dias)
+    ? [...new Set(crudo.dias.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))]
+    : base.dias;
+  const minimo = entre(crudo?.minimo, 5, 240, base.minimo);
+  const maximo = Math.max(minimo, entre(crudo?.maximo, 5, 300, base.maximo));
+  return { dias, minimo, maximo };
 }
 
 function entre(v, min, max, respaldo) {
@@ -232,9 +243,10 @@ export function posturaDelDia(estado, clave, rutina = RUTINA_POSTURA) {
 /* -------------------------------------------------------------------------
    Ejercicio físico
 
-   Es una meta semanal, no diaria: dos sesiones por semana, el día que se
-   pueda. Por eso no tiene días fijos ni entra en el día pleno —un martes sin
-   ejercicio no es un martes en falta— y su racha se cuenta en semanas.
+   Tiene días propios (miércoles y sábado) y una duración: de 45 minutos a
+   una hora. Pero la racha se cuenta en semanas, no en días: si el miércoles
+   se complica y la sesión pasa al jueves, la semana igual se cumple. Lo que
+   sí pide el día que toca es el día pleno.
    ------------------------------------------------------------------------- */
 
 /** Qué se puede anotar como sesión. Es sólo para el recuerdo: todas valen igual. */
@@ -249,12 +261,37 @@ export const TIPOS_EJERCICIO = [
   { id: 'otro', nombre: 'Otro', icono: '⚡' },
 ];
 
-/** Cada sesión vale lo mismo que cumplir una meta diaria. */
-export const XP_SESION = 100;
+/** Duraciones que se ofrecen para anotar con un toque. */
+export const MINUTOS_EJERCICIO = [30, 45, 60, 75, 90];
 
+export function ejercicioToca(estado, clave) {
+  return estado.config.ejercicio.dias.includes(diaSemana(clave));
+}
+
+/**
+ * Llegar al mínimo (45 min) vale 100 XP, como cualquier meta. De ahí al
+ * máximo (la hora) suma hasta 30 más; pasarse del máximo no suma: más largo
+ * no es mejor, y la idea es que entre en la semana.
+ */
+export function xpEjercicio(minutos, minimo, maximo) {
+  if (!(minutos > 0) || !(minimo > 0)) return 0;
+  const base = Math.min(minutos / minimo, 1) * 100;
+  const tramo = maximo > minimo ? Math.min(Math.max(minutos - minimo, 0) / (maximo - minimo), 1) : 0;
+  return Math.round(base + tramo * 30);
+}
+
+/**
+ * La sesión de un día, o null. Una sesión sin duración (las primeras
+ * versiones guardaban sólo el tipo) se toma como hecha en el mínimo.
+ */
 export function ejercicioDelDia(estado, clave) {
-  const tipo = estado.dias[clave]?.ejercicio;
-  return TIPOS_EJERCICIO.some((t) => t.id === tipo) ? tipo : null;
+  const crudo = estado.dias[clave]?.ejercicio;
+  const tipo = typeof crudo === 'string' ? crudo : crudo?.tipo;
+  if (!TIPOS_EJERCICIO.some((t) => t.id === tipo)) return null;
+  const { minimo, maximo } = estado.config.ejercicio;
+  const m = Number(crudo?.minutos);
+  const minutos = Number.isFinite(m) && m > 0 ? Math.round(m) : minimo;
+  return { tipo, minutos, completa: minutos >= minimo, xp: xpEjercicio(minutos, minimo, maximo) };
 }
 
 /** El lunes de la semana de un día: la semana va de lunes a domingo. */
@@ -262,14 +299,14 @@ export function lunesDe(clave) {
   return sumarDias(clave, -((diaSemana(clave) + 6) % 7));
 }
 
-/** Sesiones de la semana que contiene a `clave`, sin contar días futuros. */
+/** Sesiones completas de la semana que contiene a `clave`, sin contar días futuros. */
 export function sesionesDeLaSemana(estado, clave, hoy = clave) {
   const lunes = lunesDe(clave);
   let n = 0;
   for (let i = 0; i < 7; i += 1) {
     const k = sumarDias(lunes, i);
     if (k > hoy) break;
-    if (ejercicioDelDia(estado, k)) n += 1;
+    if (ejercicioDelDia(estado, k)?.completa) n += 1;
   }
   return n;
 }
@@ -279,7 +316,8 @@ export function sesionesDeLaSemana(estado, clave, hoy = clave) {
  * termine: un lunes sin ejercicio todavía puede ser una semana redonda.
  */
 export function rachaSemanas(estado, desde, hoy) {
-  const meta = estado.config.ejercicio.porSemana;
+  const meta = estado.config.ejercicio.dias.length;
+  if (!meta) return { racha: 0, mejor: 0 };
   const primera = lunesDe(desde);
   const actual = lunesDe(hoy);
   let mejor = 0;
@@ -307,21 +345,23 @@ export function resumenDia(estado, clave) {
   const pasosOk = meta.tipo !== 'libre' && pasos >= meta.meta;
   const semaforo = semaforoDelDia(estado, clave);
   const postura = posturaDelDia(estado, clave);
+  const ejercicio = ejercicioDelDia(estado, clave);
   const toca = {
     pasos: meta.tipo !== 'libre',
     comidas: semaforo.total > 0,
     postura: posturaToca(estado, clave),
+    ejercicio: ejercicioToca(estado, clave),
   };
   const ok = {
     pasos: pasosOk,
     comidas: comidasCumplidas(semaforo),
     postura: postura.completa,
+    ejercicio: Boolean(ejercicio?.completa),
   };
   const habitos = Object.keys(toca).filter((k) => toca[k]);
   const pleno = habitos.length > 0 && habitos.every((k) => ok[k]);
-  const ejercicio = ejercicioDelDia(estado, clave);
   const xp = xpPasos(pasos, meta.meta) + semaforo.xp + postura.xp
-    + (ejercicio ? XP_SESION : 0) + (pleno ? BONUS_PLENO : 0);
+    + (ejercicio?.xp || 0) + (pleno ? BONUS_PLENO : 0);
   return { clave, meta, pasos, semaforo, postura, ejercicio, toca, ok, pleno, xp };
 }
 
@@ -415,7 +455,7 @@ export function derivar(estado, hoy = claveDe()) {
     if (r.semaforo.completo && r.semaforo.verde === r.semaforo.total) totales.diasVerdes += 1;
     if (r.postura.completa) totales.posturas += 1;
     if (r.pleno) totales.plenos += 1;
-    if (r.ejercicio) totales.ejercicios += 1;
+    if (r.ejercicio?.completa) totales.ejercicios += 1;
     if (r.pasos || r.semaforo.registradas || r.postura.hechos || r.ejercicio) totales.diasConAlgo += 1;
   }
 
@@ -516,7 +556,7 @@ export const LOGROS = [
     desc: 'Cincuenta sesiones de ejercicio.',
     progreso: (s) => s.totales.ejercicios },
   { id: 'ataraxia', nombre: 'Ataraxia', icono: '🕊️', meta: 1,
-    desc: 'Tu primer día pleno: pasos, comidas y postura, todo cumplido.',
+    desc: 'Tu primer día pleno: todo lo que tocaba ese día, cumplido.',
     progreso: (s) => s.totales.plenos },
   { id: 'semana-plena', nombre: 'Semana plena', icono: '✨', meta: 7,
     desc: 'Siete días plenos seguidos.',
