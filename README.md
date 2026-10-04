@@ -375,6 +375,33 @@ sobre 180 días reales de pasos, el martes llegaba a la meta el 23% de las veces
 contra el 62-84% del resto de los días. Aparece sólo cuando hay al menos tres
 semanas de datos.
 
+## Ataraxia: la versión para ella 🏛️
+
+En `ataraxia/` vive una segunda app, independiente de esta, con tres hábitos y
+nada más. Se publica junto con la otra en GitHub Pages:
+
+    https://jeremiasmas.github.io/Routine/ataraxia/
+
+Guarda todo en su propio espacio del navegador y tiene su propio service
+worker, así que las dos apps no se pisan aunque compartan el sitio.
+
+- **👟 Pasos con dos metas.** Un *día largo* (10.000) y un *día suave* (6.000),
+  y en *Ajustes* se marca qué día de la semana es cada uno, o si es *libre*.
+  Cumplir cualquiera de las dos vale 100 XP. Un día puntual se cambia desde
+  *Hoy* sin tocar el plan, y un día libre no corta la racha.
+- **🚦 Semáforo de comidas.** Desayuno, almuerzo, merienda y cena (la colación
+  se activa aparte), cada una en rojo, amarillo o verde. El rojo también da
+  algo de XP: anotarlo ya es honestidad, y si diera cero la tentación sería no
+  anotar. El día se cumple con todo anotado y a lo sumo una comida en rojo.
+- **🧘‍♀️ Mini rutina de postura.** Seis ejercicios en unos cinco minutos, para la
+  cabeza adelantada, los hombros cerrados y la espalda alta. Tiene un modo
+  guiado con cuenta regresiva.
+
+Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
+no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
+se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar
+a Sísifo feliz. La paleta es toda en azules.
+
 ## Cómo funciona la XP
 
 La regla de oro: **cumplir la meta vale 100 XP, sea la actividad que sea.** Así 45
