@@ -377,8 +377,8 @@ semanas de datos.
 
 ## Ataraxia: la versión para ella 🏛️
 
-En `ataraxia/` vive una segunda app, independiente de esta, con tres hábitos y
-nada más. Se publica junto con la otra en GitHub Pages:
+En `ataraxia/` vive una segunda app, independiente de esta, con cuatro hábitos
+y nada más. Se publica junto con la otra en GitHub Pages:
 
     https://jeremiasmas.github.io/Routine/ataraxia/
 
@@ -396,6 +396,13 @@ worker, así que las dos apps no se pisan aunque compartan el sitio.
 - **🧘‍♀️ Mini rutina de postura.** Seis ejercicios en unos cinco minutos, para la
   cabeza adelantada, los hombros cerrados y la espalda alta. Tiene un modo
   guiado con cuenta regresiva.
+
+- **💪 Ejercicio físico, dos veces por semana.** Cualquier día sirve: se anota
+  qué se hizo (gimnasio, pilates, yoga, baile…) y cada sesión vale 100 XP. Es
+  una meta semanal, así que su racha se cuenta en semanas cumplidas, la semana
+  en curso no corta hasta que termina, y no entra en el día pleno: un martes
+  sin ejercicio no es un martes en falta. Las sesiones por semana se cambian
+  en *Ajustes*.
 
 Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
 no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:

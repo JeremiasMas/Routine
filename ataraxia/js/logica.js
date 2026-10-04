@@ -77,6 +77,7 @@ export function estadoInicial() {
       },
       comidas: ['desayuno', 'almuerzo', 'merienda', 'cena'],
       postura: { dias: [0, 1, 2, 3, 4, 5, 6] },
+      ejercicio: { porSemana: 2 },
     },
     dias: {},
   };
@@ -106,9 +107,19 @@ export function normalizar(crudo) {
   return {
     version: 1,
     nombre: typeof crudo.nombre === 'string' ? crudo.nombre : '',
-    config: { pasos, comidas, postura: { dias: diasPostura } },
+    config: {
+      pasos,
+      comidas,
+      postura: { dias: diasPostura },
+      ejercicio: { porSemana: entre(c.ejercicio?.porSemana, 1, 7, base.config.ejercicio.porSemana) },
+    },
     dias: crudo.dias && typeof crudo.dias === 'object' ? crudo.dias : {},
   };
+}
+
+function entre(v, min, max, respaldo) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= min && n <= max ? n : respaldo;
 }
 
 function numeroPositivo(v, respaldo) {
@@ -219,6 +230,68 @@ export function posturaDelDia(estado, clave, rutina = RUTINA_POSTURA) {
 }
 
 /* -------------------------------------------------------------------------
+   Ejercicio físico
+
+   Es una meta semanal, no diaria: dos sesiones por semana, el día que se
+   pueda. Por eso no tiene días fijos ni entra en el día pleno —un martes sin
+   ejercicio no es un martes en falta— y su racha se cuenta en semanas.
+   ------------------------------------------------------------------------- */
+
+/** Qué se puede anotar como sesión. Es sólo para el recuerdo: todas valen igual. */
+export const TIPOS_EJERCICIO = [
+  { id: 'gimnasio', nombre: 'Gimnasio', icono: '🏋️‍♀️' },
+  { id: 'pilates', nombre: 'Pilates', icono: '🤸‍♀️' },
+  { id: 'yoga', nombre: 'Yoga', icono: '🧘‍♀️' },
+  { id: 'baile', nombre: 'Baile', icono: '💃' },
+  { id: 'bici', nombre: 'Bici', icono: '🚴‍♀️' },
+  { id: 'natacion', nombre: 'Natación', icono: '🏊‍♀️' },
+  { id: 'correr', nombre: 'Correr', icono: '🏃‍♀️' },
+  { id: 'otro', nombre: 'Otro', icono: '⚡' },
+];
+
+/** Cada sesión vale lo mismo que cumplir una meta diaria. */
+export const XP_SESION = 100;
+
+export function ejercicioDelDia(estado, clave) {
+  const tipo = estado.dias[clave]?.ejercicio;
+  return TIPOS_EJERCICIO.some((t) => t.id === tipo) ? tipo : null;
+}
+
+/** El lunes de la semana de un día: la semana va de lunes a domingo. */
+export function lunesDe(clave) {
+  return sumarDias(clave, -((diaSemana(clave) + 6) % 7));
+}
+
+/** Sesiones de la semana que contiene a `clave`, sin contar días futuros. */
+export function sesionesDeLaSemana(estado, clave, hoy = clave) {
+  const lunes = lunesDe(clave);
+  let n = 0;
+  for (let i = 0; i < 7; i += 1) {
+    const k = sumarDias(lunes, i);
+    if (k > hoy) break;
+    if (ejercicioDelDia(estado, k)) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Racha en semanas cumplidas. La semana en curso no corta mientras no
+ * termine: un lunes sin ejercicio todavía puede ser una semana redonda.
+ */
+export function rachaSemanas(estado, desde, hoy) {
+  const meta = estado.config.ejercicio.porSemana;
+  const primera = lunesDe(desde);
+  const actual = lunesDe(hoy);
+  let mejor = 0;
+  let corriendo = 0;
+  for (let l = primera; l <= actual; l = sumarDias(l, 7)) {
+    const ok = sesionesDeLaSemana(estado, l, hoy) >= meta;
+    if (ok) { corriendo += 1; mejor = Math.max(mejor, corriendo); } else if (l !== actual) corriendo = 0;
+  }
+  return { racha: corriendo, mejor };
+}
+
+/* -------------------------------------------------------------------------
    Un día entero
    ------------------------------------------------------------------------- */
 
@@ -246,8 +319,10 @@ export function resumenDia(estado, clave) {
   };
   const habitos = Object.keys(toca).filter((k) => toca[k]);
   const pleno = habitos.length > 0 && habitos.every((k) => ok[k]);
-  const xp = xpPasos(pasos, meta.meta) + semaforo.xp + postura.xp + (pleno ? BONUS_PLENO : 0);
-  return { clave, meta, pasos, semaforo, postura, toca, ok, pleno, xp };
+  const ejercicio = ejercicioDelDia(estado, clave);
+  const xp = xpPasos(pasos, meta.meta) + semaforo.xp + postura.xp
+    + (ejercicio ? XP_SESION : 0) + (pleno ? BONUS_PLENO : 0);
+  return { clave, meta, pasos, semaforo, postura, ejercicio, toca, ok, pleno, xp };
 }
 
 /* -------------------------------------------------------------------------
@@ -327,7 +402,7 @@ export function derivar(estado, hoy = claveDe()) {
 
   const totales = {
     xp: 0, pasos: 0, comidas: 0, verdes: 0, rojas: 0, diasVerdes: 0,
-    posturas: 0, plenos: 0, diasConAlgo: 0, mejorDiaPasos: 0,
+    posturas: 0, plenos: 0, diasConAlgo: 0, mejorDiaPasos: 0, ejercicios: 0,
   };
   for (let clave = desde; clave <= hoy; clave = sumarDias(clave, 1)) {
     const r = dia(clave);
@@ -340,7 +415,8 @@ export function derivar(estado, hoy = claveDe()) {
     if (r.semaforo.completo && r.semaforo.verde === r.semaforo.total) totales.diasVerdes += 1;
     if (r.postura.completa) totales.posturas += 1;
     if (r.pleno) totales.plenos += 1;
-    if (r.pasos || r.semaforo.registradas || r.postura.hechos) totales.diasConAlgo += 1;
+    if (r.ejercicio) totales.ejercicios += 1;
+    if (r.pasos || r.semaforo.registradas || r.postura.hechos || r.ejercicio) totales.diasConAlgo += 1;
   }
 
   const habitos = {
@@ -360,10 +436,15 @@ export function derivar(estado, hoy = claveDe()) {
     mejores[id] = mejorRacha(desde, hoy, h.toca, h.cumple);
   }
 
+  const semanas = rachaSemanas(estado, desde, hoy);
+  rachas.ejercicio = semanas.racha;
+  mejores.ejercicio = semanas.mejor;
+
   const nivel = nivelDesdeXp(totales.xp);
   const stats = { totales, rachas, mejores, nivel: nivel.nivel };
   return {
     hoy: dia(hoy),
+    sesionesSemana: sesionesDeLaSemana(estado, hoy),
     totales,
     rachas,
     mejores,
@@ -422,6 +503,18 @@ export const LOGROS = [
   { id: 'treinta-posturas', nombre: 'Treinta rutinas', icono: '🪷', meta: 30,
     desc: 'Treinta rutinas de postura completas.',
     progreso: (s) => s.totales.posturas },
+  { id: 'primera-sesion', nombre: 'Mens sana', icono: '💪', meta: 1,
+    desc: 'Tu primera sesión de ejercicio. Mente sana en cuerpo sano, decía Juvenal.',
+    progreso: (s) => s.totales.ejercicios },
+  { id: 'mes-activo', nombre: 'Mes en movimiento', icono: '📅', meta: 4,
+    desc: 'Cuatro semanas seguidas cumpliendo las sesiones de ejercicio.',
+    progreso: (s) => s.mejores.ejercicio },
+  { id: 'trimestre-activo', nombre: 'Gimnasio de Atenas', icono: '🏟️', meta: 12,
+    desc: 'Doce semanas seguidas cumpliendo las sesiones. En Grecia, el gimnasio era también escuela.',
+    progreso: (s) => s.mejores.ejercicio },
+  { id: 'cincuenta-sesiones', nombre: 'Cincuenta sesiones', icono: '🏅', meta: 50,
+    desc: 'Cincuenta sesiones de ejercicio.',
+    progreso: (s) => s.totales.ejercicios },
   { id: 'ataraxia', nombre: 'Ataraxia', icono: '🕊️', meta: 1,
     desc: 'Tu primer día pleno: pasos, comidas y postura, todo cumplido.',
     progreso: (s) => s.totales.plenos },

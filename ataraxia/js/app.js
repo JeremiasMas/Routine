@@ -2,6 +2,7 @@
 import {
   claveDe, fechaDe, sumarDias, diaSemana, estadoInicial, normalizar, derivar,
   metaPasos, comidasActivas, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
+  TIPOS_EJERCICIO, XP_SESION, sesionesDeLaSemana,
 } from './logica.js';
 import { FILOSOFOS } from './filosofos.js';
 import { RUTINA_POSTURA, duracionRutina } from './postura.js';
@@ -165,6 +166,7 @@ function pantallaHoy(d) {
     ${r.pleno ? '<div class="pleno">✨ Día pleno: todo lo que tocaba, cumplido</div>' : ''}
     ${tarjetaPasos(r, d)}
     ${tarjetaComidas(r)}
+    ${tarjetaEjercicio(r)}
     ${tarjetaPostura(r)}
   `;
 }
@@ -244,6 +246,31 @@ function tarjetaComidas(r) {
     </section>`;
 }
 
+function tarjetaEjercicio(r) {
+  const meta = estado.config.ejercicio.porSemana;
+  const hechas = sesionesDeLaSemana(estado, diaVisto, claveDe());
+  const puntos = Array.from({ length: Math.max(meta, hechas) }, (_, i) =>
+    `<i class="${i < hechas ? 'lleno' : ''} ${i >= meta ? 'extra' : ''}"></i>`).join('');
+  const chips = TIPOS_EJERCICIO.map((t) => `
+    <button class="ej-chip ${r.ejercicio === t.id ? 'activo' : ''}" data-accion="ejercicio-tipo" data-valor="${t.id}"
+      aria-pressed="${r.ejercicio === t.id}"><span aria-hidden="true">${t.icono}</span>${t.nombre}</button>`).join('');
+  const faltan = meta - hechas;
+  const txt = faltan > 0
+    ? `${faltan === 1 ? 'Falta 1 sesión' : `Faltan ${faltan} sesiones`} esta semana`
+    : hechas > meta ? '¡Semana cumplida, y con extra!' : '¡Semana cumplida!';
+  return `
+    <section class="tarjeta" aria-labelledby="t-ejercicio">
+      <header class="tarjeta-cab">
+        <h2 id="t-ejercicio">💪 Ejercicio</h2>
+        <span class="pildora ${hechas >= meta ? 'ok' : ''}">${hechas} de ${meta} esta semana</span>
+      </header>
+      <div class="sesiones" aria-hidden="true">${puntos}</div>
+      <p class="estado-txt">${txt}</p>
+      <p class="chico">${r.ejercicio ? `Anotado: +${XP_SESION} XP. Tocalo de nuevo para borrarlo.` : `¿Hiciste ejercicio ${diaVisto === claveDe() ? 'hoy' : 'este día'}? Elegí qué.`}</p>
+      <div class="ej-chips">${chips}</div>
+    </section>`;
+}
+
 function tarjetaPostura(r) {
   const p = r.postura;
   const hechos = new Set(estado.dias[diaVisto]?.postura || []);
@@ -273,12 +300,12 @@ function tarjetaPostura(r) {
 function pantallaProgreso(d) {
   const hoy = claveDe();
   const { totales, rachas, mejores } = d;
-  const racha = (ic, nombre, act, mejor) => `
+  const racha = (ic, nombre, act, mejor, semanas = false) => `
     <div class="racha">
       <span class="racha-ic" aria-hidden="true">${ic}</span>
       <b>${act}</b>
       <span>${nombre}</span>
-      <small>mejor: ${mejor} ${mejor === 1 ? 'día' : 'días'}</small>
+      <small>mejor: ${mejor} ${semanas ? 'sem.' : (mejor === 1 ? 'día' : 'días')}</small>
     </div>`;
 
   // Pasos de las últimas dos semanas, con la meta de cada día marcada.
@@ -343,9 +370,10 @@ function pantallaProgreso(d) {
         ${racha('👟', 'pasos', rachas.pasos, mejores.pasos)}
         ${racha('🚦', 'comidas', rachas.comidas, mejores.comidas)}
         ${racha('🧘‍♀️', 'postura', rachas.postura, mejores.postura)}
+        ${racha('💪', 'ejercicio', rachas.ejercicio, mejores.ejercicio, true)}
         ${racha('✨', 'plenos', rachas.plenos, mejores.plenos)}
       </div>
-      <p class="chico">Los días libres de pasos y los días sin postura no cortan la racha.</p>
+      <p class="chico">Los días libres de pasos y los días sin postura no cortan la racha. La del ejercicio se cuenta en semanas cumplidas.</p>
     </section>
 
     <section class="tarjeta">
@@ -425,6 +453,18 @@ function pantallaAjustes() {
     </section>
 
     <section class="tarjeta">
+      <h2>💪 Ejercicio físico</h2>
+      <p class="chico">Cuántas sesiones por semana. Cualquier día sirve; la semana va de lunes a domingo.</p>
+      <div class="contador">
+        <button class="icono-btn" data-accion="ejercicio-semana" data-valor="-1" aria-label="Una sesión menos"
+          ${estado.config.ejercicio.porSemana <= 1 ? 'disabled' : ''}>−</button>
+        <b>${estado.config.ejercicio.porSemana} ${estado.config.ejercicio.porSemana === 1 ? 'sesión' : 'sesiones'} por semana</b>
+        <button class="icono-btn" data-accion="ejercicio-semana" data-valor="1" aria-label="Una sesión más"
+          ${estado.config.ejercicio.porSemana >= 7 ? 'disabled' : ''}>+</button>
+      </div>
+    </section>
+
+    <section class="tarjeta">
       <h2>🧘‍♀️ Días de postura</h2>
       <div class="semana">${chipsPostura}</div>
       <p class="chico">Los días apagados la rutina no se pide, pero si la hacés, suma.</p>
@@ -485,6 +525,17 @@ document.addEventListener('click', (ev) => {
       const i = Number(valor);
       const plan = estado.config.pasos.plan;
       plan[i] = TIPOS_PASOS[(TIPOS_PASOS.indexOf(plan[i]) + 1) % TIPOS_PASOS.length];
+    });
+  } else if (accion === 'ejercicio-tipo') {
+    cambiar(() => {
+      const dia = diaEditable(diaVisto);
+      if (dia.ejercicio === valor) delete dia.ejercicio;
+      else dia.ejercicio = valor;
+    });
+  } else if (accion === 'ejercicio-semana') {
+    cambiar(() => {
+      const ej = estado.config.ejercicio;
+      ej.porSemana = Math.min(7, Math.max(1, ej.porSemana + Number(valor)));
     });
   } else if (accion === 'postura-dia') {
     cambiar(() => {

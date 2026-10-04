@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import {
   estadoInicial, normalizar, metaPasos, xpPasos, semaforoDelDia, comidasCumplidas,
   resumenDia, nivelDesdeXp, xpParaSubir, rachaActual, derivar, sumarDias, diaSemana, LOGROS,
+  lunesDe, sesionesDeLaSemana, XP_SESION,
 } from '../ataraxia/js/logica.js';
 import { FILOSOFOS, filosofoDe } from '../ataraxia/js/filosofos.js';
 import { RUTINA_POSTURA } from '../ataraxia/js/postura.js';
@@ -122,6 +123,45 @@ test('normalizar repara un estado viejo o roto', () => {
   assert.equal(e.config.pasos.alta, 10000);
   assert.equal(e.dias[LUNES].pasos, 5);
   assert.deepEqual(normalizar(null), estadoInicial());
+});
+
+test('la semana del ejercicio va de lunes a domingo', () => {
+  assert.equal(lunesDe(LUNES), LUNES);
+  assert.equal(lunesDe(DOMINGO), '2026-09-28');
+  const e = con({ '2026-09-29': { ejercicio: 'yoga' }, [DOMINGO]: { ejercicio: 'baile' }, [LUNES]: { ejercicio: 'bici' } });
+  assert.equal(sesionesDeLaSemana(e, DOMINGO), 2);
+  assert.equal(sesionesDeLaSemana(e, LUNES), 1);
+  assert.equal(sesionesDeLaSemana(con({ [LUNES]: { ejercicio: 'inventado' } }), LUNES), 0);
+});
+
+test('cada sesión de ejercicio suma XP pero no entra en el día pleno', () => {
+  const r = resumenDia(con({ [LUNES]: { ejercicio: 'pilates' } }), LUNES);
+  assert.equal(r.xp, XP_SESION);
+  assert.ok(!r.pleno);
+  const comidas = { desayuno: 'verde', almuerzo: 'verde', merienda: 'verde', cena: 'verde' };
+  const sin = resumenDia(con({ [LUNES]: { pasos: 10000, comidas, postura: todaLaPostura } }), LUNES);
+  assert.ok(sin.pleno, 'un día sin ejercicio puede ser pleno');
+});
+
+test('la racha de ejercicio se cuenta en semanas y la actual no corta', () => {
+  // Dos semanas completas (dos sesiones cada una) y la semana en curso vacía.
+  const e = con({
+    '2026-09-15': { ejercicio: 'yoga' }, '2026-09-18': { ejercicio: 'yoga' },
+    '2026-09-22': { ejercicio: 'baile' }, '2026-09-26': { ejercicio: 'bici' },
+  });
+  assert.equal(derivar(e, '2026-09-29').rachas.ejercicio, 2);
+  // Si la semana termina sin sesiones, se corta.
+  assert.equal(derivar(e, '2026-10-06').rachas.ejercicio, 0);
+  assert.equal(derivar(e, '2026-10-06').mejores.ejercicio, 2);
+  // Con una sola sesión por semana pedida, también cuentan las de una.
+  const una = con({ '2026-09-22': { ejercicio: 'yoga' } }, (x) => { x.config.ejercicio.porSemana = 1; return x; });
+  assert.equal(derivar(una, '2026-09-28').rachas.ejercicio, 1);
+});
+
+test('normalizar acota las sesiones por semana', () => {
+  assert.equal(normalizar({ config: { ejercicio: { porSemana: 12 } } }).config.ejercicio.porSemana, 2);
+  assert.equal(normalizar({ config: { ejercicio: { porSemana: 3 } } }).config.ejercicio.porSemana, 3);
+  assert.equal(normalizar({}).config.ejercicio.porSemana, 2);
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {

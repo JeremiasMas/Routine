@@ -247,7 +247,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); 
 
 /* ---- Progreso ----------------------------------------------------------- */
 
-.rachas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rachas { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .racha {
   display: grid; justify-items: center; text-align: center; gap: 2px;
   padding: 10px 4px; border-radius: 14px; background: var(--panel);
@@ -376,3 +376,24 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); 
   .luz { width: 28px; height: 28px; }
   .anillo-pasos { width: 100px; height: 100px; }
 }
+
+/* ---- Ejercicio ---------------------------------------------------------- */
+
+.sesiones { display: flex; gap: 8px; margin: 12px 0 4px; }
+.sesiones i {
+  flex: 1; max-width: 80px; height: 10px; border-radius: 99px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.sesiones i.lleno { background: linear-gradient(90deg, var(--accent-2), var(--accent-3)); border-color: transparent; }
+.sesiones i.extra.lleno { background: var(--ok); }
+.ej-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ej-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px;
+  border-radius: 99px; border: 1px solid var(--line); background: var(--panel); font-size: .85rem;
+}
+.ej-chip.activo {
+  background: linear-gradient(135deg, var(--accent-2), #2563eb); border-color: transparent;
+  color: #fff; font-weight: 600;
+}
+.contador { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.contador b { text-align: center; flex: 1; }
