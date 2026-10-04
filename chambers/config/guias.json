@@ -1,0 +1,13 @@
+{
+  "_comentario": "Guías conocidas de chambers.com. El id es el primer número de la URL (/legal-guide/<slug>-<id>) y el mismo que abre la clave de cada tabla. La lista se completa sola: `descubrir` agrega las que encuentre enlazadas en el sitio.",
+  "guias": [
+    { "id": 1, "slug": "uk", "nombre": "UK" },
+    { "id": 2, "slug": "global", "nombre": "Global" },
+    { "id": 5, "slug": "usa", "nombre": "USA" },
+    { "id": 7, "slug": "europe", "nombre": "Europe" },
+    { "id": 8, "slug": "asia-pacific", "nombre": "Asia-Pacific" },
+    { "id": 9, "slug": "latin-america", "nombre": "Latin America" },
+    { "id": 21, "slug": "high-net-worth", "nombre": "High Net Worth" },
+    { "id": 49, "slug": "fintech", "nombre": "FinTech" }
+  ]
+}

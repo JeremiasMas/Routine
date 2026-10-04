@@ -1,0 +1,12 @@
+{
+  "name": "chambers-rankings",
+  "version": "1.0.0",
+  "description": "Scraper de los rankings de chambers.com: tablas por país y área de práctica, guardadas en SQLite con historial entre guías.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "chambers": "node cli.mjs"
+  },
+  "license": "MIT"
+}
