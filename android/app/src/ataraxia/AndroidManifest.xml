@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ataraxia no tiene widgets: los de la app principal dibujan el resumen de
+     Rutina, que acá no existe. Se sacan del manifiesto para que no aparezcan
+     en el selector de widgets del teléfono. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+  <application>
+    <receiver android:name="com.jeremiasmas.rutina.WidgetRutina" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetAnillo" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetAnillos" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetTira" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetFoco" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetBarra" tools:node="remove" />
+  </application>
+</manifest>

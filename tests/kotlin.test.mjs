@@ -443,9 +443,41 @@ test('el respaldo local se sirve en el mismo origen que la web', () => {
 
 test('la copia local se pide por su nombre, no por el directorio', () => {
   // Un manejador de assets no sabe servir el índice de un directorio.
-  const partes = constante('OFFLINE');
-  assert.deepEqual(partes, ['index.html'], 'OFFLINE tiene que ser WEB + "index.html"');
-  assert.match(leer(MAIN), /const val OFFLINE = WEB \+ "index\.html"/);
+  const kt = leer(MAIN);
+  assert.match(kt, /private val inicio = WEB \+ BuildConfig\.SUBRUTA/,
+    'la página de cada app tiene que colgar de WEB, el mismo origen que el respaldo');
+  assert.match(kt, /loadUrl\(inicio \+ "index\.html"/,
+    'sin conexión hay que pedir inicio + "index.html", no la carpeta');
+});
+
+test('cada app abre su propia página y la de siempre conserva su identidad', () => {
+  const gradle = leer('android/app/build.gradle.kts');
+  const sabor = (nombre) => new RegExp(`create\\("${nombre}"\\)\\s*\\{([\\s\\S]*?)\\n    \\}`).exec(gradle)?.[1];
+  const rutina = sabor('rutina');
+  const ataraxia = sabor('ataraxia');
+  assert.ok(rutina && ataraxia, 'faltan los sabores rutina y ataraxia');
+  // Cambiarle el applicationId a la tuya la volvería otra app: el APK nuevo
+  // no actualizaría al instalado y desinstalar borra el historial.
+  assert.doesNotMatch(rutina, /applicationId/, 'la app de siempre no puede cambiar de applicationId');
+  assert.match(gradle, /defaultConfig\s*\{[\s\S]*?applicationId = "com\.jeremiasmas\.rutina"/);
+  assert.match(ataraxia, /applicationId = "com\.jeremiasmas\.ataraxia"/);
+  const subruta = (bloque) => /buildConfigField\("String", "SUBRUTA", "\\"([^\\]*)\\""\)/.exec(bloque)?.[1];
+  assert.equal(subruta(rutina), '');
+  assert.equal(subruta(ataraxia), 'ataraxia/');
+  assert.ok(existsSync('ataraxia/index.html'), 'Ataraxia abre ataraxia/index.html y no existe');
+
+  // Ataraxia no tiene widgets: los de Rutina mostrarían datos que no existen.
+  const manifiesto = leer('android/app/src/ataraxia/AndroidManifest.xml');
+  for (const m of leer('android/app/src/main/AndroidManifest.xml').matchAll(/<receiver\s+android:name="\.(\w+)"/g)) {
+    assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${m[1]}" tools:node="remove"`),
+      `el widget ${m[1]} aparecería en Ataraxia`);
+  }
+  assert.match(leer('android/app/src/ataraxia/res/values/strings.xml'), /name="app_name">Ataraxia</);
+
+  // El workflow publica los dos APKs desde la carpeta de cada sabor.
+  const ci = leer('.github/workflows/android.yml');
+  assert.match(ci, /apk\/rutina\/debug\/app-rutina-debug\.apk rutina\.apk/);
+  assert.match(ci, /apk\/ataraxia\/debug\/app-ataraxia-debug\.apk ataraxia\.apk/);
 });
 
 test('el respaldo sólo se usa cuando la red falla', () => {
@@ -475,6 +507,10 @@ test('el APK se lleva todo lo que la web necesita para abrir sola', () => {
   const sw = leer('sw.js');
   const cacheados = [...sw.matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
   assert.ok(cacheados.length > 20, `esperaba muchos archivos, encontré ${cacheados.length}`);
+  // Y lo mismo para Ataraxia, que vive en su carpeta con su propio service worker.
+  const deAtaraxia = [...leer('ataraxia/sw.js').matchAll(/'\.\/([^']*)'/g)]
+    .map((m) => m[1]).filter(Boolean).map((r) => `ataraxia/${r}`);
+  cacheados.push('ataraxia/index.html', ...deAtaraxia);
   const faltan = cacheados.filter((r) => !cubre(r));
   assert.deepEqual(faltan, [], `el APK no se lleva: ${faltan.join(', ')}`);
 });

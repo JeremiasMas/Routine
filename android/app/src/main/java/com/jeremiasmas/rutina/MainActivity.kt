@@ -52,6 +52,9 @@ class MainActivity : AppCompatActivity() {
   private var rutaPedida: String? = null
   private var sinConexion = false
 
+  /** La página que abre esta app: la tuya en la raíz, Ataraxia en su carpeta. */
+  private val inicio = WEB + BuildConfig.SUBRUTA
+
   /**
    * La copia de la web que viene adentro del APK, servida bajo el MISMO
    * dominio y la misma ruta que GitHub Pages.
@@ -165,7 +168,7 @@ class MainActivity : AppCompatActivity() {
           return
         }
         sinConexion = true
-        view.loadUrl(OFFLINE + (rutaPedida ?: ""))
+        view.loadUrl(inicio + "index.html" + (rutaPedida ?: ""))
       }
 
       override fun shouldInterceptRequest(
@@ -190,7 +193,7 @@ class MainActivity : AppCompatActivity() {
     }
     origenElegido = getPreferences(MODE_PRIVATE).getString("origen", null)
     rutaPedida = intent?.getStringExtra(EXTRA_RUTA)
-    web.loadUrl(WEB + (rutaPedida ?: ""))
+    web.loadUrl(inicio + (rutaPedida ?: ""))
 
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
@@ -480,9 +483,9 @@ class MainActivity : AppCompatActivity() {
     // servirse exactamente bajo el mismo dominio y la misma ruta.
     const val DOMINIO = "jeremiasmas.github.io"
     const val RUTA = "/Routine/"
-    // La copia del APK se pide por su nombre: un manejador de assets no sabe
-    // servir el índice de un directorio, así que WEB a secas daría 404.
-    const val OFFLINE = WEB + "index.html"
+    // La copia del APK se pide por su nombre (inicio + "index.html"): un
+    // manejador de assets no sabe servir el índice de un directorio, así que
+    // la carpeta a secas daría 404.
     const val PLAY_HEALTH_CONNECT =
       "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
   }

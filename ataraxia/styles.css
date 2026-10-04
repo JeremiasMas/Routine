@@ -395,3 +395,16 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); 
   background: linear-gradient(135deg, var(--accent-2), #2563eb); border-color: transparent;
   color: #fff; font-weight: 600;
 }
+
+/* ---- Health Connect ----------------------------------------------------- */
+
+.sincro { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; }
+.sincro span { flex: 1; min-width: 0; }
+.fuente {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.fuente span:first-child { display: grid; min-width: 0; }
+.fuente small { color: var(--muted); }
+a.btn { text-decoration: none; color: inherit; }
+a.btn.primario { color: #fff; }

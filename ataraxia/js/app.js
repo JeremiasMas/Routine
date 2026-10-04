@@ -6,6 +6,10 @@ import {
 } from './logica.js';
 import { FILOSOFOS } from './filosofos.js';
 import { RUTINA_POSTURA, duracionRutina } from './postura.js';
+import {
+  enApp, nativo, conectar, mensajeDeEstado, hayVariasFuentes, guardarArchivo,
+  pedirPermiso, instalarHealthConnect, refrescar, usarSoloOrigen, FUENTE, DESCARGA_APK,
+} from './nativo.js';
 
 const CLAVE_GUARDADO = 'ataraxia';
 
@@ -197,6 +201,25 @@ function tarjetaPasos(r, d) {
           <p class="chico">Racha: ${d.rachas.pasos} ${d.rachas.pasos === 1 ? 'día' : 'días'} 🔥</p>
         </div>
       </div>
+      ${cargaDePasos(pasos)}
+    </section>`;
+}
+
+/**
+ * Cómo entran los pasos. Adentro de la app y con Health Connect conectado
+ * llegan solos, y cargarlos a mano no tendría sentido: la próxima lectura
+ * los pisaría con el número real. Afuera, o sin conexión, se cargan a mano.
+ */
+function cargaDePasos(pasos) {
+  if (enApp() && nativo.estado === 'listo') {
+    const delSistema = estado.dias[diaVisto]?.fuentePasos === FUENTE;
+    return `
+      <div class="sincro">
+        <span>🔄 ${delSistema || !pasos ? 'Los pasos llegan solos de Health Connect.' : 'Cargados a mano; la próxima lectura los actualiza.'}</span>
+        <button class="btn suave" data-accion="refrescar-pasos">Actualizar</button>
+      </div>`;
+  }
+  return `
       <form class="pasos-form" data-form="pasos">
         <label class="sr" for="in-pasos">Pasos del día</label>
         <input id="in-pasos" name="pasos" type="number" inputmode="numeric" min="0" max="200000"
@@ -206,6 +229,38 @@ function tarjetaPasos(r, d) {
       <div class="sumas">
         ${[500, 1000, 2000, 5000].map((n) => `<button class="btn suave" data-accion="sumar-pasos" data-valor="${n}">+${fmt(n)}</button>`).join('')}
       </div>
+      ${enApp() ? '<p class="chico">Para que lleguen solos, conectá Health Connect en Ajustes.</p>' : ''}`;
+}
+
+/** Ajustes: la conexión con el teléfono. */
+function seccionCelular() {
+  if (!enApp()) {
+    return `
+    <section class="tarjeta">
+      <h2>📱 Pasos automáticos</h2>
+      <p class="chico">Desde el navegador los pasos se cargan a mano. Con la app de Android llegan solos desde Health Connect (Mi Fitness, Google Fit o el contador del teléfono).</p>
+      <a class="btn primario ancho" href="${DESCARGA_APK}">Bajar la app de Android</a>
+      <p class="chico">Se instala tocando el archivo; Android va a pedir permiso para instalar apps de esta fuente. Tus datos del navegador no pasan solos a la app: exportá una copia acá e importala allá.</p>
+    </section>`;
+  }
+  const m = mensajeDeEstado(nativo.estado);
+  const elegido = nativo.diagnostico?.origenElegido || '';
+  const fuentes = nativo.origenes.map((o) => `
+      <div class="fuente">
+        <span><b>${esc(o.nombre)}</b><small>${fmt(o.pasos)} pasos hoy</small></span>
+        ${elegido === o.paquete
+          ? '<span class="pildora ok">Sólo esta</span>'
+          : `<button class="btn suave" data-accion="solo-origen" data-valor="${esc(o.paquete)}">Contar sólo esta</button>`}
+      </div>`).join('');
+  return `
+    <section class="tarjeta">
+      <h2>📱 Health Connect</h2>
+      <p class="estado-txt">${m.ok ? '✅' : '⚠️'} ${m.texto}</p>
+      ${m.accion ? `<button class="btn primario ancho" data-accion="hc-${m.accion}">${m.boton}</button>` : ''}
+      ${m.ok && !nativo.origenes.length ? '<p class="chico">Hoy todavía no hay pasos. Si no aparecen nunca, revisá que Mi Fitness (o Google Fit) tenga activada la sincronización con Health Connect.</p>' : ''}
+      ${fuentes ? `<p class="chico">Apps que anotaron pasos hoy:</p>${fuentes}` : ''}
+      ${hayVariasFuentes(nativo.origenes) && !elegido ? '<p class="chico">⚠️ Hay más de una app contando: Health Connect las suma y el total puede salir inflado. Elegí la que use.</p>' : ''}
+      ${elegido ? '<button class="btn suave ancho" data-accion="solo-origen" data-valor="">Contar todas</button>' : ''}
     </section>`;
 }
 
@@ -500,6 +555,8 @@ function pantallaAjustes() {
       <p class="chico">Los días apagados la rutina no se pide, pero si la hacés, suma.</p>
     </section>
 
+    ${seccionCelular()}
+
     <section class="tarjeta">
       <h2>💾 Copia de seguridad</h2>
       <p class="chico">Todo vive sólo en este teléfono. Bajate una copia de vez en cuando.</p>
@@ -540,7 +597,18 @@ document.addEventListener('click', (ev) => {
     cambiar(() => {
       const dia = diaEditable(diaVisto);
       dia.pasos = Math.min(200000, (dia.pasos || 0) + Number(valor));
+      delete dia.fuentePasos;
     });
+  } else if (accion === 'refrescar-pasos') {
+    refrescar();
+    aviso('Leyendo Health Connect…');
+  } else if (accion === 'hc-permiso') {
+    pedirPermiso();
+  } else if (accion === 'hc-instalar') {
+    instalarHealthConnect();
+  } else if (accion === 'solo-origen') {
+    usarSoloOrigen(valor);
+    aviso(valor ? 'Ahora cuenta sólo esa app' : 'Ahora cuenta todas');
   } else if (accion === 'comida') {
     cambiar(() => {
       const dia = diaEditable(diaVisto);
@@ -621,6 +689,7 @@ document.addEventListener('submit', (ev) => {
     cambiar(() => {
       const dia = diaEditable(diaVisto);
       if (n) dia.pasos = n; else delete dia.pasos;
+      delete dia.fuentePasos;
     });
     aviso('Pasos guardados');
   } else if (form.dataset.form === 'metas') {
@@ -747,6 +816,8 @@ document.addEventListener('keydown', (ev) => {
    ------------------------------------------------------------------------- */
 
 function exportar() {
+  // Adentro de la app un <a download> no descarga nada: lo guarda la app.
+  if (guardarArchivo(`ataraxia-${claveDe()}.json`, JSON.stringify(estado, null, 2))) return;
   const blob = new Blob([JSON.stringify(estado, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -817,6 +888,19 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (vista === 'hoy' && !rutina) { diaVisto = claveDe(); dibujar(); }
 });
+
+// Adentro de la app de Android, los pasos llegan de Health Connect.
+conectar(
+  () => estado.dias,
+  (cambios) => cambiar(() => {
+    for (const { clave, pasos } of cambios) {
+      const dia = diaEditable(clave);
+      dia.pasos = pasos;
+      dia.fuentePasos = FUENTE;
+    }
+  }),
+  (cambios) => { if (!cambios.length) dibujar(); },
+);
 
 dibujar();
 

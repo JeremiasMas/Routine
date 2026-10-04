@@ -21,6 +21,31 @@ android {
   }
 
   /**
+   * Dos apps desde el mismo código: la tuya y Ataraxia, la de tu esposa.
+   *
+   * Son el mismo WebView con el mismo puente a Health Connect; lo único que
+   * cambia es qué página abren, el nombre, el ícono y el applicationId. Con
+   * otro applicationId son dos apps distintas para Android: se pueden tener
+   * las dos instaladas y cada una guarda sus datos aparte.
+   *
+   * `rutina` conserva el applicationId de siempre, así el APK nuevo sigue
+   * actualizando encima del que ya tenés instalado.
+   */
+  flavorDimensions += "persona"
+  productFlavors {
+    create("rutina") {
+      dimension = "persona"
+      // Lo que va después de WEB: nada, la app de siempre está en la raíz.
+      buildConfigField("String", "SUBRUTA", "\"\"")
+    }
+    create("ataraxia") {
+      dimension = "persona"
+      applicationId = "com.jeremiasmas.ataraxia"
+      buildConfigField("String", "SUBRUTA", "\"ataraxia/\"")
+    }
+  }
+
+  /**
    * La clave con la que se firma, versionada a propósito.
    *
    * Para Android la firma ES la identidad de la app: una actualización tiene
@@ -79,6 +104,9 @@ val copiarWeb = tasks.register<Copy>("copiarWeb") {
   from(raiz) {
     include("index.html", "manifest.webmanifest", "sw.js")
     include("css/**", "js/**", "icons/**")
+    // Ataraxia vive en una carpeta del mismo sitio: viaja en los dos APKs,
+    // que es más simple que separar las copias y pesa unos pocos KB.
+    include("ataraxia/**")
   }
   into(layout.projectDirectory.dir("src/main/assets"))
 }

@@ -5,6 +5,14 @@ on:
     branches: [main]
     paths:
       - 'android/**'
+      # La copia offline de Ataraxia viaja adentro del APK.
+      - 'ataraxia/**'
+      - '.github/workflows/android.yml'
+  # En un PR sólo se compila, para enterarse antes de mergear si algo no
+  # compila. Publicar queda para main.
+  pull_request:
+    paths:
+      - 'android/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
@@ -31,24 +39,33 @@ jobs:
         working-directory: android
         run: gradle --no-daemon assembleDebug -PversionName=1.0.${{ github.run_number }} -PversionCode=${{ github.run_number }}
 
+      # Salen dos APKs del mismo código: la app de siempre y Ataraxia.
       - name: Renombrar
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk rutina.apk
+        run: |
+          cp android/app/build/outputs/apk/rutina/debug/app-rutina-debug.apk rutina.apk
+          cp android/app/build/outputs/apk/ataraxia/debug/app-ataraxia-debug.apk ataraxia.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: rutina-apk
-          path: rutina.apk
+          path: |
+            rutina.apk
+            ataraxia.apk
           if-no-files-found: error
 
       # Un release fijo con el último APK: desde el teléfono es un link, un
       # toque y listo, sin ZIP y sin tener que iniciar sesión en GitHub.
       - name: Publicar el último APK
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete apk --yes --cleanup-tag 2>/dev/null || true
-          gh release create apk rutina.apk \
-            --title "Rutina para Android (build ${{ github.run_number }})" \
-            --notes "APK de la versión 1.0.${{ github.run_number }}, compilado desde ${{ github.sha }}.
+          gh release create apk rutina.apk ataraxia.apk \
+            --title "Rutina y Ataraxia para Android (build ${{ github.run_number }})" \
+            --notes "APKs de la versión 1.0.${{ github.run_number }}, compilados desde ${{ github.sha }}.
 
-          Para instalarlo: abrí este link desde el teléfono, bajá el archivo \`rutina.apk\` y tocalo. Android va a pedir permiso para instalar apps de esta fuente."
+          - \`rutina.apk\`: Rutina RPG.
+          - \`ataraxia.apk\`: Ataraxia.
+
+          Para instalar: abrí este link desde el teléfono, bajá el archivo que corresponda y tocalo. Android va a pedir permiso para instalar apps de esta fuente."

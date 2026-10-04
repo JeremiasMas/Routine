@@ -9,6 +9,9 @@ import {
 } from '../ataraxia/js/logica.js';
 import { FILOSOFOS, filosofoDe } from '../ataraxia/js/filosofos.js';
 import { RUTINA_POSTURA } from '../ataraxia/js/postura.js';
+import {
+  pasosACargar, mensajeDeEstado, leerOrigenes, hayVariasFuentes, FUENTE,
+} from '../ataraxia/js/nativo.js';
 
 // 2026-10-05 es lunes; 2026-10-04, domingo.
 const LUNES = '2026-10-05';
@@ -194,6 +197,40 @@ test('normalizar repara la configuración del ejercicio', () => {
   assert.deepEqual(n(undefined), { dias: [3, 6], minimo: 45, maximo: 60 });
   assert.deepEqual(n({ porSemana: 2 }), { dias: [3, 6], minimo: 45, maximo: 60 });
   assert.deepEqual(n({ dias: [1, 9, 1], minimo: 30, maximo: 20 }), { dias: [1], minimo: 30, maximo: 30 });
+});
+
+test('Health Connect pisa lo cargado a mano pero nunca borra un día que no vino', () => {
+  const registros = {
+    '2026-10-01': { pasos: 5000 },
+    '2026-10-02': { pasos: 7000, fuentePasos: FUENTE },
+    '2026-10-03': { pasos: 3000, comidas: { cena: 'verde' } },
+  };
+  const cambios = pasosACargar({
+    '2026-10-01': 8123, // a mano: lo pisa
+    '2026-10-02': 7000, // igual que antes: no reescribe
+    '2026-10-04': 0, // vacío: no toca
+    'basura': 900,
+  }, registros);
+  assert.deepEqual(cambios, [{ clave: '2026-10-01', pasos: 8123 }]);
+  // Un día que no vino en la lectura queda como estaba.
+  assert.ok(!cambios.some((c) => c.clave === '2026-10-03'));
+});
+
+test('el estado de Health Connect se explica con una acción', () => {
+  assert.ok(mensajeDeEstado('listo').ok);
+  assert.equal(mensajeDeEstado('sin_permiso').accion, 'permiso');
+  assert.equal(mensajeDeEstado('sin_health_connect').accion, 'instalar');
+  assert.equal(mensajeDeEstado(null).ok, false);
+});
+
+test('las apps que aportan pasos se leen con su nombre', () => {
+  const o = leerOrigenes([
+    { paquete: 'Mi Fitness\u0000com.xiaomi.wearable', pasos: 6000 },
+    { paquete: 'com.android.healthconnect.phone.0123456789abcdef', pasos: 5900 },
+  ]);
+  assert.deepEqual(o.map((x) => x.nombre), ['Mi Fitness', 'Contador del teléfono']);
+  assert.ok(hayVariasFuentes(o));
+  assert.ok(!hayVariasFuentes(o.slice(0, 1)));
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {

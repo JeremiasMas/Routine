@@ -136,7 +136,12 @@ object Pasos {
     paquete == "com.sec.android.app.shealth" -> "Samsung Health"
     paquete == "com.google.android.apps.fitness" -> "Google Fit"
     paquete == "com.google.android.apps.healthdata" -> "Health Connect"
-    paquete == "com.jeremiasmas.rutina" -> "Esta app"
+    paquete == "com.jeremiasmas.rutina" -> "Rutina"
+    paquete == "com.jeremiasmas.ataraxia" -> "Ataraxia"
+    // Xiaomi y Poco: Mi Fitness (antes Xiaomi Wear), Xiaomi Health y Zepp Life.
+    paquete == "com.xiaomi.wearable" -> "Mi Fitness"
+    paquete == "com.mi.health" -> "Xiaomi Health"
+    paquete == "com.xiaomi.hm.health" -> "Zepp Life"
     paquete.startsWith("com.fitbit") -> "Fitbit"
     paquete.startsWith("com.samsung.android.wear") -> "Reloj Samsung"
     // El contador del propio teléfono viene con un hash pegado al final.

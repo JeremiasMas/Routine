@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Pisa al de la app principal: es lo único que cambia de textos. -->
+  <string name="app_name">Ataraxia</string>
+</resources>
