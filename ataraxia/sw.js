@@ -1,6 +1,6 @@
 // Service worker propio: su alcance es esta carpeta, así no se mezcla con el
 // de la otra app que vive en la raíz del mismo sitio.
-const CACHE = 'ataraxia-v3';
+const CACHE = 'ataraxia-v4';
 
 const ASSETS = [
   './',

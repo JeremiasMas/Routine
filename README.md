@@ -398,8 +398,9 @@ worker, así que las dos apps no se pisan aunque compartan el sitio.
   cabeza adelantada, los hombros cerrados y la espalda alta. Tiene un modo
   guiado con cuenta regresiva.
 
-- **💪 Ejercicio físico, miércoles y sábado, de 45 minutos a una hora.** Se
-  anota qué se hizo (gimnasio, pilates, yoga, baile…) y cuánto duró. Llegar a
+- **💪 Ejercicio en casa, miércoles y sábado, de 45 minutos a una hora.** Se
+  anota qué se hizo (funcional, fuerza, pilates, yoga, cardio, baile, una clase
+  en video…) y cuánto duró. Llegar a
   los 45 minutos vale 100 XP y la hora suma hasta 30 más; pasarse no suma, y
   una sesión más corta da XP pero no cuenta para la semana. El día que toca
   hace falta para el día pleno, pero la racha se cuenta en semanas: si el

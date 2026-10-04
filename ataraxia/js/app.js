@@ -281,7 +281,7 @@ function tarjetaEjercicio(r) {
   return `
     <section class="tarjeta" aria-labelledby="t-ejercicio">
       <header class="tarjeta-cab">
-        <h2 id="t-ejercicio">💪 Ejercicio</h2>
+        <h2 id="t-ejercicio">💪 Ejercicio en casa</h2>
         <span class="pildora ${meta && hechas >= meta ? 'ok' : ''}">${hechas} de ${meta} esta semana</span>
       </header>
       <div class="sesiones" aria-hidden="true">${puntos}</div>
@@ -483,7 +483,7 @@ function pantallaAjustes() {
     </section>
 
     <section class="tarjeta">
-      <h2>💪 Ejercicio físico</h2>
+      <h2>💪 Ejercicio en casa</h2>
       <p class="chico">Qué días toca. La semana se cumple con tantas sesiones como días marcados, aunque cambies alguno de lugar.</p>
       <div class="semana">${chipsEjercicio}</div>
       <p class="chico">Cuánto dura una sesión. Llegar al mínimo cumple; hasta el máximo suma un poco más.</p>

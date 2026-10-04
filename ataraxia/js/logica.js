@@ -243,21 +243,25 @@ export function posturaDelDia(estado, clave, rutina = RUTINA_POSTURA) {
 /* -------------------------------------------------------------------------
    Ejercicio físico
 
-   Tiene días propios (miércoles y sábado) y una duración: de 45 minutos a
+   Lo hace en casa. Tiene días propios (miércoles y sábado) y una duración: de 45 minutos a
    una hora. Pero la racha se cuenta en semanas, no en días: si el miércoles
    se complica y la sesión pasa al jueves, la semana igual se cumple. Lo que
    sí pide el día que toca es el día pleno.
    ------------------------------------------------------------------------- */
 
-/** Qué se puede anotar como sesión. Es sólo para el recuerdo: todas valen igual. */
+/**
+ * Qué se puede anotar como sesión. Las hace en casa, así que son cosas que
+ * entran en el living: nada de máquinas ni pileta. Es sólo para el recuerdo:
+ * todas valen igual.
+ */
 export const TIPOS_EJERCICIO = [
-  { id: 'gimnasio', nombre: 'Gimnasio', icono: '🏋️‍♀️' },
+  { id: 'funcional', nombre: 'Funcional', icono: '🔥' },
+  { id: 'fuerza', nombre: 'Fuerza', icono: '🏋️‍♀️' },
   { id: 'pilates', nombre: 'Pilates', icono: '🤸‍♀️' },
   { id: 'yoga', nombre: 'Yoga', icono: '🧘‍♀️' },
+  { id: 'cardio', nombre: 'Cardio', icono: '💓' },
   { id: 'baile', nombre: 'Baile', icono: '💃' },
-  { id: 'bici', nombre: 'Bici', icono: '🚴‍♀️' },
-  { id: 'natacion', nombre: 'Natación', icono: '🏊‍♀️' },
-  { id: 'correr', nombre: 'Correr', icono: '🏃‍♀️' },
+  { id: 'video', nombre: 'Clase en video', icono: '📺' },
   { id: 'otro', nombre: 'Otro', icono: '⚡' },
 ];
 
@@ -286,8 +290,10 @@ export function xpEjercicio(minutos, minimo, maximo) {
  */
 export function ejercicioDelDia(estado, clave) {
   const crudo = estado.dias[clave]?.ejercicio;
-  const tipo = typeof crudo === 'string' ? crudo : crudo?.tipo;
-  if (!TIPOS_EJERCICIO.some((t) => t.id === tipo)) return null;
+  const anotado = typeof crudo === 'string' ? crudo : crudo?.tipo;
+  if (!anotado || typeof anotado !== 'string') return null;
+  // Un tipo que ya no está en la lista (gimnasio, bici…) no se pierde: pasa a "otro".
+  const tipo = TIPOS_EJERCICIO.some((t) => t.id === anotado) ? anotado : 'otro';
   const { minimo, maximo } = estado.config.ejercicio;
   const m = Number(crudo?.minutos);
   const minutos = Number.isFinite(m) && m > 0 ? Math.round(m) : minimo;
@@ -549,8 +555,8 @@ export const LOGROS = [
   { id: 'mes-activo', nombre: 'Mes en movimiento', icono: '📅', meta: 4,
     desc: 'Cuatro semanas seguidas cumpliendo las sesiones de ejercicio.',
     progreso: (s) => s.mejores.ejercicio },
-  { id: 'trimestre-activo', nombre: 'Gimnasio de Atenas', icono: '🏟️', meta: 12,
-    desc: 'Doce semanas seguidas cumpliendo las sesiones. En Grecia, el gimnasio era también escuela.',
+  { id: 'trimestre-activo', nombre: 'El Jardín', icono: '🌿', meta: 12,
+    desc: 'Doce semanas seguidas cumpliendo las sesiones. Epicuro tenía su escuela en el jardín de su casa.',
     progreso: (s) => s.mejores.ejercicio },
   { id: 'cincuenta-sesiones', nombre: 'Cincuenta sesiones', icono: '🏅', meta: 50,
     desc: 'Cincuenta sesiones de ejercicio.',

@@ -154,7 +154,9 @@ test('45 minutos cumplen y la hora suma un poco más', () => {
   assert.equal(corta.completa, false);
   // Las primeras versiones guardaban sólo el tipo: cuenta como el mínimo.
   assert.equal(ejercicioDelDia(con({ [MIERCOLES]: { ejercicio: 'yoga' } }), MIERCOLES).minutos, 45);
-  assert.equal(ejercicioDelDia(con({ [MIERCOLES]: ses('inventado', 45) }), MIERCOLES), null);
+  // Un tipo que ya no existe pasa a "otro" en vez de perder la sesión.
+  assert.equal(ejercicioDelDia(con({ [MIERCOLES]: ses('gimnasio', 45) }), MIERCOLES).tipo, 'otro');
+  assert.equal(ejercicioDelDia(con({ [MIERCOLES]: { ejercicio: { minutos: 45 } } }), MIERCOLES), null);
 });
 
 test('el día de ejercicio pide la sesión para ser pleno', () => {
@@ -173,14 +175,14 @@ test('el día de ejercicio pide la sesión para ser pleno', () => {
 test('la semana se cumple con dos sesiones completas, en el día que sea', () => {
   assert.equal(lunesDe(LUNES), LUNES);
   assert.equal(lunesDe(DOMINGO), '2026-09-28');
-  const e = con({ '2026-10-01': ses('yoga', 45), [SABADO]: ses('baile', 60), [MIERCOLES]: ses('bici', 20) });
+  const e = con({ '2026-10-01': ses('yoga', 45), [SABADO]: ses('baile', 60), [MIERCOLES]: ses('cardio', 20) });
   assert.equal(sesionesDeLaSemana(e, DOMINGO), 2, 'el jueves reemplaza al miércoles; la de 20 min no cuenta');
 });
 
 test('la racha de ejercicio se cuenta en semanas y la actual no corta', () => {
   const e = con({
     '2026-09-16': ses('yoga', 45), '2026-09-20': ses('yoga', 60),
-    '2026-09-23': ses('baile', 45), '2026-09-26': ses('bici', 50),
+    '2026-09-23': ses('baile', 45), '2026-09-26': ses('cardio', 50),
   });
   assert.equal(derivar(e, '2026-09-29').rachas.ejercicio, 2);
   assert.equal(derivar(e, '2026-10-06').rachas.ejercicio, 0);
