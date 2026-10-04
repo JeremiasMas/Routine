@@ -375,6 +375,42 @@ sobre 180 días reales de pasos, el martes llegaba a la meta el 23% de las veces
 contra el 62-84% del resto de los días. Aparece sólo cuando hay al menos tres
 semanas de datos.
 
+## Ataraxia: la versión para ella 🏛️
+
+En `ataraxia/` vive una segunda app, independiente de esta, con cuatro hábitos
+y nada más. Se publica junto con la otra en GitHub Pages:
+
+    https://jeremiasmas.github.io/Routine/ataraxia/
+
+Guarda todo en su propio espacio del navegador y tiene su propio service
+worker, así que las dos apps no se pisan aunque compartan el sitio.
+
+- **👟 Pasos con dos metas.** Un *día largo* de 8.000 de lunes a viernes, un
+  *día suave* de 4.000 el sábado, y ni el domingo ni el miércoles piden pasos.
+  Todo se cambia en *Ajustes*: las dos cifras y qué día es cada cosa.
+  Cumplir cualquiera de las dos vale 100 XP. Un día puntual se cambia desde
+  *Hoy* sin tocar el plan, y un día libre no corta la racha.
+- **🚦 Semáforo de comidas.** Desayuno, almuerzo, merienda y cena (la colación
+  se activa aparte), cada una en rojo, amarillo o verde. El rojo también da
+  algo de XP: anotarlo ya es honestidad, y si diera cero la tentación sería no
+  anotar. El día se cumple con todo anotado y a lo sumo una comida en rojo.
+- **🧘‍♀️ Mini rutina de postura.** Seis ejercicios en unos cinco minutos, para la
+  cabeza adelantada, los hombros cerrados y la espalda alta. Tiene un modo
+  guiado con cuenta regresiva.
+
+- **💪 Ejercicio en casa, miércoles y sábado, de 45 minutos a una hora.** Se
+  anota qué se hizo (funcional, fuerza, pilates, yoga, cardio, baile, una clase
+  en video…) y cuánto duró. Llegar a
+  los 45 minutos vale 100 XP y la hora suma hasta 30 más; pasarse no suma, y
+  una sesión más corta da XP pero no cuenta para la semana. El día que toca
+  hace falta para el día pleno, pero la racha se cuenta en semanas: si el
+  miércoles se complica y la sesión pasa al jueves, la semana se cumple igual.
+
+Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
+no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
+se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar
+a Sísifo feliz. La paleta es toda en azules.
+
 ## Cómo funciona la XP
 
 La regla de oro: **cumplir la meta vale 100 XP, sea la actividad que sea.** Así 45
