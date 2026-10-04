@@ -406,6 +406,18 @@ worker, así que las dos apps no se pisan aunque compartan el sitio.
   hace falta para el día pleno, pero la racha se cuenta en semanas: si el
   miércoles se complica y la sesión pasa al jueves, la semana se cumple igual.
 
+**Pasos automáticos en Android.** El mismo código de `android/` compila dos
+apps: Rutina y Ataraxia. Son dos *flavors* de Gradle que sólo cambian la
+página que abren, el nombre, el ícono y el `applicationId`
+(`com.jeremiasmas.ataraxia`). Rutina conserva el suyo, así el APK nuevo sigue
+actualizando encima del instalado. Ataraxia lee los pasos de Health Connect con
+el mismo puente: en un Xiaomi o Poco los escribe Mi Fitness (con la
+sincronización a Health Connect activada), Google Fit o el contador del
+teléfono. Si aportan dos a la vez, se elige cuál contar. No trae los widgets de
+Rutina. El release `apk` publica los dos archivos:
+
+    https://github.com/JeremiasMas/Routine/releases/download/apk/ataraxia.apk
+
 Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
 no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
 se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar

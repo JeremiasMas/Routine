@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- El azul de fondo de Ataraxia, para que no haya un flash negro al abrir. -->
+  <color name="fondo">#071226</color>
+</resources>
