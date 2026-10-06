@@ -10,6 +10,9 @@ import {
 import { FILOSOFOS, filosofoDe } from '../ataraxia/js/filosofos.js';
 import { RUTINA_POSTURA } from '../ataraxia/js/postura.js';
 import {
+  imc, nivelDeImc, nivelesEnKg, rangoSaludable, metaValida, resumenPeso, XP_PESO,
+} from '../ataraxia/js/peso.js';
+import {
   pasosACargar, mensajeDeEstado, leerOrigenes, hayVariasFuentes, FUENTE,
 } from '../ataraxia/js/nativo.js';
 
@@ -231,6 +234,57 @@ test('las apps que aportan pasos se leen con su nombre', () => {
   assert.deepEqual(o.map((x) => x.nombre), ['Mi Fitness', 'Contador del teléfono']);
   assert.ok(hayVariasFuentes(o));
   assert.ok(!hayVariasFuentes(o.slice(0, 1)));
+});
+
+test('los niveles de peso para 165 cm salen de la escala de la OMS', () => {
+  assert.deepEqual(rangoSaludable(165), { min: 50.4, max: 68.1 });
+  assert.equal(nivelDeImc(imc(60, 165)).id, 'saludable');
+  assert.equal(nivelDeImc(imc(70, 165)).id, 'sobrepeso');
+  assert.equal(nivelDeImc(imc(48, 165)).id, 'bajo');
+  assert.equal(nivelDeImc(imc(90, 165)).id, 'obesidad-1');
+  const niveles = nivelesEnKg(165);
+  assert.equal(niveles.length, 6);
+  assert.equal(niveles[0].desdeKg, null);
+  assert.equal(niveles[5].hastaKg, null);
+  // Cada nivel empieza donde termina el anterior.
+  for (let i = 1; i < niveles.length; i += 1) assert.equal(niveles[i].desdeKg, niveles[i - 1].hastaKg);
+});
+
+test('no se acepta una meta por debajo del rango saludable', () => {
+  assert.ok(metaValida(58, 165));
+  assert.ok(!metaValida(48, 165));
+  assert.equal(normalizar({ config: { peso: { altura: 165, meta: 45 } } }).config.peso.meta, null);
+  assert.equal(normalizar({ config: { peso: { altura: 165, meta: 60 } } }).config.peso.meta, 60);
+  assert.deepEqual(normalizar({}).config.peso, { altura: 165, meta: null });
+});
+
+test('pesarse da XP una vez por semana, sea cual sea el número', () => {
+  const e = con({
+    '2026-09-29': { peso: 70 }, // martes: primera de la semana
+    '2026-10-01': { peso: 69.5 }, // jueves: misma semana, sin XP
+    [LUNES]: { peso: 71 }, // semana nueva: subir también da XP
+  });
+  assert.equal(resumenDia(e, '2026-09-29').xp, XP_PESO);
+  assert.equal(resumenDia(e, '2026-10-01').xp, 0);
+  assert.equal(resumenDia(e, LUNES).xp, XP_PESO);
+  const d = derivar(e, LUNES);
+  assert.equal(d.rachas.peso, 2);
+  assert.equal(d.totales.pesadas, 3);
+  assert.ok(d.logros.find((l) => l.id === 'balanza').hecho);
+});
+
+test('el resumen del peso compara contra cuatro semanas atrás y sigue la meta', () => {
+  const e = con({
+    '2026-09-01': { peso: 72 },
+    '2026-09-08': { peso: 71 },
+    '2026-10-06': { peso: 69 },
+  }, (x) => { x.config.peso.meta = 65; return x; });
+  const p = resumenPeso(e, '2026-10-06');
+  assert.equal(p.ultimo.kg, 69);
+  assert.equal(p.cambio4, -2, 'contra la pesada del 8 de septiembre');
+  assert.equal(p.cambioTotal, -3);
+  assert.deepEqual(p.faltaMeta, { kg: 4, alcanzada: false, bajando: true });
+  assert.equal(p.nivel.id, 'sobrepeso');
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {

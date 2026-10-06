@@ -3,6 +3,7 @@
 
 import { RUTINA_POSTURA } from './postura.js';
 import { filosofoDe } from './filosofos.js';
+import { pesoValido, metaValida, resumenPeso, XP_PESO } from './peso.js';
 
 /* -------------------------------------------------------------------------
    Fechas. Siempre en hora local y como 'AAAA-MM-DD', que además ordena bien
@@ -80,6 +81,8 @@ export function estadoInicial() {
       postura: { dias: [0, 1, 2, 3, 4, 5, 6] },
       // Miércoles y sábado, de 45 minutos a una hora.
       ejercicio: { dias: [3, 6], minimo: 45, maximo: 60 },
+      // Mide 165 cm. La meta de peso es opcional y arranca vacía.
+      peso: { altura: 165, meta: null },
     },
     dias: {},
   };
@@ -114,6 +117,7 @@ export function normalizar(crudo) {
       comidas,
       postura: { dias: diasPostura },
       ejercicio: normalizarEjercicio(c.ejercicio, base.config.ejercicio),
+      peso: normalizarPeso(c.peso, base.config.peso),
     },
     dias: crudo.dias && typeof crudo.dias === 'object' ? crudo.dias : {},
   };
@@ -126,6 +130,12 @@ function normalizarEjercicio(crudo, base) {
   const minimo = entre(crudo?.minimo, 5, 240, base.minimo);
   const maximo = Math.max(minimo, entre(crudo?.maximo, 5, 300, base.maximo));
   return { dias, minimo, maximo };
+}
+
+function normalizarPeso(crudo, base) {
+  const altura = entre(crudo?.altura, 120, 220, base.altura);
+  const meta = Math.round(Number(crudo?.meta) * 10) / 10;
+  return { altura, meta: metaValida(meta, altura) ? meta : null };
 }
 
 function entre(v, min, max, respaldo) {
@@ -320,19 +330,55 @@ export function sesionesDeLaSemana(estado, clave, hoy = clave) {
 /**
  * Racha en semanas cumplidas. La semana en curso no corta mientras no
  * termine: un lunes sin ejercicio todavía puede ser una semana redonda.
+ * `cumple` recibe el lunes de cada semana.
  */
-export function rachaSemanas(estado, desde, hoy) {
-  const meta = estado.config.ejercicio.dias.length;
-  if (!meta) return { racha: 0, mejor: 0 };
+export function rachaSemanal(desde, hoy, cumple) {
   const primera = lunesDe(desde);
   const actual = lunesDe(hoy);
   let mejor = 0;
   let corriendo = 0;
   for (let l = primera; l <= actual; l = sumarDias(l, 7)) {
-    const ok = sesionesDeLaSemana(estado, l, hoy) >= meta;
-    if (ok) { corriendo += 1; mejor = Math.max(mejor, corriendo); } else if (l !== actual) corriendo = 0;
+    if (cumple(l)) { corriendo += 1; mejor = Math.max(mejor, corriendo); } else if (l !== actual) corriendo = 0;
   }
   return { racha: corriendo, mejor };
+}
+
+export function rachaSemanas(estado, desde, hoy) {
+  const meta = estado.config.ejercicio.dias.length;
+  if (!meta) return { racha: 0, mejor: 0 };
+  return rachaSemanal(desde, hoy, (l) => sesionesDeLaSemana(estado, l, hoy) >= meta);
+}
+
+/* -------------------------------------------------------------------------
+   Peso
+
+   Se premia pesarse, no el número: la XP sale de la constancia del
+   seguimiento, y bajar o subir no da ni quita nada. Una vez por semana
+   alcanza; pesarse todos los días no suma más, porque el peso de un día a
+   otro se mueve por agua y sal, y perseguirlo a diario no ayuda a nadie.
+   ------------------------------------------------------------------------- */
+
+export function pesoDelDia(estado, clave) {
+  const kg = estado.dias[clave]?.peso;
+  return pesoValido(kg) ? kg : null;
+}
+
+/** ¿Es la primera pesada de su semana? Es la única que da XP. */
+export function primeraPesadaDeLaSemana(estado, clave) {
+  if (pesoDelDia(estado, clave) == null) return false;
+  for (let k = lunesDe(clave); k < clave; k = sumarDias(k, 1)) {
+    if (pesoDelDia(estado, k) != null) return false;
+  }
+  return true;
+}
+
+export function semanaConPesada(estado, lunes, hoy) {
+  for (let i = 0; i < 7; i += 1) {
+    const k = sumarDias(lunes, i);
+    if (k > hoy) break;
+    if (pesoDelDia(estado, k) != null) return true;
+  }
+  return false;
 }
 
 /* -------------------------------------------------------------------------
@@ -366,9 +412,11 @@ export function resumenDia(estado, clave) {
   };
   const habitos = Object.keys(toca).filter((k) => toca[k]);
   const pleno = habitos.length > 0 && habitos.every((k) => ok[k]);
+  const peso = pesoDelDia(estado, clave);
+  const xpPeso = primeraPesadaDeLaSemana(estado, clave) ? XP_PESO : 0;
   const xp = xpPasos(pasos, meta.meta) + semaforo.xp + postura.xp
-    + (ejercicio?.xp || 0) + (pleno ? BONUS_PLENO : 0);
-  return { clave, meta, pasos, semaforo, postura, ejercicio, toca, ok, pleno, xp };
+    + (ejercicio?.xp || 0) + xpPeso + (pleno ? BONUS_PLENO : 0);
+  return { clave, meta, pasos, semaforo, postura, ejercicio, peso, xpPeso, toca, ok, pleno, xp };
 }
 
 /* -------------------------------------------------------------------------
@@ -448,7 +496,7 @@ export function derivar(estado, hoy = claveDe()) {
 
   const totales = {
     xp: 0, pasos: 0, comidas: 0, verdes: 0, rojas: 0, diasVerdes: 0,
-    posturas: 0, plenos: 0, diasConAlgo: 0, mejorDiaPasos: 0, ejercicios: 0,
+    posturas: 0, plenos: 0, diasConAlgo: 0, mejorDiaPasos: 0, ejercicios: 0, pesadas: 0,
   };
   for (let clave = desde; clave <= hoy; clave = sumarDias(clave, 1)) {
     const r = dia(clave);
@@ -462,7 +510,10 @@ export function derivar(estado, hoy = claveDe()) {
     if (r.postura.completa) totales.posturas += 1;
     if (r.pleno) totales.plenos += 1;
     if (r.ejercicio?.completa) totales.ejercicios += 1;
-    if (r.pasos || r.semaforo.registradas || r.postura.hechos || r.ejercicio) totales.diasConAlgo += 1;
+    if (r.peso != null) totales.pesadas += 1;
+    if (r.pasos || r.semaforo.registradas || r.postura.hechos || r.ejercicio || r.peso != null) {
+      totales.diasConAlgo += 1;
+    }
   }
 
   const habitos = {
@@ -485,12 +536,17 @@ export function derivar(estado, hoy = claveDe()) {
   const semanas = rachaSemanas(estado, desde, hoy);
   rachas.ejercicio = semanas.racha;
   mejores.ejercicio = semanas.mejor;
+  const pesoSemanas = rachaSemanal(desde, hoy, (l) => semanaConPesada(estado, l, hoy));
+  rachas.peso = pesoSemanas.racha;
+  mejores.peso = pesoSemanas.mejor;
 
+  const peso = resumenPeso(estado, hoy);
   const nivel = nivelDesdeXp(totales.xp);
-  const stats = { totales, rachas, mejores, nivel: nivel.nivel };
+  const stats = { totales, rachas, mejores, nivel: nivel.nivel, peso };
   return {
     hoy: dia(hoy),
     sesionesSemana: sesionesDeLaSemana(estado, hoy),
+    peso,
     totales,
     rachas,
     mejores,
@@ -561,6 +617,18 @@ export const LOGROS = [
   { id: 'cincuenta-sesiones', nombre: 'Cincuenta sesiones', icono: '🏅', meta: 50,
     desc: 'Cincuenta sesiones de ejercicio.',
     progreso: (s) => s.totales.ejercicios },
+  { id: 'balanza', nombre: 'La balanza', icono: '⚖️', meta: 1,
+    desc: 'Tu primera pesada. Lo que se mide se puede cuidar.',
+    progreso: (s) => s.totales.pesadas },
+  { id: 'peso-mes', nombre: 'Un mes de seguimiento', icono: '📈', meta: 4,
+    desc: 'Pesarte al menos una vez por semana, cuatro semanas seguidas.',
+    progreso: (s) => s.mejores.peso },
+  { id: 'peso-trimestre', nombre: 'Constancia estoica', icono: '🏺', meta: 12,
+    desc: 'Doce semanas seguidas pesándote. Sin dramatizar el número, sólo mirándolo.',
+    progreso: (s) => s.mejores.peso },
+  { id: 'peso-meta', nombre: 'Meta de peso', icono: '🎯', meta: 1,
+    desc: 'Llegar al peso que te pusiste como meta.',
+    progreso: (s) => (s.peso.faltaMeta?.alcanzada ? 1 : 0) },
   { id: 'ataraxia', nombre: 'Ataraxia', icono: '🕊️', meta: 1,
     desc: 'Tu primer día pleno: todo lo que tocaba ese día, cumplido.',
     progreso: (s) => s.totales.plenos },

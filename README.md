@@ -418,6 +418,13 @@ Rutina. El release `apk` publica los dos archivos:
 
     https://github.com/JeremiasMas/Routine/releases/download/apk/ataraxia.apk
 
+- **⚖️ Peso, con los niveles de IMC de la OMS pasados a kilos para su
+  altura (165 cm):** saludable de 50,4 a 68,1 kg, sobrepeso hasta 81,7, y así.
+  Muestra la curva de las pesadas con la franja saludable detrás, cuánto
+  cambió en cuatro semanas y cuánto falta para la meta, que es opcional. Como
+  en Rutina, la XP se gana por pesarse (una vez por semana), no por el
+  resultado. Y no acepta metas por debajo del rango saludable.
+
 Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
 no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
 se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar
