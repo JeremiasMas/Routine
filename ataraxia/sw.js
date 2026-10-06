@@ -1,6 +1,6 @@
 // Service worker propio: su alcance es esta carpeta, así no se mezcla con el
 // de la otra app que vive en la raíz del mismo sitio.
-const CACHE = 'ataraxia-v5';
+const CACHE = 'ataraxia-v6';
 
 const ASSETS = [
   './',
@@ -15,6 +15,7 @@ const ASSETS = [
   './js/filosofos.js',
   './js/postura.js',
   './js/nativo.js',
+  './js/peso.js',
 ];
 
 self.addEventListener('install', (event) => {

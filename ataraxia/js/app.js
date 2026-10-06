@@ -7,6 +7,9 @@ import {
 import { FILOSOFOS } from './filosofos.js';
 import { RUTINA_POSTURA, duracionRutina } from './postura.js';
 import {
+  NIVELES_PESO, nivelesEnKg, imc, nivelDeImc, pesoValido, metaValida, XP_PESO, PESO_MIN, PESO_MAX,
+} from './peso.js';
+import {
   enApp, nativo, conectar, mensajeDeEstado, hayVariasFuentes, guardarArchivo,
   pedirPermiso, instalarHealthConnect, refrescar, usarSoloOrigen, FUENTE, DESCARGA_APK,
 } from './nativo.js';
@@ -172,6 +175,7 @@ function pantallaHoy(d) {
     ${tarjetaComidas(r)}
     ${tarjetaEjercicio(r)}
     ${tarjetaPostura(r)}
+    ${tarjetaPeso(r, d)}
   `;
 }
 
@@ -350,6 +354,115 @@ function tarjetaEjercicio(r) {
     </section>`;
 }
 
+const kg = (n) => `${n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`;
+const conSigno = (n) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${kg(Math.abs(n))}`;
+
+/**
+ * La escala de niveles como una barra: de IMC 15 a 40, cada tramo con su
+ * color y una marca donde está ella.
+ */
+function escalaImc(valor) {
+  const MIN = 15;
+  const MAX = 40;
+  const pos = (x) => ((Math.min(Math.max(x, MIN), MAX) - MIN) / (MAX - MIN)) * 100;
+  let desde = MIN;
+  const tramos = NIVELES_PESO.map((n) => {
+    const hasta = Math.min(n.hasta, MAX);
+    const ancho = pos(hasta) - pos(desde);
+    desde = hasta;
+    return `<i style="width:${ancho.toFixed(2)}%;background:${n.color}" title="${n.nombre}"></i>`;
+  }).join('');
+  const marca = valor != null ? `<b class="escala-marca" style="left:${pos(valor).toFixed(2)}%"></b>` : '';
+  return `<div class="escala" aria-hidden="true">${tramos}${marca}</div>`;
+}
+
+function tarjetaPeso(r, d) {
+  const p = d.peso;
+  const delDia = r.peso;
+  // Lo que se muestra es el peso a la fecha vista, no necesariamente de ese día.
+  const ultimo = p.lista.filter((x) => x.clave <= diaVisto).pop() || null;
+  const valor = ultimo ? imc(ultimo.kg, p.altura) : null;
+  const nivel = nivelDeImc(valor);
+  const semana = r.xpPeso
+    ? `Pesada de la semana: +${XP_PESO} XP`
+    : delDia != null ? 'Ya te habías pesado esta semana: ésta queda anotada, sin XP extra.' : 'Una pesada por semana alcanza. Mejor a la mañana, en ayunas.';
+  return `
+    <section class="tarjeta" aria-labelledby="t-peso">
+      <header class="tarjeta-cab">
+        <h2 id="t-peso">⚖️ Peso</h2>
+        ${nivel ? `<span class="pildora" style="border-color:${nivel.color};color:${nivel.color}">${nivel.nombre}</span>` : ''}
+      </header>
+      ${ultimo ? `
+      <div class="peso-cuerpo">
+        <div class="peso-num"><b>${kg(ultimo.kg)}</b><small>IMC ${valor.toFixed(1).replace('.', ',')}${ultimo.clave !== diaVisto ? ` · del ${fechaLarga(ultimo.clave)}` : ''}</small></div>
+        ${p.cambio4 != null && ultimo === p.ultimo ? `<div class="peso-cambio"><b>${conSigno(p.cambio4)}</b><small>en 4 semanas</small></div>` : ''}
+      </div>
+      ${escalaImc(valor)}` : '<p class="chico">Todavía no hay pesadas. Anotá la primera y te muestro en qué nivel estás.</p>'}
+      <form class="pasos-form" data-form="peso">
+        <label class="sr" for="in-peso">Peso de este día en kilos</label>
+        <input id="in-peso" name="peso" type="number" inputmode="decimal" min="${PESO_MIN}" max="${PESO_MAX}"
+          step="0.1" placeholder="Peso de ${diaVisto === claveDe() ? 'hoy' : 'este día'} (kg)" value="${delDia ?? ''}">
+        <button class="btn primario" type="submit">Guardar</button>
+      </form>
+      <p class="chico">${semana}</p>
+    </section>`;
+}
+
+/** Progreso: la curva del peso con la franja saludable detrás. */
+function graficoPeso(p) {
+  const puntos = p.lista.slice(-26);
+  if (puntos.length < 2) return '<p class="chico">Con dos pesadas aparece la curva.</p>';
+  const W = 320;
+  const H = 140;
+  const valores = puntos.map((x) => x.kg).concat(p.meta ? [p.meta] : []);
+  const lo = Math.floor(Math.min(...valores) - 1);
+  const hi = Math.ceil(Math.max(...valores) + 1);
+  const t0 = fechaDe(puntos[0].clave).getTime();
+  const t1 = fechaDe(puntos[puntos.length - 1].clave).getTime();
+  const x = (clave) => 8 + ((fechaDe(clave).getTime() - t0) / Math.max(t1 - t0, 1)) * (W - 16);
+  const y = (v) => H - 8 - ((v - lo) / (hi - lo)) * (H - 16);
+  const recorte = (v) => Math.min(Math.max(v, lo), hi);
+  const bandaArriba = y(recorte(p.rango.max));
+  const bandaAbajo = y(recorte(p.rango.min));
+  const linea = puntos.map((pt) => `${x(pt.clave).toFixed(1)},${y(pt.kg).toFixed(1)}`).join(' ');
+  return `
+    <svg class="grafico-peso" viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Peso de las últimas ${puntos.length} pesadas">
+      ${bandaAbajo > bandaArriba ? `<rect x="0" y="${bandaArriba.toFixed(1)}" width="${W}" height="${(bandaAbajo - bandaArriba).toFixed(1)}" class="banda"/>` : ''}
+      ${p.meta ? `<line x1="0" x2="${W}" y1="${y(p.meta).toFixed(1)}" y2="${y(p.meta).toFixed(1)}" class="linea-meta"/>` : ''}
+      <polyline points="${linea}" class="linea-peso"/>
+      ${puntos.map((pt) => `<circle cx="${x(pt.clave).toFixed(1)}" cy="${y(pt.kg).toFixed(1)}" r="3" class="punto-peso"><title>${fechaLarga(pt.clave)}: ${kg(pt.kg)}</title></circle>`).join('')}
+      <text x="4" y="12" class="eje">${hi} kg</text>
+      <text x="4" y="${H - 2}" class="eje">${lo} kg</text>
+    </svg>`;
+}
+
+function seccionPeso(p) {
+  const actual = p.nivel?.id;
+  const filas = nivelesEnKg(p.altura).map((n) => {
+    const rango = n.desdeKg == null ? `menos de ${kg(n.hastaKg)}`
+      : n.hastaKg == null ? `${kg(n.desdeKg)} o más` : `${kg(n.desdeKg)} a ${kg(n.hastaKg)}`;
+    return `<li class="${n.id === actual ? 'actual' : ''}">
+      <i style="background:${n.color}"></i><b>${n.nombre}</b><span>${rango}</span></li>`;
+  }).join('');
+  let meta = '';
+  if (p.meta && p.faltaMeta) {
+    meta = p.faltaMeta.alcanzada
+      ? `<p class="estado-txt">🎯 Llegaste a tu meta de ${kg(p.meta)}.</p>`
+      : `<p class="estado-txt">🎯 Te faltan ${kg(p.faltaMeta.kg)} para tu meta de ${kg(p.meta)}.</p>`;
+  }
+  return `
+    <section class="tarjeta">
+      <h2>⚖️ Peso</h2>
+      ${graficoPeso(p)}
+      ${p.cambioTotal != null ? `<p class="chico">Desde la primera pesada: ${conSigno(p.cambioTotal)}. La franja es el rango saludable.</p>` : ''}
+      ${meta}
+      <p class="chico">Los niveles para ${p.altura} cm:</p>
+      <ul class="niveles-peso">${filas}</ul>
+      <p class="chico">Son los niveles de IMC de la OMS. El IMC no distingue músculo de grasa: sirve para ubicarse y ver la tendencia, no para diagnosticar.</p>
+    </section>`;
+}
+
 function tarjetaPostura(r) {
   const p = r.postura;
   const hechos = new Set(estado.dias[diaVisto]?.postura || []);
@@ -450,10 +563,13 @@ function pantallaProgreso(d) {
         ${racha('🚦', 'comidas', rachas.comidas, mejores.comidas)}
         ${racha('🧘‍♀️', 'postura', rachas.postura, mejores.postura)}
         ${racha('💪', 'ejercicio', rachas.ejercicio, mejores.ejercicio, true)}
+        ${racha('⚖️', 'peso', rachas.peso, mejores.peso, true)}
         ${racha('✨', 'plenos', rachas.plenos, mejores.plenos)}
       </div>
-      <p class="chico">Los días libres de pasos y los días sin postura no cortan la racha. La del ejercicio se cuenta en semanas cumplidas.</p>
+      <p class="chico">Los días libres de pasos y los días sin postura no cortan la racha. Las del ejercicio y el peso se cuentan en semanas cumplidas.</p>
     </section>
+
+    ${seccionPeso(d.peso)}
 
     <section class="tarjeta">
       <h2>👟 Últimas dos semanas</h2>
@@ -545,6 +661,16 @@ function pantallaAjustes() {
       <form class="metas" data-form="ejercicio">
         <label>Mínimo (min)<input name="minimo" type="number" inputmode="numeric" min="5" max="240" step="5" value="${ej.minimo}"></label>
         <label>Máximo (min)<input name="maximo" type="number" inputmode="numeric" min="5" max="300" step="5" value="${ej.maximo}"></label>
+        <button class="btn primario" type="submit">Guardar</button>
+      </form>
+    </section>
+
+    <section class="tarjeta">
+      <h2>⚖️ Peso</h2>
+      <p class="chico">Con la altura se calculan los niveles. La meta es opcional; no se aceptan metas por debajo del rango saludable.</p>
+      <form class="metas" data-form="peso-config">
+        <label>Altura (cm)<input name="altura" type="number" inputmode="numeric" min="120" max="220" step="1" value="${estado.config.peso.altura}"></label>
+        <label>Meta (kg)<input name="meta" type="number" inputmode="decimal" min="${PESO_MIN}" max="${PESO_MAX}" step="0.1" placeholder="Sin meta" value="${estado.config.peso.meta ?? ''}"></label>
         <button class="btn primario" type="submit">Guardar</button>
       </form>
     </section>
@@ -701,6 +827,26 @@ document.addEventListener('submit', (ev) => {
     }
     cambiar(() => { estado.config.pasos.alta = alta; estado.config.pasos.suave = suave; });
     aviso('Metas guardadas');
+  } else if (form.dataset.form === 'peso') {
+    const texto = String(datos.get('peso') || '').trim().replace(',', '.');
+    const n = Math.round(Number(texto) * 10) / 10;
+    if (texto && !pesoValido(n)) { aviso(`El peso tiene que estar entre ${PESO_MIN} y ${PESO_MAX} kg.`); return; }
+    cambiar(() => {
+      const dia = diaEditable(diaVisto);
+      if (texto) dia.peso = n; else delete dia.peso;
+    });
+    aviso(texto ? 'Peso guardado' : 'Pesada borrada');
+  } else if (form.dataset.form === 'peso-config') {
+    const altura = Math.round(Number(datos.get('altura')));
+    const textoMeta = String(datos.get('meta') || '').trim().replace(',', '.');
+    const meta = textoMeta ? Math.round(Number(textoMeta) * 10) / 10 : null;
+    if (!(altura >= 120 && altura <= 220)) { aviso('La altura va de 120 a 220 cm.'); return; }
+    if (meta != null && !metaValida(meta, altura)) {
+      aviso(`La meta tiene que estar dentro del rango saludable o por encima: desde ${kg(nivelesEnKg(altura)[1].desdeKg)}.`);
+      return;
+    }
+    cambiar(() => { estado.config.peso = { altura, meta }; });
+    aviso('Guardado');
   } else if (form.dataset.form === 'ejercicio') {
     const minimo = Math.round(Number(datos.get('minimo')));
     const maximo = Math.round(Number(datos.get('maximo')));

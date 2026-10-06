@@ -247,7 +247,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); 
 
 /* ---- Progreso ----------------------------------------------------------- */
 
-.rachas { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.rachas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .racha {
   display: grid; justify-items: center; text-align: center; gap: 2px;
   padding: 10px 4px; border-radius: 14px; background: var(--panel);
@@ -408,3 +408,34 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); 
 .fuente small { color: var(--muted); }
 a.btn { text-decoration: none; color: inherit; }
 a.btn.primario { color: #fff; }
+
+/* ---- Peso --------------------------------------------------------------- */
+
+.peso-cuerpo { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 10px 0 8px; }
+.peso-num, .peso-cambio { display: grid; }
+.peso-num b { font-size: 1.8rem; }
+.peso-cambio { text-align: right; }
+.peso-cambio b { font-size: 1.1rem; }
+.peso-num small, .peso-cambio small { color: var(--muted); font-size: .78rem; }
+.escala { position: relative; display: flex; height: 10px; border-radius: 99px; margin: 6px 0 14px; }
+.escala i { display: block; height: 100%; opacity: .75; }
+.escala i:first-child { border-radius: 99px 0 0 99px; }
+.escala i:last-of-type { border-radius: 0 99px 99px 0; }
+.escala-marca {
+  position: absolute; top: -5px; width: 4px; height: 20px; margin-left: -2px;
+  border-radius: 99px; background: #fff; box-shadow: 0 0 8px rgba(255, 255, 255, .7);
+}
+.grafico-peso { width: 100%; height: auto; display: block; margin: 8px 0; }
+.grafico-peso .banda { fill: rgba(94, 234, 212, .12); }
+.grafico-peso .linea-meta { stroke: var(--accent-3); stroke-dasharray: 4 4; stroke-width: 1.5; }
+.grafico-peso .linea-peso { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.grafico-peso .punto-peso { fill: #bae6fd; }
+.grafico-peso .eje { fill: var(--muted); font-size: 10px; }
+.niveles-peso { list-style: none; padding: 0; margin: 6px 0; }
+.niveles-peso li {
+  display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 7px 8px; border-radius: 10px; font-size: .85rem;
+}
+.niveles-peso li i { width: 12px; height: 12px; border-radius: 50%; }
+.niveles-peso li span { color: var(--muted); font-size: .8rem; }
+.niveles-peso li.actual { background: var(--panel-2); border: 1px solid var(--line); }
