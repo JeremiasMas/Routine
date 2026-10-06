@@ -1,7 +1,7 @@
 // La interfaz: tres pantallas (Hoy, Progreso, Ajustes) y la rutina guiada.
 import {
   claveDe, fechaDe, sumarDias, diaSemana, estadoInicial, normalizar, derivar,
-  metaPasos, comidasActivas, ejercicioDelDia, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
+  metaPasos, comidasActivas, ejercicioDelDia, tocaPesarse, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
   TIPOS_EJERCICIO, MINUTOS_EJERCICIO, sesionesDeLaSemana,
 } from './logica.js';
 import { FILOSOFOS } from './filosofos.js';
@@ -12,6 +12,7 @@ import {
 import {
   enApp, nativo, conectar, mensajeDeEstado, hayVariasFuentes, guardarArchivo,
   pedirPermiso, instalarHealthConnect, refrescar, usarSoloOrigen, FUENTE, DESCARGA_APK,
+  puedeNotificar, recordatorioNativo, programarRecordatorio, EVENTO_RECORDATORIO,
 } from './nativo.js';
 
 const CLAVE_GUARDADO = 'ataraxia';
@@ -171,6 +172,11 @@ function pantallaHoy(d) {
       <button class="icono-btn" data-accion="dia" data-valor="1" aria-label="Día siguiente" ${esHoy ? 'disabled' : ''}>›</button>
     </div>
     ${r.pleno ? '<div class="pleno">✨ Día pleno: todo lo que tocaba, cumplido</div>' : ''}
+    ${esHoy && tocaPesarse(estado, diaVisto) ? `
+    <div class="recordatorio" role="status">
+      <span>⚖️ Hoy es ${DIAS_LARGOS[diaSemana(diaVisto)]}: toca pesarte.</span>
+      <button class="btn primario" data-accion="ir-peso">Anotar</button>
+    </div>` : ''}
     ${tarjetaPasos(r, d)}
     ${tarjetaComidas(r)}
     ${tarjetaEjercicio(r)}
@@ -234,6 +240,37 @@ function cargaDePasos(pasos) {
         ${[500, 1000, 2000, 5000].map((n) => `<button class="btn suave" data-accion="sumar-pasos" data-valor="${n}">+${fmt(n)}</button>`).join('')}
       </div>
       ${enApp() ? '<p class="chico">Para que lleguen solos, conectá Health Connect en Ajustes.</p>' : ''}`;
+}
+
+/** Ajustes: el recordatorio para pesarse. */
+function bloqueRecordatorio() {
+  const r = estado.config.peso.recordatorio;
+  const opciones = [1, 2, 3, 4, 5, 6, 0].map((d) =>
+    `<option value="${d}" ${r.dia === d ? 'selected' : ''}>${DIAS_LARGOS[d]}</option>`).join('');
+  let telefono = '';
+  if (puedeNotificar()) {
+    const n = recordatorioNativo();
+    telefono = !r.activo ? ''
+      : n && n.activo && !n.permiso
+        ? '<p class="chico">⚠️ El teléfono no tiene permiso para mostrar la notificación.</p><button class="btn suave ancho" data-accion="recordatorio-permiso">Dar permiso</button>'
+        : `<p class="chico">📱 También te llega una notificación los ${DIAS_LARGOS[r.dia]} a las ${r.hora}.</p>`;
+  } else if (enApp()) {
+    telefono = `<p class="chico">Para recibirlo como notificación, actualizá la app de Android.</p>
+      <a class="btn suave ancho" href="${DESCARGA_APK}">Bajar la versión nueva</a>`;
+  } else {
+    telefono = '<p class="chico">Con la app de Android, además, llega como notificación.</p>';
+  }
+  return `
+      <form class="recordatorio-form" data-form="recordatorio">
+        <label class="interruptor"><span>🔔 Recordarme pesarme</span>
+          <input type="checkbox" name="activo" ${r.activo ? 'checked' : ''}></label>
+        <div class="metas">
+          <label>Día<select name="dia">${opciones}</select></label>
+          <label>Hora<input name="hora" type="time" value="${r.hora}"></label>
+          <button class="btn primario" type="submit">Guardar</button>
+        </div>
+      </form>
+      ${telefono}`;
 }
 
 /** Ajustes: la conexión con el teléfono. */
@@ -673,6 +710,7 @@ function pantallaAjustes() {
         <label>Meta (kg)<input name="meta" type="number" inputmode="decimal" min="${PESO_MIN}" max="${PESO_MAX}" step="0.1" placeholder="Sin meta" value="${estado.config.peso.meta ?? ''}"></label>
         <button class="btn primario" type="submit">Guardar</button>
       </form>
+      ${bloqueRecordatorio()}
     </section>
 
     <section class="tarjeta">
@@ -725,6 +763,12 @@ document.addEventListener('click', (ev) => {
       dia.pasos = Math.min(200000, (dia.pasos || 0) + Number(valor));
       delete dia.fuentePasos;
     });
+  } else if (accion === 'ir-peso') {
+    const campo = document.getElementById('in-peso');
+    campo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campo?.focus({ preventScroll: true });
+  } else if (accion === 'recordatorio-permiso') {
+    programarRecordatorio(estado.config.peso.recordatorio, true);
   } else if (accion === 'refrescar-pasos') {
     refrescar();
     aviso('Leyendo Health Connect…');
@@ -845,8 +889,17 @@ document.addEventListener('submit', (ev) => {
       aviso(`La meta tiene que estar dentro del rango saludable o por encima: desde ${kg(nivelesEnKg(altura)[1].desdeKg)}.`);
       return;
     }
-    cambiar(() => { estado.config.peso = { altura, meta }; });
+    cambiar(() => { estado.config.peso = { ...estado.config.peso, altura, meta }; });
     aviso('Guardado');
+  } else if (form.dataset.form === 'recordatorio') {
+    const dia = Number(datos.get('dia'));
+    const hora = String(datos.get('hora') || '');
+    if (!(dia >= 0 && dia <= 6) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) { aviso('Elegí un día y una hora.'); return; }
+    cambiar(() => {
+      estado.config.peso.recordatorio = { activo: datos.get('activo') === 'on', dia, hora };
+    });
+    programarRecordatorio(estado.config.peso.recordatorio, true);
+    aviso(estado.config.peso.recordatorio.activo ? 'Recordatorio guardado' : 'Recordatorio apagado');
   } else if (form.dataset.form === 'ejercicio') {
     const minimo = Math.round(Number(datos.get('minimo')));
     const maximo = Math.round(Number(datos.get('maximo')));
@@ -1047,6 +1100,12 @@ conectar(
   }),
   (cambios) => { if (!cambios.length) dibujar(); },
 );
+
+// El teléfono avisa cómo quedó el recordatorio (por ejemplo, después de
+// pedir el permiso): se redibuja para mostrarlo en Ajustes.
+window.addEventListener(EVENTO_RECORDATORIO, () => { if (vista === 'ajustes') dibujar(); });
+// Al abrir, que la notificación del teléfono coincida con lo configurado.
+programarRecordatorio(estado.config.peso.recordatorio);
 
 dibujar();
 

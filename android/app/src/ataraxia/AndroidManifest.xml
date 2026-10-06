@@ -4,7 +4,22 @@
      en el selector de widgets del teléfono. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+  <!-- El recordatorio semanal para pesarse: la notificación, y volver a
+       programarlo cuando el teléfono se reinicia. Sólo Ataraxia los pide. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
   <application>
+    <receiver
+        android:name="com.jeremiasmas.rutina.RecordatorioReceptor"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+
     <receiver android:name="com.jeremiasmas.rutina.WidgetRutina" tools:node="remove" />
     <receiver android:name="com.jeremiasmas.rutina.WidgetAnillo" tools:node="remove" />
     <receiver android:name="com.jeremiasmas.rutina.WidgetAnillos" tools:node="remove" />

@@ -126,3 +126,60 @@ export function pedirPermiso() { window.RutinaNativa?.pedirPermiso?.(); }
 export function instalarHealthConnect() { window.RutinaNativa?.instalarHealthConnect?.(); }
 export function refrescar() { window.RutinaNativa?.refrescar?.(); }
 export function usarSoloOrigen(paquete) { window.RutinaNativa?.usarSoloOrigen?.(paquete || ''); }
+
+/* -------------------------------------------------------------------------
+   Recordatorio de peso
+
+   La web no puede avisar con la app cerrada; la app de Android sí, con una
+   notificación. Acá sólo se le dice cuándo, y se le pregunta cómo quedó.
+   Un APK anterior a esto no tiene los métodos: entonces se avisa que hay que
+   actualizarlo, y el recordatorio adentro de la app sigue funcionando igual.
+   ------------------------------------------------------------------------- */
+
+export const EVENTO_RECORDATORIO = 'rutina-recordatorio';
+
+export function puedeNotificar() {
+  return typeof window !== 'undefined' && typeof window.RutinaNativa?.recordatorio === 'function';
+}
+
+/** Cómo está programado en el teléfono, o null si la app no lo soporta. */
+export function recordatorioNativo() {
+  if (typeof window?.RutinaNativa?.estadoRecordatorio !== 'function') return null;
+  try {
+    return JSON.parse(window.RutinaNativa.estadoRecordatorio());
+  } catch {
+    return null;
+  }
+}
+
+/** Pasa '08:30' a [8, 30]. */
+export function horaYMinuto(texto) {
+  const [h, m] = String(texto || '08:00').split(':').map(Number);
+  return [Number.isInteger(h) ? h : 8, Number.isInteger(m) ? m : 0];
+}
+
+/** ¿Lo programado en el teléfono coincide con lo que pide la configuración? */
+export function recordatorioAlDia(config, nativoActual) {
+  if (!nativoActual) return false;
+  const [hora, minuto] = horaYMinuto(config.hora);
+  if (!config.activo) return nativoActual.activo === false;
+  return nativoActual.activo === true && nativoActual.dia === config.dia
+    && nativoActual.hora === hora && nativoActual.minuto === minuto;
+}
+
+/**
+ * Le pasa la configuración al teléfono si hace falta. Con `forzar` se manda
+ * igual, que es lo que vuelve a pedir el permiso si estaba denegado.
+ * @returns {boolean} si la app se hizo cargo
+ */
+export function programarRecordatorio(config, forzar = false) {
+  if (!puedeNotificar()) return false;
+  if (!forzar && recordatorioAlDia(config, recordatorioNativo())) return true;
+  const [hora, minuto] = horaYMinuto(config.hora);
+  try {
+    window.RutinaNativa.recordatorio(Boolean(config.activo), config.dia, hora, minuto);
+    return true;
+  } catch {
+    return false;
+  }
+}

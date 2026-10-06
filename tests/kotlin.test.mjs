@@ -474,6 +474,14 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   }
   assert.match(leer('android/app/src/ataraxia/res/values/strings.xml'), /name="app_name">Ataraxia</);
 
+  // El recordatorio de peso: el receptor y sus permisos son sólo de Ataraxia.
+  assert.match(manifiesto, /android:name="com\.jeremiasmas\.rutina\.RecordatorioReceptor"/);
+  assert.match(manifiesto, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(manifiesto, /android\.intent\.action\.BOOT_COMPLETED/);
+  const principal = leer('android/app/src/main/AndroidManifest.xml');
+  assert.doesNotMatch(principal, /POST_NOTIFICATIONS|RecordatorioReceptor/,
+    'Rutina no tiene recordatorio: no debería pedir permiso de notificaciones');
+
   // El workflow publica los dos APKs desde la carpeta de cada sabor.
   const ci = leer('.github/workflows/android.yml');
   assert.match(ci, /apk\/rutina\/debug\/app-rutina-debug\.apk rutina\.apk/);
