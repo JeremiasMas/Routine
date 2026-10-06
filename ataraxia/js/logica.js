@@ -81,8 +81,10 @@ export function estadoInicial() {
       postura: { dias: [0, 1, 2, 3, 4, 5, 6] },
       // Miércoles y sábado, de 45 minutos a una hora.
       ejercicio: { dias: [3, 6], minimo: 45, maximo: 60 },
-      // Mide 165 cm. La meta de peso es opcional y arranca vacía.
-      peso: { altura: 165, meta: null },
+      // Mide 165 cm. La meta de peso es opcional y arranca vacía. Se pesa
+      // los lunes: ese día la app lo recuerda, y en Android también avisa
+      // con una notificación a la hora elegida.
+      peso: { altura: 165, meta: null, recordatorio: { activo: true, dia: 1, hora: '08:00' } },
     },
     dias: {},
   };
@@ -135,7 +137,13 @@ function normalizarEjercicio(crudo, base) {
 function normalizarPeso(crudo, base) {
   const altura = entre(crudo?.altura, 120, 220, base.altura);
   const meta = Math.round(Number(crudo?.meta) * 10) / 10;
-  return { altura, meta: metaValida(meta, altura) ? meta : null };
+  const r = crudo?.recordatorio;
+  const recordatorio = {
+    activo: typeof r?.activo === 'boolean' ? r.activo : base.recordatorio.activo,
+    dia: entre(r?.dia, 0, 6, base.recordatorio.dia),
+    hora: /^([01]\d|2[0-3]):[0-5]\d$/.test(r?.hora) ? r.hora : base.recordatorio.hora,
+  };
+  return { altura, meta: metaValida(meta, altura) ? meta : null, recordatorio };
 }
 
 function entre(v, min, max, respaldo) {
@@ -370,6 +378,16 @@ export function primeraPesadaDeLaSemana(estado, clave) {
     if (pesoDelDia(estado, k) != null) return false;
   }
   return true;
+}
+
+/**
+ * ¿Hay que recordarle que se pese? El día elegido, mientras ese día no haya
+ * pesada. Si ya se pesó otro día de la semana, también se recuerda: el lunes
+ * es el día que eligió para comparar siempre igual.
+ */
+export function tocaPesarse(estado, clave) {
+  const r = estado.config.peso.recordatorio;
+  return r.activo && diaSemana(clave) === r.dia && pesoDelDia(estado, clave) == null;
 }
 
 export function semanaConPesada(estado, lunes, hoy) {

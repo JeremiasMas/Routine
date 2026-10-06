@@ -97,9 +97,29 @@ class MainActivity : AppCompatActivity() {
     refrescar()
   }
 
+  /** El permiso de notificaciones, que Android 13 para arriba pide aparte. */
+  private val pedirNotificaciones = registerForActivityResult(
+    ActivityResultContracts.RequestPermission()
+  ) {
+    avisarRecordatorio()
+  }
+
+  /** Le cuenta a la web cómo quedó el recordatorio, permiso incluido. */
+  private fun avisarRecordatorio() {
+    if (!webLista) return
+    web.evaluateJavascript(
+      "window.dispatchEvent(new CustomEvent('rutina-recordatorio'," +
+        "{detail:${Recordatorio.comoJson(this)}}))",
+      null,
+    )
+  }
+
   @SuppressLint("SetJavaScriptEnabled")
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // Por si se perdió la alarma (la app se cerró a la fuerza, por ejemplo):
+    // abrir la app la vuelve a dejar programada. Apagado, no hace nada.
+    Recordatorio.programar(this)
 
     web = WebView(this)
     setContentView(web)
@@ -369,6 +389,28 @@ class MainActivity : AppCompatActivity() {
         }
       }
     }
+
+    /**
+     * Programa el recordatorio semanal. `dia` como en JavaScript (0 =
+     * domingo). Si hace falta el permiso de notificaciones, lo pide.
+     */
+    @JavascriptInterface
+    fun recordatorio(activo: Boolean, dia: Int, hora: Int, minuto: Int) {
+      runOnUiThread {
+        Recordatorio.guardar(this@MainActivity, Recordatorio.Config(activo, dia, hora, minuto))
+        if (activo && !Recordatorio.permisoDado(this@MainActivity) &&
+          Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        ) {
+          pedirNotificaciones.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+          avisarRecordatorio()
+        }
+      }
+    }
+
+    /** Cómo está programado el recordatorio, para mostrarlo en Ajustes. */
+    @JavascriptInterface
+    fun estadoRecordatorio(): String = Recordatorio.comoJson(this@MainActivity)
 
     /** Vuelve a leer, por si acabás de caminar y querés verlo ya. */
     @JavascriptInterface

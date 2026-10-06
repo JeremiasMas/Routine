@@ -424,6 +424,12 @@ Rutina. El release `apk` publica los dos archivos:
   cambió en cuatro semanas y cuánto falta para la meta, que es opcional. Como
   en Rutina, la XP se gana por pesarse (una vez por semana), no por el
   resultado. Y no acepta metas por debajo del rango saludable.
+  **Los lunes recuerda pesarse:** en *Hoy* aparece un aviso hasta que se
+  anota el peso, y la app de Android además manda una notificación a las 8.
+  El día y la hora se cambian en *Ajustes*. La notificación la programa
+  `Recordatorio.kt` con AlarmManager, una semana por vez, y se vuelve a
+  programar sola al reiniciar el teléfono. Sólo Ataraxia declara el
+  receptor y el permiso de notificaciones: Rutina no los pide.
 
 Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
 no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:

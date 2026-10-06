@@ -13,8 +13,9 @@ import {
   imc, nivelDeImc, nivelesEnKg, rangoSaludable, metaValida, resumenPeso, XP_PESO,
 } from '../ataraxia/js/peso.js';
 import {
-  pasosACargar, mensajeDeEstado, leerOrigenes, hayVariasFuentes, FUENTE,
+  pasosACargar, mensajeDeEstado, leerOrigenes, hayVariasFuentes, FUENTE, recordatorioAlDia, horaYMinuto,
 } from '../ataraxia/js/nativo.js';
+import { tocaPesarse } from '../ataraxia/js/logica.js';
 
 // 2026-10-05 es lunes; 2026-10-04, domingo.
 const LUNES = '2026-10-05';
@@ -255,7 +256,8 @@ test('no se acepta una meta por debajo del rango saludable', () => {
   assert.ok(!metaValida(48, 165));
   assert.equal(normalizar({ config: { peso: { altura: 165, meta: 45 } } }).config.peso.meta, null);
   assert.equal(normalizar({ config: { peso: { altura: 165, meta: 60 } } }).config.peso.meta, 60);
-  assert.deepEqual(normalizar({}).config.peso, { altura: 165, meta: null });
+  assert.deepEqual(normalizar({}).config.peso, estadoInicial().config.peso);
+  assert.equal(normalizar({}).config.peso.altura, 165);
 });
 
 test('pesarse da XP una vez por semana, sea cual sea el número', () => {
@@ -285,6 +287,32 @@ test('el resumen del peso compara contra cuatro semanas atrás y sigue la meta',
   assert.equal(p.cambioTotal, -3);
   assert.deepEqual(p.faltaMeta, { kg: 4, alcanzada: false, bajando: true });
   assert.equal(p.nivel.id, 'sobrepeso');
+});
+
+test('los lunes recuerda pesarse, hasta que se pesa', () => {
+  const e = estadoInicial();
+  assert.deepEqual(e.config.peso.recordatorio, { activo: true, dia: 1, hora: '08:00' });
+  assert.ok(tocaPesarse(e, LUNES));
+  assert.ok(!tocaPesarse(e, DOMINGO), 'otro día no');
+  assert.ok(!tocaPesarse(con({ [LUNES]: { peso: 68 } }), LUNES), 'ya se pesó');
+  const apagado = con({}, (x) => { x.config.peso.recordatorio.activo = false; return x; });
+  assert.ok(!tocaPesarse(apagado, LUNES));
+});
+
+test('normalizar repara el recordatorio y no lo pierde al cambiar la altura', () => {
+  const n = (r) => normalizar({ config: { peso: { altura: 160, recordatorio: r } } }).config.peso;
+  assert.deepEqual(n({ activo: false, dia: 3, hora: '07:30' }).recordatorio, { activo: false, dia: 3, hora: '07:30' });
+  assert.deepEqual(n({ activo: 'si', dia: 9, hora: '25:00' }).recordatorio, { activo: true, dia: 1, hora: '08:00' });
+  assert.equal(n(undefined).altura, 160);
+});
+
+test('el teléfono sólo se reprograma cuando no coincide con la configuración', () => {
+  assert.deepEqual(horaYMinuto('07:45'), [7, 45]);
+  const config = { activo: true, dia: 1, hora: '08:00' };
+  assert.ok(recordatorioAlDia(config, { activo: true, dia: 1, hora: 8, minuto: 0, permiso: true }));
+  assert.ok(!recordatorioAlDia(config, { activo: true, dia: 2, hora: 8, minuto: 0 }));
+  assert.ok(!recordatorioAlDia(config, null), 'un APK viejo no sabe nada');
+  assert.ok(recordatorioAlDia({ ...config, activo: false }, { activo: false, dia: 4, hora: 9, minuto: 0 }));
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {
