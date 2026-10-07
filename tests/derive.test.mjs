@@ -313,6 +313,19 @@ test('el volumen semanal de piernas es el prescripto', () => {
   assert.equal(porGrupo.get('pantorrillas'), 6, 'pantorrillas');
 });
 
+test('los ejercicios de mancuerna declaran el flag, no se apoyan en el nombre', () => {
+  // esMancuerna cae en el nombre cuando la plantilla no dice nada, y eso tapa
+  // el agujero a medias: el que se guarda en cada registro —y con el que se
+  // cuentan las dos manos— es `db` de la plantilla. Sin el flag, el 1RM de un
+  // ejercicio de mancuerna sale a la mitad y no se nota nunca.
+  for (const t of GYM_TEMPLATES) {
+    for (const ex of t.exercises) {
+      if (!/\bmancuerna|\bdumbbell/.test(ex.name.toLowerCase())) continue;
+      assert.equal(ex.db, true, `${ex.name} se anota por mancuerna pero no lo declara`);
+    }
+  }
+});
+
 test('ningún ejercicio está repetido dentro de una rutina', () => {
   for (const t of GYM_TEMPLATES) {
     const nombres = t.exercises.map((e) => e.name.trim().toLowerCase());

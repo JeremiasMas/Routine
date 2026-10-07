@@ -282,7 +282,7 @@ export const GYM_TEMPLATES = [
       { name: 'Tríceps supino', grupo: 'triceps', rango: 'medio' },
       { name: 'Tríceps con soga', grupo: 'triceps', rango: 'medio' },
       { name: 'Tríceps trasnuca', grupo: 'triceps', rango: 'medio' },
-      { name: 'French press', grupo: 'triceps', rango: 'medio' },
+      { name: 'French press', db: true, grupo: 'triceps', rango: 'medio' },
       { name: 'Dumbbell standing pronation wrist', db: true, grupo: 'antebrazos', rango: 'liviano', salto: 1 },
       { name: 'Dumbbell over bench palms up curl', db: true, grupo: 'biceps', tambien: ['antebrazos'], rango: 'medio' },
       { name: 'Dumbbell standing wrist curl', db: true, grupo: 'antebrazos', rango: 'liviano', salto: 1 },
