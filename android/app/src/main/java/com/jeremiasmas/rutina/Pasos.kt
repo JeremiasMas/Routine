@@ -131,6 +131,63 @@ object Pasos {
     return json.toString()
   }
 
+  /**
+   * De qué app se cuentan los pasos, donde los dos lados puedan leerlo.
+   *
+   * Antes vivía en las preferencias privadas de MainActivity, a las que un
+   * widget no llega: corre en otro proceso y ese archivo lleva el nombre de la
+   * actividad. Si el widget leyera un filtro distinto del de la pantalla, los
+   * dos mostrarían un número diferente del mismo día, que es peor que no
+   * actualizarse.
+   */
+  private const val PREFS = "pasos"
+  private const val CLAVE_ORIGEN = "origen"
+
+  private fun prefs(c: Context) =
+    c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+  fun origen(c: Context): String? =
+    prefs(c).getString(CLAVE_ORIGEN, null)?.takeIf { it.isNotBlank() }
+
+  fun guardarOrigen(c: Context, paquete: String?) {
+    prefs(c).edit().putString(CLAVE_ORIGEN, paquete.orEmpty()).apply()
+  }
+
+  /**
+   * Trae el origen de donde vivía antes, una sola vez.
+   *
+   * Sin esto, la primera vez que corre esta versión el filtro vuelve a "todas
+   * las apps" sin que nadie lo haya cambiado, y los pasos saltan para arriba.
+   */
+  fun migrarOrigen(c: Context, viejas: android.content.SharedPreferences) {
+    if (prefs(c).contains(CLAVE_ORIGEN)) return
+    val viejo = viejas.getString(CLAVE_ORIGEN, null) ?: return
+    guardarOrigen(c, viejo)
+  }
+
+  /**
+   * Los pasos de hoy, nada más, para que un widget los lea sin la app.
+   *
+   * Devuelve null si no se pudo leer —sin permiso, sin Health Connect, o
+   * cualquier error del proveedor—: ahí el widget deja lo que ya tenía en vez
+   * de pisar un número bueno con un cero.
+   */
+  suspend fun hoy(context: Context, soloDe: String? = null): Long? {
+    if (!permisoDado(context)) return null
+    return try {
+      val hoy = LocalDate.now()
+      HealthConnectClient.getOrCreate(context).aggregate(
+        AggregateRequest(
+          metrics = setOf(StepsRecord.COUNT_TOTAL),
+          timeRangeFilter = TimeRangeFilter.between(hoy.atStartOfDay(), LocalDateTime.now()),
+          dataOriginFilter = if (soloDe.isNullOrBlank()) emptySet() else setOf(DataOrigin(soloDe)),
+        )
+      )[StepsRecord.COUNT_TOTAL]
+    } catch (e: Exception) {
+      null
+    }
+  }
+
   /** Nombre legible de las apps que suelen escribir pasos. */
   fun nombreDeApp(paquete: String): String = when {
     paquete == "com.sec.android.app.shealth" -> "Samsung Health"

@@ -5,7 +5,7 @@ import {
 } from '../utils.js';
 import { getState, backupVencido, diasSinBackup, setEntry } from '../state.js';
 import { isScheduledWithPauses, goalFor } from '../derive.js';
-import { templateForDay, templateById } from '../config.js';
+import { templateForDay, templateById, minutosDeCaminata } from '../config.js';
 import { ring, chip, xpBar } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
 import { colorDe } from '../theme.js';
@@ -152,6 +152,14 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
 
   const meta = el('div', { class: 'quest__meta' });
   meta.append(el('span', { text: value > 0 ? `${formatValue(value, activity.unit)} / ${formatValue(goal, activity.unit)}` : `Meta: ${formatValue(goal, activity.unit)}` }));
+  // Lo que falta, dicho en el tiempo que cuesta: 5.800 pasos no se sienten
+  // como nada hasta que son "58 min a pie" y entra la decisión de salir o no.
+  // Se mira la unidad y no el id: si algún día hay otra actividad en pasos,
+  // vale lo mismo.
+  if (activity.unit === 'pasos' && !met) {
+    const minutos = minutosDeCaminata(goal - value);
+    if (minutos) meta.append(chip(`🚶 ${formatValue(Math.round(minutos), 'min')} a pie`));
+  }
   if (day?.xp) meta.append(chip(`+${day.xp} XP`, 'chip--ok'));
   if (isWeekly && st) {
     meta.append(chip(`${formatNumber(st.weekCount)}/${st.weekTarget} esta semana`, st.weekCount >= st.weekTarget ? 'chip--ok' : ''));

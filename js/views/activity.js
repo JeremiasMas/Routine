@@ -7,6 +7,7 @@ import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { EQUIV_MANCUERNA } from '../strength.js';
+import { PASOS_POR_MINUTO, minutosDeCaminata } from '../config.js';
 import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta } from '../body.js';
@@ -98,6 +99,18 @@ export function render({ params, navigate, celebrate }) {
       el('button', { class: 'btn btn--block', onClick: () => openWalk(a, (events, pasos) => {
         if (pasos > 0) celebrate(events, pasos); else navigate();
       }) }, '👣 Modo caminata')));
+  }
+
+  // Lo que falta del día, dicho en tiempo. Acá va con el supuesto escrito: un
+  // número redondo sin decir de dónde sale es el que después hace dudar de
+  // todos los demás.
+  if (a.unit === 'pasos') {
+    const hoy = st?.byDate.get(state.today);
+    const falta = Math.max(0, (hoy?.goal ?? a.goal) - (Number(hoy?.value) || 0));
+    const minutos = minutosDeCaminata(falta);
+    root.append(el('p', { class: 'hint', style: 'margin-top:10px' }, minutos
+      ? `Te faltan ${formatNumber(falta)} pasos: una caminata de ${formatValue(Math.round(minutos), 'min')}, contando ${PASOS_POR_MINUTO} pasos por minuto. Si vas a buen paso, algo menos.`
+      : 'La meta de pasos de hoy ya está.'));
   }
 
   if (a.kind === 'body') {

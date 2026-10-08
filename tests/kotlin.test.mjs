@@ -651,3 +651,60 @@ test('los widgets no llevan fondo y sus textos se siguen viendo', () => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Los pasos que el widget trae por su cuenta
+// ---------------------------------------------------------------------------
+
+test('todo goAsync termina su PendingResult', () => {
+  // Un PendingResult que no se cierra deja el proceso vivo hasta que Android
+  // lo mata por ANR. Y tiene que ser en finally: si la lectura de Health
+  // Connect tira, el camino del error también tiene que cerrarlo.
+  for (const ruta of archivos) {
+    const src = leer(ruta);
+    if (!src.includes('goAsync()')) continue;
+    assert.match(src, /finally\s*\{[^}]*\.finish\(\)/,
+      `${ruta}: llama a goAsync pero no cierra el PendingResult en un finally`);
+  }
+});
+
+test('el origen de los pasos no sale de las preferencias de la actividad', () => {
+  // getPreferences es el archivo privado de MainActivity, que lleva el nombre
+  // de la clase. Un widget corre en otro proceso y no llega: si leyera otro
+  // filtro, la pantalla y el widget mostrarían números distintos del mismo día.
+  const widgets = archivos.filter((r) => /Widget/.test(r));
+  for (const ruta of widgets) {
+    assert.ok(!leer(ruta).includes('getPreferences('),
+      `${ruta}: un widget no puede leer las preferencias privadas de la actividad`);
+  }
+  const pasos = leer('android/app/src/main/java/com/jeremiasmas/rutina/Pasos.kt');
+  assert.match(pasos, /fun origen\(/, 'Pasos tiene que exponer de dónde sale el origen');
+  assert.match(pasos, /fun migrarOrigen\(/,
+    'sin migración, la primera corrida pierde la app elegida y los pasos saltan');
+});
+
+test('la lectura de pasos del widget no se cuelga ni pisa con un cero', () => {
+  const widgets = leer('android/app/src/main/java/com/jeremiasmas/rutina/WidgetsCompactos.kt');
+  // El tope tiene que envolver la lectura, no sólo figurar en los imports.
+  assert.match(widgets, /withTimeoutOrNull\([^)]*\)\s*\{\s*Pasos\.hoy\(/,
+    'un proveedor de Health Connect que no contesta no puede colgar el receptor');
+  const resumen = leer('android/app/src/main/java/com/jeremiasmas/rutina/Resumen.kt');
+  assert.match(resumen, /fun conPasosDeHoy\(/);
+  // Nunca para abajo: los pasos de un día no bajan, y una lectura a medias no
+  // tiene que borrar lo que la web ya había escrito.
+  assert.match(resumen, /pasos <= antes/,
+    'conPasosDeHoy tiene que descartar una lectura menor a la que ya había');
+});
+
+test('el resumen no toca lo que sólo el motor de la web sabe calcular', () => {
+  // xp, nivel, racha y rango salen de derive sobre el localStorage, que desde
+  // el proceso del widget no existe. Escribirlos acá sería inventarlos.
+  const src = leer('android/app/src/main/java/com/jeremiasmas/rutina/Resumen.kt');
+  const cuerpo = src.slice(src.indexOf('fun conPasosDeHoy('));
+  const fin = cuerpo.indexOf('\n  /** Como formatNumber');
+  const funcion = cuerpo.slice(0, fin > 0 ? fin : undefined);
+  for (const campo of ['xp', 'nivel', 'racha', 'rango']) {
+    assert.ok(!funcion.includes(`put("${campo}"`),
+      `conPasosDeHoy escribe ${campo}, que no puede calcular`);
+  }
+});

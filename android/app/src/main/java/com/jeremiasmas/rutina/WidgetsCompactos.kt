@@ -9,6 +9,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.time.LocalDate
 import kotlin.math.min
@@ -123,6 +127,44 @@ object Widgets {
     for (w in proveedores()) w.redibujar(c)
   }
 
+  /**
+   * Cada cuánto, como mucho, se le pregunta a Health Connect.
+   *
+   * Los widgets se despiertan cada media hora cada uno. Con los seis puestos
+   * eso serían seis lecturas por ciclo para traer el mismo número, así que la
+   * primera lo trae y las demás se encuentran con que ya está hecho.
+   */
+  private const val CADA_CUANTO_MS = 10 * 60 * 1000L
+
+  private const val PREFS_PASOS = "widget_pasos"
+  private const val CLAVE_ULTIMA = "ultima_lectura"
+
+  /**
+   * Trae los pasos de hoy y, si cambiaron, redibuja todo.
+   *
+   * Es lo único que el widget averigua por su cuenta. El resto del resumen lo
+   * escribe la web, que es la que tiene el motor y el localStorage; los pasos
+   * son la excepción porque suben solos durante el día y Health Connect se
+   * puede leer desde acá.
+   *
+   * @return true si hay que redibujar
+   */
+  suspend fun ponerPasosAlDia(c: Context): Boolean {
+    val prefs = c.applicationContext.getSharedPreferences(PREFS_PASOS, Context.MODE_PRIVATE)
+    val ahora = System.currentTimeMillis()
+    val ultima = prefs.getLong(CLAVE_ULTIMA, 0L)
+    // El reloj del sistema puede ir para atrás: sin el segundo control, una
+    // "última lectura" en el futuro dejaría de leer para siempre.
+    if (ultima in (ahora - CADA_CUANTO_MS + 1)..ahora) return false
+    prefs.edit().putLong(CLAVE_ULTIMA, ahora).apply()
+
+    if (estado(c) !is Estado.Hoy) return false
+    // Con un tope: un proveedor de Health Connect que no contesta no puede
+    // dejar colgado el receptor hasta que Android lo mate.
+    val pasos = withTimeoutOrNull(8_000L) { Pasos.hoy(c, Pasos.origen(c)) } ?: return false
+    return Resumen.conPasosDeHoy(c, pasos)
+  }
+
   /** El ancho y el alto que el lanzador le dio a este widget, en dp. */
   fun anchoDp(opciones: Bundle?): Int =
     opciones?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
@@ -159,6 +201,21 @@ abstract class WidgetCompacto : AppWidgetProvider() {
     if (intent.action == Widgets.ACCION_REGISTRAR) {
       Widgets.encolarDesdeIntent(c, intent)
       Widgets.refrescarTodos(c)
+      return
+    }
+    // El ciclo de media hora ya venía pasando y sólo redibujaba el mismo JSON.
+    // Acá se aprovecha para traer los pasos, que es lo único que cambia sin
+    // que la app se abra. El dibujo de super.onReceive ya salió con lo que
+    // había, así que si la lectura falla o tarda, el widget no queda en blanco.
+    if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+      val pendiente = goAsync()
+      CoroutineScope(Dispatchers.IO).launch {
+        try {
+          if (Widgets.ponerPasosAlDia(c)) Widgets.refrescarTodos(c)
+        } finally {
+          pendiente.finish()
+        }
+      }
     }
   }
 
