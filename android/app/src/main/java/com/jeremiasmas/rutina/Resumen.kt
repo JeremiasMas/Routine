@@ -3,6 +3,8 @@ package com.jeremiasmas.rutina
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
+import java.util.Locale
 
 /**
  * Lo que la app y el widget se dejan escrito.
@@ -67,6 +69,77 @@ object Resumen {
   fun limpiarPendientes(c: Context) {
     prefs(c).edit().remove(CLAVE_PENDIENTES).apply()
   }
+
+  /**
+   * Mete los pasos de hoy en el resumen guardado, sin pasar por la web.
+   *
+   * Los pasos se acumulan solos todo el día, pero el resumen lo escribe la
+   * web: con la app cerrada el anillo quedaba clavado en el número de la
+   * última vez que entraste. Health Connect se lee en Kotlin, así que acá se
+   * corrige esa misión sola.
+   *
+   * Lo que NO se toca: xp, nivel, racha y rango. Eso lo calcula el motor de la
+   * web sobre el localStorage, que desde este proceso no existe. Quedan como
+   * en la última apertura, y es mejor que inventarlos: el XP de los pasos
+   * recién se acredita cuando abrís, igual que antes.
+   *
+   * La misión no guarda el valor crudo —sólo `pct` y `texto`—, así que el
+   * valor se rearma desde pct × meta. Devuelve true si algo cambió, para no
+   * redibujar seis widgets al vicio.
+   */
+  fun conPasosDeHoy(c: Context, pasos: Long): Boolean {
+    val resumen = leer(c) ?: return false
+    if (resumen.optString("fecha") != LocalDate.now().toString()) return false
+    val misiones = resumen.optJSONArray("misiones") ?: return false
+
+    var mision: JSONObject? = null
+    for (i in 0 until misiones.length()) {
+      val m = misiones.optJSONObject(i) ?: continue
+      if (m.optString("id") == "pasos") { mision = m; break }
+    }
+    val pasosHoy = mision ?: return false
+
+    val meta = pasosHoy.optDouble("meta", 0.0)
+    val antes = pasosHoy.optDouble("pct", 0.0) * meta
+    // Sólo para arriba: los pasos de un día no bajan, y un cero de una lectura
+    // a medias no tiene por qué borrar lo que la web ya había escrito.
+    if (meta <= 0 || pasos <= antes + 0.5) return false
+
+    val hecho = pasos >= meta
+    pasosHoy.put("pct", (pasos / meta).coerceIn(0.0, 1.0))
+    pasosHoy.put("hecho", hecho)
+    pasosHoy.put(
+      "texto",
+      if (hecho) conUnidad(pasos, pasosHoy.optString("unidad"))
+      else "${miles(pasos)} / ${conUnidad(meta, pasosHoy.optString("unidad"))}",
+    )
+    if (hecho) pasosHoy.put("unToque", 0)
+
+    var hechas = 0
+    for (i in 0 until misiones.length()) {
+      if (misiones.optJSONObject(i)?.optBoolean("hecho") == true) hechas += 1
+    }
+    val total = resumen.optInt("total")
+    resumen.put("hechas", hechas)
+    resumen.put("perfecto", total > 0 && hechas == total)
+
+    guardar(c, resumen.toString())
+    return true
+  }
+
+  /** Como formatNumber de la web: separador de miles, coma decimal. */
+  private fun miles(n: Double): String =
+    java.text.NumberFormat.getNumberInstance(Locale("es", "AR")).apply {
+      maximumFractionDigits = 1
+    }.format(n)
+
+  private fun miles(n: Long): String = miles(n.toDouble())
+
+  /** Como formatValue para una unidad que no es ml ni min, que es el caso de pasos. */
+  private fun conUnidad(n: Double, unidad: String): String =
+    if (unidad.isBlank()) miles(n) else "${miles(n)} $unidad"
+
+  private fun conUnidad(n: Long, unidad: String): String = conUnidad(n.toDouble(), unidad)
 
   /**
    * Qué actividades están encoladas para una fecha. El widget las marca

@@ -211,7 +211,11 @@ class MainActivity : AppCompatActivity() {
         refrescar()
       }
     }
-    origenElegido = getPreferences(MODE_PRIVATE).getString("origen", null)
+    // El origen pasó a unas preferencias con nombre propio, que el widget
+    // también puede leer: corre en otro proceso y a las privadas de acá no
+    // llega. La migración es para no perder la elección ya hecha.
+    Pasos.migrarOrigen(this, getPreferences(MODE_PRIVATE))
+    origenElegido = Pasos.origen(this)
     rutaPedida = intent?.getStringExtra(EXTRA_RUTA)
     web.loadUrl(inicio + (rutaPedida ?: ""))
 
@@ -450,7 +454,7 @@ class MainActivity : AppCompatActivity() {
     fun usarSoloOrigen(paquete: String?) {
       runOnUiThread {
         origenElegido = paquete?.takeIf { it.isNotBlank() }
-        getPreferences(MODE_PRIVATE).edit().putString("origen", origenElegido).apply()
+        Pasos.guardarOrigen(this@MainActivity, origenElegido)
         ultimoEnvio = null
         this@MainActivity.refrescar()
       }

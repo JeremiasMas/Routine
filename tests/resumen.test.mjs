@@ -112,6 +112,19 @@ test('la meta del gimnasio es la del día, aun sin ninguna serie cargada', () =>
   assert.equal(metaDe('2026-09-25'), 39, 'viernes');
 });
 
+test('la misión de pasos lleva lo que el widget necesita para recalcularla solo', () => {
+  // Resumen.conPasosDeHoy, en Kotlin, rearma el valor desde pct × meta y
+  // formatea el texto con `unidad`. Es el único contrato entre los dos
+  // lenguajes y no hay compilador que lo verifique: si acá se renombra un
+  // campo, del otro lado el anillo de pasos deja de moverse en silencio.
+  const s = estado(acts(['pasos']), { [HOY]: { pasos: { value: 4200 } } });
+  const m = resumenDelDia(s).misiones.find((x) => x.id === 'pasos');
+  assert.equal(m.meta, 10000, 'la meta, para sacar el porcentaje');
+  assert.equal(m.unidad, 'pasos', 'la unidad, para armar el texto');
+  assert.equal(m.pct, 0.42, 'el porcentaje, de donde se rearma el valor');
+  assert.equal(m.pct * m.meta, 4200, 'pct × meta tiene que devolver el valor');
+});
+
 test('viaja el rango y la racha, que el widget no sabe calcular', () => {
   const s = estado(acts(['datos']), { [HOY]: { datos: { value: 60 } } });
   const r = resumenDelDia(s);
