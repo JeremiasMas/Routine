@@ -41,7 +41,21 @@ function migrate(raw) {
   next.pausas = tramos(raw.pausas);
   const known = new Map(DEFAULT_ACTIVITIES.map((a) => [a.id, a]));
   next.activities = (raw.activities?.length ? raw.activities : base.activities)
-    .map((a) => ({ ...(known.get(a.id) || {}), ...a }));
+    .map((a) => {
+      const def = known.get(a.id);
+      const unida = { ...(def || {}), ...a };
+      // Lo guardado le gana al catálogo en todo campo que ya traiga, y eso es
+      // lo que uno quiere: una meta o un color que tocaste no se revierte. La
+      // excepción es una actividad que el catálogo pasó a multi-fuente: el
+      // `kind: 'number'` viejo tapaba la conversión y la actividad se quedaba
+      // con las fuentes nuevas sin saber usarlas. Se mira `a.sources` y no las
+      // del objeto unido, que ya las trae del catálogo.
+      //
+      // Los registros en minutos no se pierden: multiValue cae en `value`
+      // cuando el día no tiene fuentes anotadas.
+      if (def?.kind === 'multi' && def.sources?.length && !a.sources?.length) unida.kind = 'multi';
+      return unida;
+    });
   for (const def of DEFAULT_ACTIVITIES) {
     if (!next.activities.some((a) => a.id === def.id)) next.activities.push(structuredClone(def));
   }

@@ -23,12 +23,20 @@ export const DEFAULT_ACTIVITIES = [
     name: 'Análisis de datos',
     icon: '📊',
     color: '#38bdf8',
-    kind: 'number',
+    kind: 'multi',
     unit: 'min',
     goal: 45,
     step: 5,
     presets: [15, 30, 45, 60],
     streakMode: 'daily',
+    // Un curso se mide en los minutos que le pusiste; Brilliant, en lecciones,
+    // porque mirando el reloj no se sabe cuánto hiciste y contando lecciones
+    // sí. Los 8 minutos por lección son una estimación para arrancar: medí una
+    // sesión con cronómetro y cambiá el número por el tuyo.
+    sources: [
+      { id: 'curso', name: 'Curso o video', icon: '🎥', unitLabel: 'minutos', minutes: 1, presets: [15, 30, 45, 60] },
+      { id: 'brilliant', name: 'Brilliant', icon: '💡', unitLabel: 'lecciones', minutes: 8, presets: [2, 4, 6] },
+    ],
     tierNames: ['Curioso', 'Analista Jr.', 'Analista', 'Analista Sr.', 'Científico de datos', 'Oráculo'],
     motto: 'Una hora de datos por día construye una carrera.',
   },

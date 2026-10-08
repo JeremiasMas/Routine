@@ -359,7 +359,42 @@ function gymForm(activity, dateKey, onSaved) {
     ctrl.node);
 }
 
-/** ---------- Varias fuentes: francés con Duolingo y podcast ---------- */
+/**
+ * ---------- Varias fuentes ----------
+ *
+ * Francés con Duolingo y el podcast, Análisis de datos con un curso y
+ * Brilliant. Nada acá nombra una disciplina: los textos salen de la actividad
+ * y de sus fuentes, porque cuando estaban escritos a mano para el francés, la
+ * segunda actividad con fuentes mostraba el texto de la otra.
+ */
+/**
+ * La etiqueta de una unidad en singular: "lecciones" → "lección".
+ *
+ * La regla vieja sacaba una `es` entera y dejaba dos cosas mal: "1 leccion"
+ * sin acento, porque al perder la terminación la sílaba tónica se corre, y
+ * "1 seri" de "series". Sacar sólo la `s` arregla las dos y acierta en todas
+ * las unidades que esta app usa: minutos, episodios, lecciones, series, posts.
+ */
+export function singular(etiqueta) {
+  return String(etiqueta || '').replace(/ciones$/, 'ción').replace(/s$/, '');
+}
+
+/**
+ * Cuántas unidades de cada fuente alcanzan la meta del día.
+ *
+ * Se redondea para arriba: el ejemplo tiene que CUMPLIR la meta. Con cinco
+ * lecciones de ocho minutos uno llega a cuarenta y la meta son cuarenta y
+ * cinco, así que decir "cinco" sería mandar a alguien a quedarse corto.
+ */
+export function unidadesParaLaMeta(activity) {
+  const meta = Number(activity?.goal) || 1;
+  return (activity?.sources || []).map((fuente) => {
+    const porUnidad = Number(fuente.minutes) || 0;
+    if (porUnidad <= 0) return null;
+    return { fuente, n: Math.ceil(meta / porUnidad) };
+  }).filter(Boolean);
+}
+
 function multiForm(activity, dateKey, onSaved) {
   const existing = getEntry(dateKey, activity.id);
   const cantidades = {};
@@ -382,7 +417,7 @@ function multiForm(activity, dateKey, onSaved) {
     resumen.innerHTML = '';
     resumen.append(
       el('div', { class: 'row__main' },
-        el('div', { text: `${formatValue(minutos, activity.unit)} de francés` }),
+        el('div', { text: `${formatValue(minutos, activity.unit)} de ${activity.name.toLowerCase()}` }),
         el('div', { class: 'row__sub', text: `meta diaria: ${formatValue(meta, activity.unit)}` })),
       el('div', { class: 'row__value', text: `${Math.round((minutos / meta) * 100)}%` }));
     ctrl.update();
@@ -403,7 +438,7 @@ function multiForm(activity, dateKey, onSaved) {
     const presets = (fuente.presets || []).map((n) => el('button', {
       type: 'button', dataset: { n: String(n) }, style: `--c:${colorDe(activity)}`,
       onClick: () => { input.value = String(n); sincronizar(); },
-    }, `${n} ${n === 1 ? fuente.unitLabel.replace(/e?s$/, '') : fuente.unitLabel}`));
+    }, `${n} ${n === 1 ? singular(fuente.unitLabel) : fuente.unitLabel}`));
 
     return el('div', { class: 'exercise' },
       el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:8px' },
@@ -416,12 +451,17 @@ function multiForm(activity, dateKey, onSaved) {
       presets.length ? el('div', { class: 'presets', style: 'margin-top:8px' }, presets) : null);
   });
 
+  // Los ejemplos salen de las fuentes. Escritos a mano envejecían mal: decían
+  // "cinco lecciones de Duolingo" aunque la actividad fuera otra.
+  const alcanza = unidadesParaLaMeta(activity)
+    .map(({ fuente, n }) => `${n} ${n === 1 ? singular(fuente.unitLabel) : fuente.unitLabel} de ${fuente.name}`);
+
   refrescar();
   return el('div', { class: 'logger' },
     el('p', { class: 'hint' },
-      `La meta son ${formatValue(activity.goal, activity.unit)} de francés por día: ` +
-      `cinco lecciones de Duolingo, medio episodio del podcast, o lo que mezcles. ` +
-      `Se cuentan los minutos reales de cada uno.`),
+      `La meta son ${formatValue(activity.goal, activity.unit)} por día: ` +
+      (alcanza.length ? `${alcanza.join(', ')}, o lo que mezcles. ` : '') +
+      `Se cuentan los minutos reales de cada fuente.`),
     ...bloques,
     resumen,
     ctrl.node);
