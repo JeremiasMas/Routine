@@ -204,6 +204,30 @@ export const DEFAULT_ACTIVITIES = [
  * el estímulo y la medición sirve; los aislamientos viven arriba, donde lo que
  * importa es el trabajo acumulado y nadie mide un 1RM de vuelos laterales.
  */
+/**
+ * Pasos por minuto de una caminata.
+ *
+ * 100 es el umbral de intensidad moderada para adultos y el número que usan
+ * las guías de actividad física, así que es una referencia y no una invención.
+ * Caminando relajado salen algunos más —110, 115—, con lo cual los minutos
+ * calculados con 100 quedan del lado largo. Es a propósito: prometer que
+ * llegás en menos de lo que te va a llevar es la clase de error que hace que
+ * dejes de creerle al número.
+ */
+export const PASOS_POR_MINUTO = 100;
+
+/**
+ * Cuántos minutos de caminata son estos pasos.
+ *
+ * Devuelve null cuando no hay nada que decir —cero, negativo o basura—, para
+ * que la pantalla no tenga que decidir si "0 min" significa algo.
+ */
+export function minutosDeCaminata(pasos) {
+  const n = Number(pasos);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n / PASOS_POR_MINUTO;
+}
+
 export const RANGOS_REPS = {
   pesado: { min: 5, max: 8 },
   medio: { min: 8, max: 12 },
