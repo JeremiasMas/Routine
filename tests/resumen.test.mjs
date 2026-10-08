@@ -16,11 +16,16 @@ const estado = (activities, entries = {}) =>
 
 test('sólo donde cumplir es un número sin ambigüedad', () => {
   const de = (id) => DEFAULT_ACTIVITIES.find((a) => a.id === id);
-  assert.equal(puedeUnToque(de('datos')), true, 'minutos');
   assert.equal(puedeUnToque(de('agua')), true, 'mililitros');
+  assert.equal(puedeUnToque(de('piano')), true, 'minutos');
   assert.equal(puedeUnToque(de('gym')), false, 'una sesión no tiene valor obvio');
   assert.equal(puedeUnToque(de('cuerpo')), false, 'una medición tampoco');
   assert.equal(puedeUnToque(de('frances')), false, 'con dos fuentes no hay un número único');
+  // Datos perdió el botón al pasar a multi-fuente, y es correcto: con un curso
+  // medido en minutos y Brilliant medido en lecciones, un toque tendría que
+  // adivinar de cuál de las dos fue la sesión, y adivinar mal ensucia el
+  // desglose por fuente. Es el precio de poder contar lecciones.
+  assert.equal(puedeUnToque(de('datos')), false, 'pasó a tener dos fuentes');
 });
 
 test('los pasos no se marcan a mano adentro de la app', () => {

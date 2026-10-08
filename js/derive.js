@@ -39,6 +39,12 @@ export function multiValue(activity, entry) {
     const cantidad = Number(entry?.sources?.[fuente.id]) || 0;
     if (cantidad > 0) total += cantidad * (Number(fuente.minutes) || 0);
   }
+  // Un registro anterior a que la actividad tuviera fuentes trae el total
+  // suelto en `value`. Sin este respaldo, pasar una actividad a multi-fuente
+  // le borraba el historial en silencio: minutos que de verdad entrenaste
+  // pasaban a valer cero, y con ellos la XP, el nivel y la racha. Las fuentes
+  // ganan cuando hay algo anotado; esto es sólo para lo que quedó atrás.
+  if (total === 0) return Math.round(Number(entry?.value) || 0);
   return Math.round(total);
 }
 
