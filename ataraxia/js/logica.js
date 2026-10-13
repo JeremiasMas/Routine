@@ -78,6 +78,8 @@ export function estadoInicial() {
         plan: ['libre', 'alta', 'alta', 'libre', 'alta', 'alta', 'suave'],
       },
       comidas: ['desayuno', 'almuerzo', 'merienda', 'cena'],
+      // A la noche, si el semáforo quedó a medias, la app lo recuerda.
+      recordatorioComidas: { activo: true, hora: '21:30' },
       postura: { dias: [0, 1, 2, 3, 4, 5, 6] },
       // Miércoles y sábado, de 45 minutos a una hora.
       ejercicio: { dias: [3, 6], minimo: 45, maximo: 60 },
@@ -117,6 +119,12 @@ export function normalizar(crudo) {
     config: {
       pasos,
       comidas,
+      recordatorioComidas: {
+        activo: typeof c.recordatorioComidas?.activo === 'boolean'
+          ? c.recordatorioComidas.activo : base.config.recordatorioComidas.activo,
+        hora: /^([01]\d|2[0-3]):[0-5]\d$/.test(c.recordatorioComidas?.hora)
+          ? c.recordatorioComidas.hora : base.config.recordatorioComidas.hora,
+      },
       postura: { dias: diasPostura },
       ejercicio: normalizarEjercicio(c.ejercicio, base.config.ejercicio),
       peso: normalizarPeso(c.peso, base.config.peso),
@@ -226,6 +234,17 @@ export function semaforoDelDia(estado, clave) {
     // Todas las comidas en verde suman 100, repartidas entre las que haya.
     xp: total ? Math.round((suma / total) * 100) : 0,
   };
+}
+
+/**
+ * ¿Hay que recordarle el semáforo? Desde la hora elegida, mientras ese día
+ * falte anotar alguna comida. `hora` es la hora actual como 'HH:MM'.
+ */
+export function tocaSemaforo(estado, clave, hora) {
+  const r = estado.config.recordatorioComidas;
+  if (!r.activo || hora < r.hora) return false;
+  const s = semaforoDelDia(estado, clave);
+  return s.total > 0 && !s.completo;
 }
 
 /**

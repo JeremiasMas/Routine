@@ -15,7 +15,7 @@ import {
 import {
   pasosACargar, mensajeDeEstado, leerOrigenes, hayVariasFuentes, FUENTE, recordatorioAlDia, horaYMinuto,
 } from '../ataraxia/js/nativo.js';
-import { tocaPesarse } from '../ataraxia/js/logica.js';
+import { tocaPesarse, tocaSemaforo } from '../ataraxia/js/logica.js';
 
 // 2026-10-05 es lunes; 2026-10-04, domingo.
 const LUNES = '2026-10-05';
@@ -329,6 +329,28 @@ test('la práctica es un tick diario que suma XP y no entra en el día pleno', (
   assert.equal(d.rachas.practica, 3, 'hoy sin marcar todavía no corta');
   assert.equal(d.totales.practicas, 3);
   assert.equal(derivar(e, sumarDias(LUNES, 1)).rachas.practica, 0);
+});
+
+test('a la noche recuerda el semáforo sólo si quedó a medias', () => {
+  const e = estadoInicial();
+  assert.deepEqual(e.config.recordatorioComidas, { activo: true, hora: '21:30' });
+  assert.ok(!tocaSemaforo(e, LUNES, '20:00'), 'todavía no es la hora');
+  assert.ok(tocaSemaforo(e, LUNES, '21:30'));
+  const medias = con({ [LUNES]: { comidas: { desayuno: 'verde', almuerzo: 'rojo' } } });
+  assert.ok(tocaSemaforo(medias, LUNES, '22:15'));
+  const completo = con({ [LUNES]: { comidas: { desayuno: 'verde', almuerzo: 'rojo', merienda: 'verde', cena: 'amarillo' } } });
+  assert.ok(!tocaSemaforo(completo, LUNES, '22:15'), 'completo, aunque tenga un rojo');
+  const apagado = con({}, (x) => { x.config.recordatorioComidas.activo = false; return x; });
+  assert.ok(!tocaSemaforo(apagado, LUNES, '23:00'));
+  const n = (r) => normalizar({ config: { recordatorioComidas: r } }).config.recordatorioComidas;
+  assert.deepEqual(n({ activo: false, hora: '22:00' }), { activo: false, hora: '22:00' });
+  assert.deepEqual(n({ hora: '9pm' }), { activo: true, hora: '21:30' });
+});
+
+test('un recordatorio diario se compara con el día -1 del teléfono', () => {
+  const diario = { activo: true, hora: '21:30' };
+  assert.ok(recordatorioAlDia(diario, { activo: true, dia: -1, hora: 21, minuto: 30 }));
+  assert.ok(!recordatorioAlDia(diario, { activo: true, dia: 1, hora: 21, minuto: 30 }));
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {
