@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El widget del clima: qué ponerte, paraguas y cuándo caminar.
+
+     Pensado para ir debajo del reloj de la pantalla de inicio: sin fondo,
+     centrado, en el mismo blanco que el reloj y la fecha, y con el halo oscuro
+     de TextoDeWidget para que se lea sobre cualquier fondo de pantalla. Una
+     línea fuerte y dos suaves, como fecha y agenda debajo del reloj. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/clima_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingLeft="8dp"
+    android:paddingRight="8dp">
+
+  <TextView
+      style="@style/TextoDeWidget"
+      android:id="@+id/clima_titulo"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:gravity="center"
+      android:text="@string/clima_cargando"
+      android:textColor="@color/widget_texto"
+      android:textSize="20sp"
+      android:fontFamily="sans-serif-medium"
+      android:maxLines="1"
+      android:ellipsize="end" />
+
+  <TextView
+      style="@style/TextoDeWidget"
+      android:id="@+id/clima_detalle"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:gravity="center"
+      android:textColor="@color/clima_texto_suave"
+      android:textSize="14sp"
+      android:fontFamily="sans-serif"
+      android:maxLines="1"
+      android:ellipsize="end" />
+
+  <TextView
+      style="@style/TextoDeWidget"
+      android:id="@+id/clima_caminar"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:gravity="center"
+      android:textColor="@color/clima_texto_suave"
+      android:textSize="14sp"
+      android:fontFamily="sans-serif"
+      android:maxLines="1"
+      android:ellipsize="end" />
+</LinearLayout>

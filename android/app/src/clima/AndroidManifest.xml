@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La app del clima: el mismo WebView abriendo clima/, con su propio widget.
+     Los widgets de Rutina se sacan: mostrarían un día que acá no existe. Los
+     permisos de pasos quedan: con ellos sabe cuánto te falta caminar. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+  <application>
+    <!-- Qué ponerte, paraguas y cuándo caminar. Escucha además lo que la web
+         le manda: el horario de oficina y el último pronóstico. -->
+    <receiver
+        android:name="com.jeremiasmas.rutina.WidgetClima"
+        android:label="@string/clima_widget_nombre"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.jeremiasmas.rutina.CLIMA" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_clima_info" />
+    </receiver>
+
+    <receiver android:name="com.jeremiasmas.rutina.WidgetRutina" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetAnillo" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetAnillos" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetTira" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetFoco" tools:node="remove" />
+    <receiver android:name="com.jeremiasmas.rutina.WidgetBarra" tools:node="remove" />
+  </application>
+</manifest>

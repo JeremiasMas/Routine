@@ -21,7 +21,8 @@ android {
   }
 
   /**
-   * Dos apps desde el mismo código: la tuya y Ataraxia, la de tu esposa.
+   * Tres apps desde el mismo código: la tuya, Ataraxia (la de tu esposa) y
+   * Clima, la del widget que dice qué ponerse.
    *
    * Son el mismo WebView con el mismo puente a Health Connect; lo único que
    * cambia es qué página abren, el nombre, el ícono y el applicationId. Con
@@ -42,6 +43,11 @@ android {
       dimension = "persona"
       applicationId = "com.jeremiasmas.ataraxia"
       buildConfigField("String", "SUBRUTA", "\"ataraxia/\"")
+    }
+    create("clima") {
+      dimension = "persona"
+      applicationId = "com.jeremiasmas.clima"
+      buildConfigField("String", "SUBRUTA", "\"clima/\"")
     }
   }
 
@@ -104,9 +110,10 @@ val copiarWeb = tasks.register<Copy>("copiarWeb") {
   from(raiz) {
     include("index.html", "manifest.webmanifest", "sw.js")
     include("css/**", "js/**", "icons/**")
-    // Ataraxia vive en una carpeta del mismo sitio: viaja en los dos APKs,
+    // Ataraxia y Clima viven en carpetas del mismo sitio: viajan en todos los APKs,
     // que es más simple que separar las copias y pesa unos pocos KB.
     include("ataraxia/**")
+    include("clima/**")
   }
   into(layout.projectDirectory.dir("src/main/assets"))
 }

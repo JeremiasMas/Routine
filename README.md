@@ -436,6 +436,93 @@ no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
 se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar
 a Sísifo feliz. La paleta es toda en azules.
 
+## Clima: qué ponerte hoy 🧥
+
+En `clima/` vive una tercera app, con un widget de tres líneas: **qué ponerte,
+si llevar paraguas y cuándo conviene salir a caminar** en Buenos Aires.
+
+    https://jeremiasmas.github.io/Routine/clima/
+
+Está calibrada para alguien que se crió en **Río Grande**:
+
+- **El viento de menos de 20 km/h no cuenta.** Allá ese es el aire quieto; sólo
+  el que pasa de ahí te enfría (0,1 °C por km/h).
+- **Los niveles de ropa saltan unos 4 °C más abajo** que los de un porteño. La
+  app te muestra con qué iría alguien de acá, para comparar.
+- **El calor húmedo sí pesa:** desde 22 °C manda la sensación térmica, y por
+  encima de 27 °C no te propone caminar.
+- **El frío húmedo porteño** (85% de humedad o más, por debajo de 15 °C) resta un grado.
+
+| Lo que sentís | Ropa |
+|---|---|
+| menos de 3° | 🧣 Abrigo completo |
+| 3 – 7° | 🧥 Campera |
+| 7 – 13° | 🧥 Campera liviana |
+| 13 – 19° | 👔 Manga larga |
+| 19 – 25° | 👕 Remera |
+| 25° o más | 🥵 Lo más liviano |
+
+**Paraguas:** sí desde 50% de probabilidad o 0,3 mm en una hora; "por las
+dudas" desde 25%. Con ráfagas de 55 km/h o más, capucha en vez de paraguas.
+
+**Tu semana:** oficina **martes, miércoles y jueves de 9 a 18**, con **una
+hora de colectivo** de cada lado (salís de casa a las 8 y llegás a las 19).
+**Lunes y viernes, home office** en el mismo horario y sin viaje. Todos esos
+días, **almuerzo libre de 13 a 14:30**. El fin de semana es libre. Todo se
+cambia en *Horarios y meta*.
+
+En home office la ropa es para salir al almuerzo; pasado el almuerzo, para
+cuando terminás a las 18.
+
+Los días de oficina la ropa sale de la temperatura **a la ida (8 a 9) y a la
+vuelta (18 a 19)**, y te avisa si a la vuelta refresca o te sobra abrigo. El
+paraguas mira además el almuerzo, porque a esa hora también salís. Desde las
+20 h el plan de ropa pasa a ser el de mañana.
+
+### Caminatas y pasos 👟
+
+- **El almuerzo** es tu caminata de los días de trabajo: la app revisa si el
+  clima acompaña de 13 a 14:30 y, si no, te propone otro rato fuera del
+  horario de trabajo. Los días de oficina eso es antes de las 8 o después de
+  las 19; en home office, antes de las 9 o desde las 18, porque no hay
+  colectivo. Nunca te propone caminar en horas de escritorio.
+- **Tus horarios de lunes a viernes** (hasta tres, opcionales): la app revisa el próximo.
+  Si llueve, hace calor, sopla fuerte o pega mucho el sol, te propone el mejor
+  otro rato del día. Si está bien pero hay un horario claramente más cómodo,
+  también te lo dice ("19 h ok, mejor 7–8 h").
+- **Fines de semana** (o si no cargaste horarios): te da el horario óptimo,
+  buscando lo más cerca de 15° de sensación, con poca chance de lluvia, poco
+  sol fuerte y sin ráfagas.
+- **Cuánto te falta:** con los pasos de hoy y tu meta (10.000 por defecto) te
+  dice cuántos minutos te faltan, a 100 pasos por minuto, el mismo número que
+  usa Rutina. Esa duración decide cuánto rato hace falta buscar. Si tenés
+  varias caminatas pendientes, se reparte entre ellas. Con la meta cumplida,
+  te deja tranquilo.
+- **De dónde salen los pasos:** en la app de Android, de Health Connect, igual
+  que en Rutina. El permiso es de cada app, así que en Clima hay que darlo una
+  vez (hay un botón). Si Health Connect suma dos apps (el contador del teléfono
+  y Samsung Health, por ejemplo), elegís de cuál contar. En el navegador los
+  cargás a mano.
+- Si de noche todavía te faltan pasos y queda un rato bueno, la caminata sigue
+  siendo la de hoy.
+
+El pronóstico es de [Open-Meteo](https://open-meteo.com) (sin clave ni cuenta)
+y queda guardado para abrir sin conexión.
+
+### El widget
+
+Sale en un APK propio, `clima.apk`, del mismo release que los otros:
+
+    https://github.com/JeremiasMas/Routine/releases/download/apk/clima.apk
+
+El widget se calcula solo con la app cerrada: cada media hora se redibuja con la
+hora de ahora, lee los pasos de hoy de Health Connect y, si pasó una hora, baja
+un pronóstico nuevo. La lógica está en
+Kotlin (`ClimaLogica.kt`) y repite la de `clima/js/logica.js`. Un test compara
+las constantes y los niveles de ropa de los dos archivos. Si tocás un umbral,
+tocalo en los dos. Lo único que el widget no sabe por su cuenta es tu horario:
+se lo pasa la web cada vez que la abrís.
+
 ## Cómo funciona la XP
 
 La regla de oro: **cumplir la meta vale 100 XP, sea la actividad que sea.** Así 45

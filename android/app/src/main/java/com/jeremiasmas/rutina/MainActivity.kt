@@ -474,6 +474,22 @@ class MainActivity : AppCompatActivity() {
       Widgets.refrescarTodos(this@MainActivity)
     }
 
+    /**
+     * El horario de oficina y el último pronóstico, para el widget del clima.
+     *
+     * Va por un broadcast porque el widget sólo existe en el APK del clima: en
+     * Rutina y Ataraxia nadie lo escucha y no pasa nada.
+     */
+    @JavascriptInterface
+    fun guardarClima(horario: String, pronostico: String) {
+      sendBroadcast(
+        Intent(ACCION_CLIMA)
+          .setPackage(packageName)
+          .putExtra("horario", horario)
+          .putExtra("pronostico", pronostico)
+      )
+    }
+
     /** La web terminó de aplicar la cola del widget: ya se puede vaciar. */
     @JavascriptInterface
     fun pendientesAplicados() {
@@ -524,6 +540,8 @@ class MainActivity : AppCompatActivity() {
   companion object {
     /** Con qué pantalla abrir, cuando venís de tocar una misión del widget. */
     const val EXTRA_RUTA = "ruta"
+    /** La escucha WidgetClima, que sólo está en el APK del clima. */
+    const val ACCION_CLIMA = "com.jeremiasmas.rutina.CLIMA"
     const val WEB = "https://jeremiasmas.github.io/Routine/"
     // Las tres piezas de WEB, separadas porque el respaldo local tiene que
     // servirse exactamente bajo el mismo dominio y la misma ruta.

@@ -1,0 +1,353 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  sensacion, sensacionPortena, ropaPara, paraguas, planCaminata, plan, lineasWidget, lineaCaminata,
+  normalizarHorario, minutos, diaDeSemana, sumarDias, HORARIO_DEFAULT,
+} from '../clima/js/logica.js';
+import { horasDe, ahoraEnBA, traer, URL_PRONOSTICO } from '../clima/js/pronostico.js';
+import { CASOS, dia } from './clima-casos.mjs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+
+// 2026-10-13 es martes.
+const MARTES = '2026-10-13';
+
+test('las fechas no dependen del huso del teléfono', () => {
+  assert.equal(diaDeSemana(MARTES), 2);
+  assert.equal(sumarDias('2026-12-31', 1), '2027-01-01');
+  assert.equal(minutos('9:30'), 570);
+  assert.equal(minutos('25:00'), null);
+  assert.deepEqual(ahoraEnBA(new Date('2026-10-13T02:30:00Z')), { fecha: '2026-10-12', minutos: 23 * 60 + 30 });
+});
+
+test('el viento de Río Grande no cuenta: sólo el que pasa de 20 km/h', () => {
+  const base = { temp: 10, hum: 60, aparente: 6 };
+  assert.equal(sensacion({ ...base, viento: 18 }), 10);
+  assert.equal(sensacion({ ...base, viento: 40 }), 8);
+  // Un porteño siente todo el viento y además está menos curtido.
+  assert.ok(sensacionPortena({ ...base, viento: 18 }) < sensacion({ ...base, viento: 18 }) - 3);
+});
+
+test('el frío húmedo porteño resta un grado', () => {
+  assert.equal(sensacion({ temp: 10, hum: 90, viento: 0 }), 9);
+  assert.equal(sensacion({ temp: 18, hum: 90, viento: 0 }), 18);
+});
+
+test('con calor manda la sensación térmica, que con humedad sube', () => {
+  assert.equal(sensacion({ temp: 30, hum: 75, viento: 10, aparente: 35 }), 35);
+  // Y nunca baja de la temperatura: el viento no te refresca un día de calor.
+  assert.equal(sensacion({ temp: 26, hum: 30, viento: 30, aparente: 24 }), 26);
+});
+
+test('la ropa va varios grados más abajo que la de un porteño', () => {
+  assert.equal(ropaPara(10).id, 'liviana');
+  assert.equal(ropaPara(10 - 4).id, 'campera');
+  assert.equal(ropaPara(2).id, 'abrigo');
+  assert.equal(ropaPara(30).id, 'liviano');
+});
+
+test('paraguas: lluvia sí, llovizna probable chico, sudestada capucha', () => {
+  const seco = { prob: 5, lluvia: 0, codigo: 1, rafagas: 20 };
+  assert.equal(paraguas([seco]).nivel, 'no');
+  assert.equal(paraguas([{ ...seco, prob: 30 }]).nivel, 'quizas');
+  assert.equal(paraguas([{ ...seco, prob: 70 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, lluvia: 1.2 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, codigo: 95 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, prob: 80, rafagas: 70 }]).nivel, 'capucha');
+});
+
+test('el horario roto vuelve al de siempre', () => {
+  assert.deepEqual(normalizarHorario(null ?? undefined), { ...HORARIO_DEFAULT, dias: [2, 3, 4], almuerzo: { ...HORARIO_DEFAULT.almuerzo }, caminatas: [] });
+  assert.deepEqual(normalizarHorario({ entrada: '18:00', salida: '09:00' }).entrada, '09:00');
+  assert.deepEqual(normalizarHorario({ dias: [5, 1, 9, 1] }).dias, [1, 5]);
+  assert.equal(normalizarHorario({ viaje: 999 }).viaje, 180);
+});
+
+const SABADO = '2026-10-17';
+// Las reglas generales se prueban con un horario fijo de lunes a viernes, sin
+// almuerzo libre; tu semana real se prueba aparte, más abajo.
+const LV = { dias: [1, 2, 3, 4, 5], entrada: '09:00', salida: '18:00', viaje: 45, almuerzo: null };
+const conCaminata = (caminatas, extra = {}) => ({ ...LV, caminatas, ...extra });
+
+test('sin horarios propios busca el óptimo, fuera de la oficina', () => {
+  const horas = dia(MARTES, () => ({}));
+  // Libre a las 7 (a las 8:15 salís) y de 19 a 22. Todo igual de bueno: el primero.
+  assert.deepEqual(planCaminata(horas, LV, MARTES), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: null });
+});
+
+test('con los pasos que faltan calcula cuánto caminar', () => {
+  const horas = dia(MARTES, () => ({}));
+  // 8.000 pasos que faltan son 80 minutos: hacen falta dos horas seguidas, y
+  // a la mañana hay una sola.
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 2000), { tipo: 'optimo', desde: 19 * 60, hasta: 21 * 60, minutos: 80 });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 9950), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: 1 });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 10200), { cumplida: true });
+  assert.deepEqual(planCaminata(horas, conCaminata([], { meta: 12000 }), MARTES, 0, 10200).minutos, 18);
+});
+
+test('tu horario de siempre, si el clima acompaña, queda', () => {
+  const horas = dia(MARTES, () => ({}));
+  assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), MARTES, 0, 4000),
+    { tipo: 'habitual', inicio: 19 * 60, almuerzo: false, quedan: 1, ok: true, otra: null, minutos: 60 });
+});
+
+test('si llueve en tu horario, propone otro', () => {
+  const horas = dia(MARTES, (h) => (h === 19 ? { prob: 80 } : h === 7 ? { temp: 30, aparente: 30 } : {}));
+  assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), MARTES),
+    { tipo: 'habitual', inicio: 19 * 60, almuerzo: false, quedan: 1, ok: false, motivo: 'lluvia', otra: { desde: 20 * 60, hasta: 21 * 60 }, minutos: null });
+});
+
+test('aunque tu horario sirva, avisa si otro es mucho mejor', () => {
+  const horas = dia(MARTES, (h) => (h === 13 ? { temp: 26, aparente: 26 } : {}));
+  const casa = conCaminata(['13:00'], { dias: [] });
+  assert.deepEqual(planCaminata(horas, casa, MARTES),
+    { tipo: 'habitual', inicio: 13 * 60, almuerzo: false, quedan: 1, ok: true, otra: { desde: 7 * 60, hasta: 8 * 60 }, minutos: null });
+});
+
+test('el fin de semana da el horario óptimo, sin mirar los de la semana', () => {
+  const horas = dia(SABADO, (h) => (h === 10 || h === 11 ? { temp: 15, uv: 0 } : {}));
+  assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), SABADO, 0, 2000),
+    { tipo: 'optimo', desde: 10 * 60, hasta: 12 * 60, minutos: 80 });
+});
+
+test('un horario que ya pasó no se revisa', () => {
+  const horas = dia(MARTES, () => ({}));
+  assert.equal(planCaminata(horas, conCaminata(['07:00', '19:00']), MARTES, 12 * 60).inicio, 19 * 60);
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 20 * 60 + 10), { tipo: 'optimo', desde: 20 * 60, hasta: 21 * 60, minutos: null });
+});
+
+test('sin ningún rato bueno, dice por qué', () => {
+  const horas = dia(MARTES, () => ({ prob: 90 }));
+  assert.deepEqual(planCaminata(horas, LV, MARTES), { motivo: 'lluvia', minutos: null });
+});
+
+test('los horarios de caminata se ordenan y se limpian', () => {
+  assert.deepEqual(normalizarHorario({ caminatas: ['19:00', '7:30', 'roto', '19:00', '12:00', '21:00'] }).caminatas,
+    ['07:30', '12:00', '19:00']);
+  assert.equal(normalizarHorario({ meta: 'x' }).meta, 10000);
+});
+
+test('la línea de la caminata entra en un renglón', () => {
+  const casos = [
+    [{ cumplida: true }, '🚶 Meta de pasos cumplida ✓'],
+    [{ tipo: 'habitual', inicio: 1140, ok: true, otra: null, minutos: 45, etiqueta: 'Hoy' }, '🚶 19 h ✓ · faltan 45 min'],
+    [{ tipo: 'habitual', inicio: 1170, ok: true, otra: { desde: 7 * 60, hasta: 8 * 60 }, minutos: null, etiqueta: 'Hoy' }, '🚶 19:30 h ok, mejor 7–8 h'],
+    [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'lluvia', otra: { desde: 16 * 60, hasta: 17 * 60 }, etiqueta: 'Mañana' }, '🚶 Mañana 19 h: lluvia → 16–17 h'],
+    [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'calor', otra: null, etiqueta: 'Hoy' }, '🚶 19 h: calor, no hay otro rato'],
+    [{ tipo: 'optimo', desde: 9 * 60, hasta: 11 * 60, minutos: 80, etiqueta: 'Hoy' }, '🚶 Hoy 9–11 h · faltan 80 min'],
+    [{ tipo: 'optimo', desde: 13 * 60, hasta: 14 * 60 + 30, minutos: 90, etiqueta: 'Hoy' }, '🚶 Hoy 13–14:30 h · faltan 90 min'],
+    [{ tipo: 'habitual', inicio: 780, almuerzo: true, ok: true, otra: null, minutos: 40, etiqueta: 'Hoy' }, '🚶 Almuerzo ✓ · faltan 40 min'],
+    [{ tipo: 'habitual', inicio: 780, almuerzo: true, ok: false, motivo: 'lluvia', otra: { desde: 1140, hasta: 1200 }, etiqueta: 'Hoy' }, '🚶 Almuerzo: lluvia → 19–20 h'],
+    [{ motivo: 'tormenta', etiqueta: 'Hoy' }, '🚶 Hoy mejor no: tormenta'],
+  ];
+  for (const [c, texto] of casos) {
+    assert.equal(lineaCaminata(c), texto);
+    assert.ok([...texto].length <= 34, `"${texto}" no entra en el widget`);
+  }
+});
+
+test('los pasos por minuto son los mismos que en Rutina', async () => {
+  const { PASOS_POR_MINUTO: deRutina } = await import('../js/config.js');
+  const { PASOS_POR_MINUTO } = await import('../clima/js/logica.js');
+  assert.equal(PASOS_POR_MINUTO, deRutina);
+});
+
+// ---------------------------------------------------------------------------
+// Tu semana: oficina martes a jueves de 9 a 18, una hora de colectivo, y el
+// almuerzo de 13 a 14:30 para caminar.
+// ---------------------------------------------------------------------------
+
+const MIERCOLES = '2026-10-14';
+const LUNES = '2026-10-12';
+
+test('el horario por defecto es tu semana', () => {
+  const h = normalizarHorario({});
+  assert.deepEqual(h.dias, [2, 3, 4]);
+  assert.equal(minutos(h.entrada) - h.viaje, 8 * 60, 'salís de casa a las 8');
+  assert.equal(minutos(h.salida) + h.viaje, 19 * 60, 'llegás a las 19');
+  assert.deepEqual(h.almuerzo, { desde: '13:00', hasta: '14:30' });
+  // Sacarlo a mano vale; uno que no cae en el horario de oficina, no.
+  assert.equal(normalizarHorario({ almuerzo: null }).almuerzo, null);
+  assert.equal(normalizarHorario({ almuerzo: { desde: '19:00', hasta: '20:00' } }).almuerzo, null);
+});
+
+test('un día de oficina, la caminata es la del almuerzo', () => {
+  const horas = dia(MIERCOLES, () => ({}));
+  // 3.000 pasos que faltan son 30 minutos: entran en el almuerzo.
+  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 7000),
+    { tipo: 'habitual', inicio: 13 * 60, almuerzo: true, minutos: 30, quedan: 1, ok: true, otra: null });
+});
+
+test('si llueve al mediodía, propone la vuelta a casa o la mañana', () => {
+  const horas = dia(MIERCOLES, (h) => (h === 13 || h === 14 ? { prob: 80, lluvia: 2 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 7000);
+  assert.equal(c.ok, false);
+  assert.equal(c.motivo, 'lluvia');
+  // Llegás a las 19: de 19 a 20 es el primer rato bueno después.
+  assert.deepEqual(c.otra, { desde: 19 * 60, hasta: 20 * 60 });
+});
+
+test('nunca propone caminar en horario de oficina, fuera del almuerzo', () => {
+  // Las horas de escritorio son las más lindas del día: igual no se ofrecen.
+  const oficina = (h) => h >= 8 && h < 19 && h !== 13 && h !== 14;
+  const horas = dia(MIERCOLES, (h) => (oficina(h) ? { temp: 15, uv: 0 } : {}));
+  const sinAlmuerzo = planCaminata(horas, { ...HORARIO_DEFAULT, almuerzo: null }, MIERCOLES, 0, 0);
+  assert.equal(sinAlmuerzo.tipo, 'optimo');
+  assert.ok(sinAlmuerzo.hasta <= 8 * 60 || sinAlmuerzo.desde >= 19 * 60, JSON.stringify(sinAlmuerzo));
+  const conAlmuerzo = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 0, 0);
+  assert.deepEqual([conAlmuerzo.almuerzo, conAlmuerzo.ok], [true, true]);
+  const o = conAlmuerzo.otra;
+  assert.ok(!o || o.hasta <= 8 * 60 || o.desde >= 19 * 60 || (o.desde >= 13 * 60 && o.hasta <= 14 * 60 + 30), JSON.stringify(o));
+});
+
+test('el óptimo de un día de oficina puede caer en el almuerzo, recortado', () => {
+  // Pasado el horario del almuerzo como caminata habitual (ya son las 14:10),
+  // vuelve el óptimo del resto del día.
+  const horas = dia(MIERCOLES, (h) => (h >= 19 ? { prob: 90 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 14 * 60 + 10, 8000);
+  assert.deepEqual(c, { tipo: 'optimo', desde: 14 * 60, hasta: 14 * 60 + 30, minutos: 20 });
+});
+
+test('lunes y viernes de home office: la caminata también es al almuerzo', () => {
+  const horas = dia(LUNES, () => ({}));
+  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, LUNES, 8 * 60, 7000),
+    { tipo: 'habitual', inicio: 13 * 60, almuerzo: true, minutos: 30, quedan: 1, ok: true, otra: null });
+});
+
+test('en home office no hay colectivo: estás libre a las 18, no a las 19', () => {
+  // Llueve en el almuerzo y hasta las 18: el primer rato bueno es a las 18.
+  const horas = dia(LUNES, (h) => (h >= 10 && h < 18 ? { prob: 90 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, LUNES, 10 * 60, 7000);
+  assert.deepEqual([c.ok, c.motivo, c.otra], [false, 'lluvia', { desde: 18 * 60, hasta: 19 * 60 }]);
+  // Y antes de las 9 también: no hay que salir a las 8 para el colectivo.
+  const temprano = dia(LUNES, (h) => (h === 8 ? { temp: 15, uv: 0 } : h >= 10 ? { prob: 90 } : {}));
+  assert.deepEqual(planCaminata(temprano, HORARIO_DEFAULT, LUNES, 7 * 60, 9000).otra, { desde: 8 * 60, hasta: 9 * 60 });
+});
+
+test('en home office la ropa es para salir al almuerzo, y después para cuando terminás', () => {
+  const horas = dia(LUNES, (h) => ({ temp: h < 13 ? 8 : h < 15 ? 15 : h < 18 ? 20 : 12 }));
+  const manana = lineasWidget(plan(horas, HORARIO_DEFAULT, { fecha: LUNES, minutos: 7 * 60 }));
+  assert.equal(manana.titulo, '👔 Manga larga');
+  assert.equal(manana.detalle, 'Hoy: almuerzo 15° · máx 20°');
+  const tarde = plan(horas, HORARIO_DEFAULT, { fecha: LUNES, minutos: 15 * 60 });
+  assert.equal(tarde.casa, false);
+  assert.equal(tarde.temp, 12, 'a las 15 la ropa es para cuando terminás, a las 18');
+});
+
+test('un día no puede ser de oficina y de home office a la vez', () => {
+  assert.deepEqual(normalizarHorario({ dias: [1, 2], remoto: [1, 5] }).remoto, [5]);
+  assert.deepEqual(normalizarHorario({}).remoto, [1, 5]);
+});
+
+test('si llueve al mediodía, el paraguas va aunque la ida y la vuelta estén secas', () => {
+  const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80 } : {}));
+  const ahora = { fecha: MIERCOLES, minutos: 7 * 60 };
+  assert.equal(plan(horas, HORARIO_DEFAULT, ahora).paraguas.nivel, 'si');
+  assert.equal(plan(horas, { ...HORARIO_DEFAULT, almuerzo: null }, ahora).paraguas.nivel, 'no');
+});
+
+test('tu semana en el widget', () => {
+  const horas = dia(MIERCOLES, () => ({}));
+  const w = lineasWidget(plan(horas, HORARIO_DEFAULT, { fecha: MIERCOLES, minutos: 7 * 60 }, 6000));
+  assert.equal(w.detalle, 'Hoy: ida 16° · vuelta 16°');
+  assert.equal(w.caminar, '🚶 Almuerzo ✓ · faltan 40 min');
+});
+
+for (const caso of CASOS) {
+  test(`caso: ${caso.nombre}`, () => {
+    const w = lineasWidget(plan(caso.horas, caso.horario, caso.ahora, caso.pasos ?? null));
+    assert.deepEqual(w, caso.widget);
+  });
+}
+
+test('la URL pide lo que la lógica usa, en hora de Buenos Aires', () => {
+  for (const campo of ['temperature_2m', 'relative_humidity_2m', 'apparent_temperature',
+    'precipitation_probability', 'precipitation', 'weather_code', 'wind_speed_10m', 'wind_gusts_10m', 'uv_index']) {
+    assert.ok(URL_PRONOSTICO.includes(campo), `falta ${campo}`);
+  }
+  assert.match(URL_PRONOSTICO, /timezone=America%2FArgentina%2FBuenos_Aires/);
+  assert.match(URL_PRONOSTICO, /wind_speed_unit=kmh/);
+});
+
+test('horasDe descarta lo que no sirve', () => {
+  const horas = horasDe({ hourly: {
+    time: ['2026-10-13T08:00', 'roto', '2026-10-13T09:00'],
+    temperature_2m: [12, 13, null],
+    precipitation_probability: [null, 0, 0],
+  } });
+  assert.equal(horas.length, 1);
+  assert.equal(horas[0].hora, 8);
+  assert.equal(horas[0].prob, 0);
+});
+
+test('sin conexión usa el último pronóstico guardado', async () => {
+  const mem = new Map();
+  const almacen = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const json = { hourly: { time: ['2026-10-13T08:00'], temperature_2m: [12] } };
+  const ok = await traer({ fetch: async () => ({ ok: true, json: async () => json }), almacen });
+  assert.equal(ok.fresco, true);
+  const caido = await traer({ fetch: async () => { throw new Error('sin red'); }, almacen });
+  assert.equal(caido.fresco, false);
+  assert.deepEqual(caido.json, json);
+  await assert.rejects(traer({ fetch: async () => { throw new Error('sin red'); }, almacen: { getItem: () => null } }));
+});
+
+// ---------------------------------------------------------------------------
+// La web y el widget tienen que decir lo mismo
+// ---------------------------------------------------------------------------
+
+const KT = readFileSync('android/app/src/clima/java/com/jeremiasmas/rutina/ClimaLogica.kt', 'utf8');
+const JS = readFileSync('clima/js/logica.js', 'utf8');
+
+test('las constantes de la web y del widget son las mismas', async () => {
+  const logica = await import('../clima/js/logica.js');
+  const enKotlin = [...KT.matchAll(/const val (\w+) = (-?[\d.]+)/g)];
+  assert.ok(enKotlin.length >= 15, `encontré ${enKotlin.length} constantes en Kotlin`);
+  for (const [, nombre, valor] of enKotlin) {
+    assert.ok(nombre in logica, `${nombre} está en ClimaLogica.kt y no en logica.js`);
+    assert.equal(Number(valor), logica[nombre], `${nombre}: Kotlin dice ${valor}, la web ${logica[nombre]}`);
+  }
+  // Y al revés: un umbral numérico nuevo en la web tiene que llegar al widget.
+  const soloWeb = ['ACLIMATACION'];   // sólo se usa en el texto "un porteño iría con…"
+  for (const m of JS.matchAll(/export const (\w+) = -?[\d.]+;/g)) {
+    if (soloWeb.includes(m[1])) continue;
+    assert.ok(enKotlin.some((k) => k[1] === m[1]), `${m[1]} está en logica.js y no en ClimaLogica.kt`);
+  }
+});
+
+test('los niveles de ropa son los mismos en la web y en el widget', async () => {
+  const { ROPA } = await import('../clima/js/logica.js');
+  const enKotlin = [...KT.matchAll(/Ropa\(([\d.]+|Double\.POSITIVE_INFINITY), "([^"]+)", "([^"]+)"\)/g)]
+    .map((m) => ({ hasta: m[1] === 'Double.POSITIVE_INFINITY' ? Infinity : Number(m[1]), icono: m[2], corto: m[3] }));
+  assert.deepEqual(enKotlin, ROPA.map(({ hasta, icono, corto }) => ({ hasta, icono, corto })));
+});
+
+test('el widget baja el mismo pronóstico que la web', () => {
+  const kt = readFileSync('android/app/src/clima/java/com/jeremiasmas/rutina/Clima.kt', 'utf8');
+  const bloque = /const val URL_PRONOSTICO = ([\s\S]*?)\n\n/.exec(kt)?.[1];
+  assert.ok(bloque, 'no encontré URL_PRONOSTICO en Clima.kt');
+  const url = [...bloque.matchAll(/"([^"]*)"/g)].map((m) => m[1]).join('');
+  assert.equal(url, URL_PRONOSTICO);
+});
+
+// ---------------------------------------------------------------------------
+// La web del clima
+// ---------------------------------------------------------------------------
+
+const modulos = readdirSync('clima/js').map((n) => `clima/js/${n}`);
+
+for (const ruta of modulos) {
+  test(`${ruta} parsea`, () => {
+    assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', ruta], { stdio: 'pipe' }));
+  });
+}
+
+test('el service worker del clima cachea todo y nada que no exista', () => {
+  const sw = readFileSync('clima/sw.js', 'utf8');
+  const listados = [...sw.matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
+  for (const m of modulos) assert.ok(listados.includes(m.slice('clima/'.length)), `${m} no está en clima/sw.js`);
+  for (const r of listados) assert.ok(existsSync(`clima/${r}`), `clima/sw.js lista ${r}, que no existe`);
+  for (const base of ['index.html', 'manifest.webmanifest', 'styles.css']) {
+    assert.ok(listados.includes(base), `falta ${base} en clima/sw.js`);
+  }
+});

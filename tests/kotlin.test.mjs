@@ -140,7 +140,8 @@ test('el puente declara @JavascriptInterface en todo lo que expone', () => {
 
 test('lo que la web llama existe en el puente', () => {
   const kt = readFileSync(MAIN, 'utf8');
-  const js = readFileSync('js/native.js', 'utf8') + readFileSync('js/views/settings.js', 'utf8');
+  const js = readFileSync('js/native.js', 'utf8') + readFileSync('js/views/settings.js', 'utf8')
+    + readFileSync('clima/js/nativo.js', 'utf8');
   const llamados = new Set([...js.matchAll(/RutinaNativa\??\.(\w+)/g)].map((m) => m[1]));
   assert.ok(llamados.size > 0, 'no encontré ninguna llamada al puente');
   for (const metodo of llamados) {
@@ -241,20 +242,33 @@ test('los layouts y el manifiesto sólo apuntan a recursos que existen', () => {
   }
 });
 
+/** Los manifiestos de cada sabor, que agregan o sacan receivers del principal. */
+function manifiestosDeSabor() {
+  const src = 'android/app/src';
+  return readdirSync(src)
+    .map((d) => join(src, d, 'AndroidManifest.xml'))
+    .filter((r) => r !== MANIFEST && existsSync(r));
+}
+
 /** Los widgets que existen en el código, y el <receiver> de cada uno. */
 function proveedoresDeWidget() {
   // La clase base es abstracta: no es un widget, es el andamiaje.
-  const clases = [...fuentesKotlin.matchAll(/(abstract )?class (\w+) : (?:WidgetCompacto|AppWidgetProvider)\(\)/g)]
-    .filter((m) => !m[1])
-    .map((m) => m[2]);
-  const manifest = leer(MANIFEST);
+  const encontradas = [...fuentesKotlin.matchAll(/(abstract )?class (\w+) : (WidgetCompacto|AppWidgetProvider)\(\)/g)]
+    .filter((m) => !m[1]);
+  const clases = encontradas.map((m) => m[2]);
+  // Los que heredan de WidgetCompacto traen el botón de un toque.
+  const compactos = encontradas.filter((m) => m[3] === 'WidgetCompacto').map((m) => m[2]);
   // Cada <receiver ...>...</receiver> entero, para poder mirarlo por separado.
+  // Un sabor puede declarar los suyos con el nombre completo (el del clima
+  // sólo existe en su APK).
   const receivers = new Map();
-  for (const m of manifest.matchAll(/<receiver\s[\s\S]*?<\/receiver>/g)) {
-    const nombre = /android:name="\.(\w+)"/.exec(m[0])?.[1];
-    if (nombre) receivers.set(nombre, m[0]);
+  for (const ruta of [MANIFEST, ...manifiestosDeSabor()]) {
+    for (const m of leer(ruta).matchAll(/<receiver\s[\s\S]*?<\/receiver>/g)) {
+      const nombre = /android:name="(?:\.|com\.jeremiasmas\.rutina\.)(\w+)"/.exec(m[0])?.[1];
+      if (nombre) receivers.set(nombre, m[0]);
+    }
   }
-  return { clases, receivers };
+  return { clases, compactos, receivers };
 }
 
 test('todo widget del código está declarado en el manifiesto', () => {
@@ -280,8 +294,8 @@ test('cada widget filtra la acción de su botón de un toque', () => {
   // el manifiesto no la filtra, el botón no hace nada y tampoco falla.
   const accion = /const val ACCION_REGISTRAR = "([^"]+)"/.exec(fuentesKotlin)?.[1];
   assert.ok(accion, 'no encontré ACCION_REGISTRAR en ningún fuente');
-  const { clases, receivers } = proveedoresDeWidget();
-  for (const clase of clases) {
+  const { compactos, receivers } = proveedoresDeWidget();
+  for (const clase of compactos) {
     assert.ok(receivers.get(clase)?.includes(accion),
       `${clase} no filtra "${accion}": su botón de un toque no haría nada`);
   }
@@ -488,6 +502,38 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   assert.match(ci, /apk\/ataraxia\/debug\/app-ataraxia-debug\.apk ataraxia\.apk/);
 });
 
+test('la app del clima abre clima/ y sólo trae su widget', () => {
+  const gradle = leer('android/app/build.gradle.kts');
+  const clima = /create\("clima"\)\s*\{([\s\S]*?)\n    \}/.exec(gradle)?.[1];
+  assert.ok(clima, 'falta el sabor clima');
+  assert.match(clima, /applicationId = "com\.jeremiasmas\.clima"/);
+  assert.match(clima, /buildConfigField\("String", "SUBRUTA", "\\"clima\/\\""\)/);
+  assert.ok(existsSync('clima/index.html'), 'Clima abre clima/index.html y no existe');
+
+  const manifiesto = leer('android/app/src/clima/AndroidManifest.xml');
+  // Los de Rutina mostrarían un día que en esta app no existe.
+  for (const m of leer(MANIFEST).matchAll(/<receiver\s+android:name="\.(\w+)"/g)) {
+    assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${m[1]}" tools:node="remove"`),
+      `el widget ${m[1]} aparecería en Clima`);
+  }
+  // El del clima, en cambio, sólo existe acá: en Rutina no tiene que aparecer.
+  assert.match(manifiesto, /android:name="com\.jeremiasmas\.rutina\.WidgetClima"/);
+  assert.doesNotMatch(leer(MANIFEST), /WidgetClima/, 'el widget del clima aparecería en Rutina');
+  assert.match(leer('android/app/src/clima/res/values/strings.xml'), /name="app_name">Clima</);
+
+  // La web avisa por un broadcast que el widget tiene que escuchar.
+  const accion = /const val ACCION_CLIMA = "([^"]+)"/.exec(leer(MAIN))?.[1];
+  assert.ok(accion, 'falta ACCION_CLIMA en MainActivity');
+  assert.ok(manifiesto.includes(`<action android:name="${accion}" />`),
+    `WidgetClima no filtra ${accion}: el horario que elegís nunca le llegaría`);
+  // Y que el broadcast quede adentro de la app.
+  assert.match(cuerpoDe(leer(MAIN), 'fun guardarClima('), /setPackage\(packageName\)/);
+
+  const ci = leer('.github/workflows/android.yml');
+  assert.match(ci, /apk\/clima\/debug\/app-clima-debug\.apk clima\.apk/);
+  assert.match(ci, /gh release create apk [^\n]*clima\.apk/);
+});
+
 test('el respaldo sólo se usa cuando la red falla', () => {
   // Interceptar siempre mataría la actualización automática: la app dejaría
   // de tomar lo que se sube a GitHub Pages.
@@ -519,6 +565,10 @@ test('el APK se lleva todo lo que la web necesita para abrir sola', () => {
   const deAtaraxia = [...leer('ataraxia/sw.js').matchAll(/'\.\/([^']*)'/g)]
     .map((m) => m[1]).filter(Boolean).map((r) => `ataraxia/${r}`);
   cacheados.push('ataraxia/index.html', ...deAtaraxia);
+  // Y Clima, igual.
+  const deClima = [...leer('clima/sw.js').matchAll(/'\.\/([^']*)'/g)]
+    .map((m) => m[1]).filter(Boolean).map((r) => `clima/${r}`);
+  cacheados.push('clima/index.html', ...deClima);
   const faltan = cacheados.filter((r) => !cubre(r));
   assert.deepEqual(faltan, [], `el APK no se lleva: ${faltan.join(', ')}`);
 });
