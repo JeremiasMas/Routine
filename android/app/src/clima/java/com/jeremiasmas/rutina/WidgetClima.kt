@@ -13,8 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * El widget del clima: qué ponerte, si llevar paraguas y cuándo caminar. Tres
- * líneas y nada más.
+ * El widget del clima: qué ponerte, si llevar paraguas y cuándo caminar. Dos
+ * líneas de texto y nada más.
  *
  * A diferencia de los de Rutina, este sí calcula: con el pronóstico guardado y
  * la hora de ahora arma las líneas con ClimaLogica, la misma lógica de la web.
@@ -40,7 +40,6 @@ class WidgetClima : AppWidgetProvider() {
       val l = Clima.lineas(c)
       val vista = RemoteViews(c.packageName, R.layout.widget_clima)
       vista.setTextViewText(R.id.clima_titulo, l.titulo)
-      vista.setTextViewText(R.id.clima_detalle, l.detalle)
       vista.setTextViewText(R.id.clima_caminar, l.caminar)
       vista.setViewVisibility(R.id.clima_caminar, if (l.caminar.isEmpty()) View.GONE else View.VISIBLE)
       vista.setOnClickPendingIntent(R.id.clima_raiz, Widgets.abrirApp(c, null))

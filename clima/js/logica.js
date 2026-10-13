@@ -429,12 +429,19 @@ export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) 
       const v = ventanaOptima(candidatas, entre(Math.ceil(dur / 60), 1, 2), finde);
       const mejor = v ? { ...recortar(v, h, trabaja, viaje), penal: v.penal } : null;
       const malas = tuyo.filter((x) => !apta(x));
-      const base = { tipo: 'habitual', inicio, almuerzo, minutos: faltanMin, quedan: pendientes.length };
+      const base = {
+        tipo: 'habitual', inicio, almuerzo, minutos: faltanMin, quedan: pendientes.length,
+        fin: almuerzo ? minutos(h.almuerzo.hasta) : null,
+      };
       if (!malas.length) {
         let prom = 0;
         for (const x of tuyo) prom += penalidad(x, finde);
         prom /= tuyo.length;
-        const otra = mejor && mejor.desde !== Math.floor(inicio / 60) * 60 && mejor.penal + MEJORA <= prom;
+        // Otro rato sólo si es claramente mejor y no se pisa con el tuyo:
+        // "mejor que al almuerzo" no puede proponer un pedazo del almuerzo.
+        const hastaTuyo = almuerzo ? minutos(h.almuerzo.hasta) : inicio + dur;
+        const pisa = mejor && mejor.desde < hastaTuyo && mejor.hasta > inicio;
+        const otra = mejor && !pisa && mejor.penal + MEJORA <= prom;
         return { ...base, ok: true, otra: otra ? { desde: mejor.desde, hasta: mejor.hasta } : null };
       }
       return { ...base, ok: false, motivo: motivoDe(malas[0]), otra: mejor ? { desde: mejor.desde, hasta: mejor.hasta } : null };
@@ -555,34 +562,38 @@ export function plan(horas, horario, ahora, pasos = null) {
   };
 }
 
-const ICONO_PARAGUAS = { no: '', quizas: ' · ☂️?', si: ' · ☂️', capucha: ' · capucha' };
+const TEXTO_PARAGUAS = { no: '', quizas: ' · ¿paraguas?', si: ' · paraguas', capucha: ' · capucha' };
 
 /**
- * Las tres líneas del widget. Kotlin arma exactamente las mismas: el test de
- * paridad compara los dos con los mismos casos.
+ * Las dos líneas del widget: qué ponerte y cuándo caminar. Sin emojis ni
+ * temperaturas, que ya están en el reloj del teléfono: sólo lo que cambia lo
+ * que hacés. Kotlin arma exactamente las mismas: el test de paridad compara
+ * los dos con los mismos casos.
  */
 export function lineasWidget(p) {
-  if (!p) return { titulo: 'Sin pronóstico', detalle: 'Abrí la app con conexión', caminar: '' };
-  const titulo = `${p.ropa.icono} ${p.ropa.corto}${ICONO_PARAGUAS[p.paraguas.nivel]}`;
-  let detalle = `${p.etiqueta}: ${p.temp}° · máx ${p.maxima}°`;
-  if (p.oficina) detalle = `${p.etiqueta}: ida ${p.ida.temp ?? '–'}° · vuelta ${p.vuelta.temp ?? '–'}°`;
-  else if (p.casa) detalle = `${p.etiqueta}: almuerzo ${p.temp}° · máx ${p.maxima}°`;
-  return { titulo, detalle, caminar: lineaCaminata(p.caminata) };
+  if (!p) return { titulo: 'Sin pronóstico', caminar: 'Abrí la app con conexión' };
+  return { titulo: `${p.ropa.corto}${TEXTO_PARAGUAS[p.paraguas.nivel]}`, caminar: lineaCaminata(p.caminata) };
 }
 
-/** La tercera línea del widget: la caminata, en lo que entra en un renglón. */
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** La segunda línea del widget: la caminata, en lo que entra en un renglón. */
 export function lineaCaminata(c) {
   if (!c) return '';
-  if (c.cumplida) return '🚶 Meta de pasos cumplida ✓';
+  if (c.cumplida) return 'Meta de pasos cumplida';
   const falta = c.minutos != null ? ` · faltan ${c.minutos} min` : '';
   const rato = (v) => `${hora(v.desde)}–${hora(v.hasta)} h`;
+  const camina = c.etiqueta === 'Mañana' ? 'Mañana caminá' : 'Caminá';
   if (c.tipo === 'habitual') {
-    const cuando = c.almuerzo
-      ? (c.etiqueta === 'Mañana' ? 'Mañana almuerzo' : 'Almuerzo')
-      : `${c.etiqueta === 'Mañana' ? 'Mañana ' : ''}${hora(c.inicio)} h`;
-    if (c.ok) return c.otra ? `🚶 ${cuando} ok, mejor ${rato(c.otra)}` : `🚶 ${cuando} ✓${falta}`;
-    return c.otra ? `🚶 ${cuando}: ${c.motivo} → ${rato(c.otra)}` : `🚶 ${cuando}: ${c.motivo}, no hay otro rato`;
+    const tuyo = c.almuerzo ? `${hora(c.inicio)}–${hora(c.fin)} h` : `${hora(c.inicio)} h`;
+    const cuando = c.almuerzo ? 'al almuerzo' : `a las ${hora(c.inicio)}`;
+    if (c.ok) return c.otra ? `${camina} ${rato(c.otra)}, mejor que ${cuando}` : `${camina} ${tuyo}${falta}`;
+    const previo = c.etiqueta === 'Mañana' ? 'Mañana: ' : '';
+    const motivo = previo ? c.motivo : mayuscula(c.motivo);
+    return c.otra
+      ? `${previo}${motivo} ${cuando}, caminá ${rato(c.otra)}`
+      : `${previo}${motivo} ${cuando}, no hay otro rato`;
   }
-  if (c.tipo === 'optimo') return `🚶 ${c.etiqueta} ${rato(c)}${c.sol ? ' ☀️' : ''}${falta}`;
-  return `🚶 ${c.etiqueta} mejor no: ${c.motivo}`;
+  if (c.tipo === 'optimo') return `${camina} ${rato(c)}${c.sol ? ' al sol' : ''}${falta}`;
+  return `${c.etiqueta} mejor no caminar: ${c.motivo}`;
 }
