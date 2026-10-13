@@ -125,7 +125,8 @@ object ClimaLogica {
   private fun ocupado(h: Horario, dia: Int, desde: Int, hasta: Int): Boolean =
     h.ocupados.any { dia in it.dias && desde < it.hasta && hasta > it.desde }
 
-  data class Lineas(val titulo: String, val detalle: String, val caminar: String)
+  /** Las dos líneas del widget: qué ponerte y cuándo caminar. */
+  data class Lineas(val titulo: String, val caminar: String)
 
   private fun redondear(n: Double): Double = Math.round(n * 10) / 10.0
 
@@ -269,6 +270,8 @@ object ClimaLogica {
     val minutos: Int? = null,
     /** Un óptimo de fin de semana con sol para la vitamina D. */
     val sol: Boolean = false,
+    /** Cuándo termina el almuerzo, si la caminata es la del almuerzo. */
+    val fin: Int? = null,
   )
 
   private fun entre(n: Int, minimo: Int, maximo: Int) = min(maximo, max(minimo, n))
@@ -294,6 +297,7 @@ object ClimaLogica {
     if (pendientes.isNotEmpty()) {
       val inicio = pendientes[0]
       val almuerzo = inicio == almD
+      val fin = if (almuerzo) h.almuerzo?.second else null
       var dur = if (faltanMin == null) DURACION_SIN_PASOS
       else entre(ceil(faltanMin.toDouble() / pendientes.size).toInt(), DURACION_MIN, DURACION_MAX)
       if (almuerzo) dur = min(dur, h.almuerzo!!.second - inicio)
@@ -305,10 +309,13 @@ object ClimaLogica {
           var prom = 0.0
           for (x in tuyo) prom += penalidad(x, finde)
           prom /= tuyo.size
-          val otra = mejor != null && mejor.desde != (inicio / 60) * 60 && mejor.penal + MEJORA <= prom
-          return Caminata("habitual", inicio, almuerzo, true, null, if (otra) mejor else null, faltanMin)
+          // Otro rato sólo si es claramente mejor y no se pisa con el tuyo.
+          val hastaTuyo = fin ?: (inicio + dur)
+          val pisa = mejor != null && mejor.desde < hastaTuyo && mejor.hasta > inicio
+          val otra = mejor != null && !pisa && mejor.penal + MEJORA <= prom
+          return Caminata("habitual", inicio, almuerzo, true, null, if (otra) mejor else null, faltanMin, fin = fin)
         }
-        return Caminata("habitual", inicio, almuerzo, false, motivoDe(malas[0]), mejor, faltanMin)
+        return Caminata("habitual", inicio, almuerzo, false, motivoDe(malas[0]), mejor, faltanMin, fin = fin)
       }
     }
 
@@ -332,25 +339,26 @@ object ClimaLogica {
   /** La tercera línea, igual que lineaCaminata en la web. */
   fun lineaCaminata(c: Caminata?, etiqueta: String): String {
     if (c == null) return ""
-    if (c.tipo == "cumplida") return "🚶 Meta de pasos cumplida ✓"
+    if (c.tipo == "cumplida") return "Meta de pasos cumplida"
     val falta = if (c.minutos != null) " · faltan ${c.minutos} min" else ""
     fun rato(v: Ventana) = "${hora(v.desde)}–${hora(v.hasta)} h"
+    val camina = if (etiqueta == "Mañana") "Mañana caminá" else "Caminá"
     val otra = c.otra
     return when (c.tipo) {
       "habitual" -> {
-        val cuando = if (c.almuerzo) {
-          if (etiqueta == "Mañana") "Mañana almuerzo" else "Almuerzo"
-        } else {
-          "${if (etiqueta == "Mañana") "Mañana " else ""}${hora(c.inicio)} h"
-        }
+        val tuyo = if (c.almuerzo) "${hora(c.inicio)}–${hora(c.fin ?: c.inicio)} h" else "${hora(c.inicio)} h"
+        val cuando = if (c.almuerzo) "al almuerzo" else "a las ${hora(c.inicio)}"
         if (c.ok) {
-          if (otra != null) "🚶 $cuando ok, mejor ${rato(otra)}" else "🚶 $cuando ✓$falta"
+          if (otra != null) "$camina ${rato(otra)}, mejor que $cuando" else "$camina $tuyo$falta"
         } else {
-          if (otra != null) "🚶 $cuando: ${c.motivo} → ${rato(otra)}" else "🚶 $cuando: ${c.motivo}, no hay otro rato"
+          val previo = if (etiqueta == "Mañana") "Mañana: " else ""
+          val motivo = c.motivo.orEmpty().let { if (previo.isEmpty()) it.replaceFirstChar { ch -> ch.uppercase() } else it }
+          if (otra != null) "$previo$motivo $cuando, caminá ${rato(otra)}"
+          else "$previo$motivo $cuando, no hay otro rato"
         }
       }
-      "optimo" -> "🚶 $etiqueta ${rato(otra!!)}${if (c.sol) " ☀️" else ""}$falta"
-      else -> "🚶 $etiqueta mejor no: ${c.motivo}"
+      "optimo" -> "$camina ${rato(otra!!)}${if (c.sol) " al sol" else ""}$falta"
+      else -> "$etiqueta mejor no caminar: ${c.motivo}"
     }
   }
 
@@ -358,28 +366,21 @@ object ClimaLogica {
 
   fun sumarDias(fecha: String, n: Long): String = LocalDate.parse(fecha).plusDays(n).toString()
 
-  private fun redondo(n: Double): Long = Math.round(n)
-
-  /** Las tres líneas, para una fecha ("2026-10-13") y minutos de Buenos Aires. */
+  /** Las dos líneas, para una fecha ("2026-10-13") y minutos de Buenos Aires. */
   fun lineas(horas: List<Hora>, h: Horario, fechaHoy: String, minutosAhora: Int, pasos: Long? = null): Lineas {
-    val sinDatos = Lineas("Sin pronóstico", "Abrí la app con conexión", "")
+    val sinDatos = Lineas("Sin pronóstico", "Abrí la app con conexión")
     val manana = minutosAhora >= HORA_DE_MANANA * 60
     val fecha = if (manana) sumarDias(fechaHoy, 1) else fechaHoy
-    val etiqueta = if (manana) "Mañana" else "Hoy"
     val oficina = diaDeSemana(fecha) in h.dias && (manana || minutosAhora < h.salida + h.viaje)
     val remoto = diaDeSemana(fecha) in h.remoto
     // En home office la única salida del horario de trabajo es el almuerzo.
     val alm = h.almuerzo
     val casa = remoto && alm != null && (manana || minutosAhora < alm.second)
 
-    var ida = emptyList<Hora>()
-    var vuelta = emptyList<Hora>()
     var almuerzo = emptyList<Hora>()
     val salir: List<Hora>
     if (oficina) {
-      ida = tramo(horas, fecha, h.entrada - h.viaje, h.entrada)
-      vuelta = tramo(horas, fecha, h.salida, h.salida + h.viaje)
-      salir = ida + vuelta
+      salir = tramo(horas, fecha, h.entrada - h.viaje, h.entrada) + tramo(horas, fecha, h.salida, h.salida + h.viaje)
       // Al almuerzo también salís: si llueve a esa hora, el paraguas va.
       h.almuerzo?.let { almuerzo = tramo(horas, fecha, it.first, it.second) }
     } else if (casa) {
@@ -392,22 +393,13 @@ object ClimaLogica {
     if (salir.isEmpty()) return sinDatos
 
     val ropa = ropaPara(salir.minOf { sensacion(it) })
-    val icono = when (paraguas(salir + almuerzo)) {
-      "quizas" -> " · ☂️?"
-      "si" -> " · ☂️"
+    val conParaguas = when (paraguas(salir + almuerzo)) {
+      "quizas" -> " · ¿paraguas?"
+      "si" -> " · paraguas"
       "capucha" -> " · capucha"
       else -> ""
     }
-    val titulo = "${ropa.icono} ${ropa.corto}$icono"
-
-    val minima = { hs: List<Hora> -> if (hs.isEmpty()) "–" else redondo(hs.minOf { it.temp }).toString() }
-    val detalle = if (oficina) {
-      "$etiqueta: ida ${minima(ida)}° · vuelta ${minima(vuelta)}°"
-    } else {
-      val maxima = redondo(horas.filter { it.fecha == fecha }.maxOf { it.temp })
-      val cuando = if (casa) "almuerzo " else ""
-      "$etiqueta: $cuando${redondo(salir[0].temp)}° · máx $maxima°"
-    }
+    val titulo = "${ropa.corto}$conParaguas"
 
     // La caminata es de hoy mientras te falten pasos y quede algún rato, aunque
     // ya sea de noche; si no, la de mañana (que todavía no tiene pasos).
@@ -421,6 +413,6 @@ object ClimaLogica {
       c = planCaminata(horas, h, sumarDias(fechaHoy, 1), 0, null)
     }
     val caminar = lineaCaminata(c, etiquetaCaminata)
-    return Lineas(titulo, detalle, caminar)
+    return Lineas(titulo, caminar)
   }
 }

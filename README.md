@@ -438,8 +438,15 @@ a Sísifo feliz. La paleta es toda en azules.
 
 ## Clima: qué ponerte hoy 🧥
 
-En `clima/` vive una tercera app, con un widget de tres líneas: **qué ponerte,
+En `clima/` vive una tercera app, con un widget de dos líneas: **qué ponerte,
 si llevar paraguas y cuándo conviene salir a caminar** en Buenos Aires.
+
+    Campera liviana · paraguas
+    Caminá 13–14:30 h · faltan 40 min
+
+Sin emojis ni temperaturas: la temperatura ya la da el reloj del teléfono, y
+el widget sólo dice lo que cambia lo que hacés. Las temperaturas de ida y
+vuelta siguen en la app.
 
     https://jeremiasmas.github.io/Routine/clima/
 
@@ -501,7 +508,7 @@ paraguas mira además el almuerzo, porque a esa hora también salís. Desde las
   UV entre 3 y 6, que es cuando la piel la fabrica sin quemarse (con 15 a 20
   minutos con brazos y cara alcanza). En primavera eso suele ser a media
   mañana o a media tarde, nunca al mediodía. El widget marca esos ratos con
-  ☀️, y si viene nublado lo dice.
+  "al sol", y si viene nublado la app lo dice.
 - **Cuánto te falta:** con los pasos de hoy y tu meta (10.000 por defecto) te
   dice cuántos minutos te faltan, a 100 pasos por minuto, el mismo número que
   usa Rutina. Esa duración decide cuánto rato hace falta buscar. Si tenés

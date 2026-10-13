@@ -140,7 +140,6 @@ function pintar() {
 
   $('#widget').innerHTML = `
     <div class="w-titulo">${esc(w.titulo)}</div>
-    <div class="w-detalle">${esc(w.detalle)}</div>
     ${w.caminar ? `<div class="w-caminar">${esc(w.caminar)}</div>` : ''}`;
 
   const estado = registro

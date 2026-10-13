@@ -1,6 +1,6 @@
 // Service worker propio: su alcance es esta carpeta, así no se mezcla con los
 // de las otras apps que viven en el mismo sitio.
-const CACHE = 'clima-v7';
+const CACHE = 'clima-v8';
 
 const ASSETS = [
   './',
