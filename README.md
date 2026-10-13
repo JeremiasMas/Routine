@@ -431,6 +431,12 @@ Rutina. El release `apk` publica los dos archivos:
   programar sola al reiniciar el teléfono. Sólo Ataraxia declara el
   receptor y el permiso de notificaciones: Rutina no los pide.
 
+- **🔔 Recordatorio nocturno del semáforo:** desde las 21:30, si ese día
+  falta anotar alguna comida, aparece un aviso en *Hoy*. En Android llega
+  además como notificación, que no suena si el semáforo ya está completo:
+  la web le avisa al teléfono cada vez que cambia. `Recordatorio.kt` maneja
+  ahora varios recordatorios (peso semanal, semáforo diario), cada uno con
+  su alarma, su notificación y sus preferencias.
 - **🌸 Mi práctica:** un tick diario para marcar que hizo su tarea, sin
   más detalle. Suma 100 XP y lleva su racha en la misma tarjeta, pero no
   entra en el día pleno ni en el panel de rachas: es algo personal y no

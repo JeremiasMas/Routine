@@ -101,25 +101,41 @@ class MainActivity : AppCompatActivity() {
   private val pedirNotificaciones = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
   ) {
-    avisarRecordatorio()
+    avisarRecordatorio(tipoPendiente)
   }
 
-  /** Le cuenta a la web cómo quedó el recordatorio, permiso incluido. */
-  private fun avisarRecordatorio() {
+  /** Qué recordatorio pidió el permiso, para avisar de ése al volver. */
+  private var tipoPendiente = Recordatorio.Tipo.PESO
+
+  /** Le cuenta a la web cómo quedó un recordatorio, permiso incluido. */
+  private fun avisarRecordatorio(tipo: Recordatorio.Tipo) {
     if (!webLista) return
     web.evaluateJavascript(
       "window.dispatchEvent(new CustomEvent('rutina-recordatorio'," +
-        "{detail:${Recordatorio.comoJson(this)}}))",
+        "{detail:${Recordatorio.comoJson(this, tipo)}}))",
       null,
     )
+  }
+
+  /** Guarda y programa un recordatorio; si hace falta el permiso, lo pide. */
+  private fun configurarRecordatorio(tipo: Recordatorio.Tipo, config: Recordatorio.Config) {
+    Recordatorio.guardar(this, tipo, config)
+    if (config.activo && !Recordatorio.permisoDado(this) &&
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    ) {
+      tipoPendiente = tipo
+      pedirNotificaciones.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+      avisarRecordatorio(tipo)
+    }
   }
 
   @SuppressLint("SetJavaScriptEnabled")
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     // Por si se perdió la alarma (la app se cerró a la fuerza, por ejemplo):
-    // abrir la app la vuelve a dejar programada. Apagado, no hace nada.
-    Recordatorio.programar(this)
+    // abrir la app las vuelve a dejar programadas. Apagadas, no hace nada.
+    Recordatorio.programarTodos(this)
 
     web = WebView(this)
     setContentView(web)
@@ -401,20 +417,37 @@ class MainActivity : AppCompatActivity() {
     @JavascriptInterface
     fun recordatorio(activo: Boolean, dia: Int, hora: Int, minuto: Int) {
       runOnUiThread {
-        Recordatorio.guardar(this@MainActivity, Recordatorio.Config(activo, dia, hora, minuto))
-        if (activo && !Recordatorio.permisoDado(this@MainActivity) &&
-          Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-        ) {
-          pedirNotificaciones.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-          avisarRecordatorio()
-        }
+        configurarRecordatorio(Recordatorio.Tipo.PESO, Recordatorio.Config(activo, dia, hora, minuto))
       }
     }
 
-    /** Cómo está programado el recordatorio, para mostrarlo en Ajustes. */
+    /** Cómo está programado el recordatorio de peso, para mostrarlo en Ajustes. */
     @JavascriptInterface
-    fun estadoRecordatorio(): String = Recordatorio.comoJson(this@MainActivity)
+    fun estadoRecordatorio(): String =
+      Recordatorio.comoJson(this@MainActivity, Recordatorio.Tipo.PESO)
+
+    /**
+     * Lo mismo para cualquier recordatorio, por nombre ("peso", "semaforo").
+     * Los dos de arriba quedan por las versiones de la web que sólo los conocen.
+     */
+    @JavascriptInterface
+    fun recordatorioDe(tipo: String, activo: Boolean, dia: Int, hora: Int, minuto: Int) {
+      val cual = Recordatorio.Tipo.de(tipo) ?: return
+      runOnUiThread { configurarRecordatorio(cual, Recordatorio.Config(activo, dia, hora, minuto)) }
+    }
+
+    @JavascriptInterface
+    fun estadoRecordatorioDe(tipo: String): String {
+      val cual = Recordatorio.Tipo.de(tipo) ?: return "null"
+      return Recordatorio.comoJson(this@MainActivity, cual)
+    }
+
+    /** Ese día ya se hizo lo que pide el recordatorio: no hace falta que suene. */
+    @JavascriptInterface
+    fun recordatorioHecho(tipo: String, fecha: String) {
+      val cual = Recordatorio.Tipo.de(tipo) ?: return
+      Recordatorio.marcarHecho(this@MainActivity, cual, fecha)
+    }
 
     /** Vuelve a leer, por si acabás de caminar y querés verlo ya. */
     @JavascriptInterface

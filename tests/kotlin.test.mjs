@@ -492,6 +492,19 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   assert.match(manifiesto, /android:name="com\.jeremiasmas\.rutina\.RecordatorioReceptor"/);
   assert.match(manifiesto, /android\.permission\.POST_NOTIFICATIONS/);
   assert.match(manifiesto, /android\.intent\.action\.BOOT_COMPLETED/);
+  // Cada recordatorio con su alarma y su notificación: si dos compartieran
+  // el código, programar uno cancelaría al otro sin que nada falle.
+  const kt = leer('android/app/src/main/java/com/jeremiasmas/rutina/Recordatorio.kt');
+  const tipos = [...kt.matchAll(/^    (\w+)\(\n      "(\w+)", "(\w+)", (\d+), (\d+),/gm)];
+  assert.deepEqual(tipos.map((t) => t[2]), ['peso', 'semaforo']);
+  assert.equal(new Set(tipos.map((t) => t[4])).size, tipos.length, 'dos recordatorios comparten código de alarma');
+  assert.equal(new Set(tipos.map((t) => t[5])).size, tipos.length, 'dos recordatorios comparten notificación');
+  assert.equal(new Set(tipos.map((t) => t[3])).size, tipos.length, 'dos recordatorios comparten preferencias');
+  // La web publicada hoy llama a los métodos viejos: no se pueden perder.
+  const main = leer(MAIN);
+  for (const m of ['recordatorio', 'estadoRecordatorio', 'recordatorioDe', 'estadoRecordatorioDe', 'recordatorioHecho']) {
+    assert.match(main, new RegExp(`@JavascriptInterface\\s+fun ${m}\\(`), `falta el método ${m} del puente`);
+  }
   const principal = leer('android/app/src/main/AndroidManifest.xml');
   assert.doesNotMatch(principal, /POST_NOTIFICATIONS|RecordatorioReceptor/,
     'Rutina no tiene recordatorio: no debería pedir permiso de notificaciones');

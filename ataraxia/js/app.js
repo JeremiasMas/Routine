@@ -1,7 +1,7 @@
 // La interfaz: tres pantallas (Hoy, Progreso, Ajustes) y la rutina guiada.
 import {
   claveDe, fechaDe, sumarDias, diaSemana, estadoInicial, normalizar, derivar,
-  metaPasos, comidasActivas, ejercicioDelDia, tocaPesarse, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
+  metaPasos, comidasActivas, ejercicioDelDia, tocaPesarse, tocaSemaforo, semaforoDelDia, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
   TIPOS_EJERCICIO, MINUTOS_EJERCICIO, sesionesDeLaSemana,
 } from './logica.js';
 import { FILOSOFOS } from './filosofos.js';
@@ -12,7 +12,7 @@ import {
 import {
   enApp, nativo, conectar, mensajeDeEstado, hayVariasFuentes, guardarArchivo,
   pedirPermiso, instalarHealthConnect, refrescar, usarSoloOrigen, FUENTE, DESCARGA_APK,
-  puedeNotificar, recordatorioNativo, programarRecordatorio, EVENTO_RECORDATORIO,
+  puedeNotificar, recordatorioNativo, programarRecordatorio, EVENTO_RECORDATORIO, marcarRecordatorioHecho,
 } from './nativo.js';
 
 const CLAVE_GUARDADO = 'ataraxia';
@@ -53,6 +53,7 @@ function cambiar(fn) {
   const antes = derivar(estado, claveDe());
   fn();
   guardar();
+  avisarSemaforoAlTelefono();
   const despues = derivar(estado, claveDe());
   dibujar(despues);
   if (despues.nivel.nivel > antes.nivel.nivel) {
@@ -62,6 +63,17 @@ function cambiar(fn) {
   }
   const nuevos = despues.logros.filter((l) => l.hecho && !antes.logros.find((a) => a.id === l.id).hecho);
   for (const l of nuevos) aviso(`${l.icono} Logro: ${l.nombre}`);
+}
+
+/** Que el teléfono no recuerde el semáforo un día que ya está completo. */
+function avisarSemaforoAlTelefono() {
+  const hoy = claveDe();
+  marcarRecordatorioHecho('semaforo', hoy, semaforoDelDia(estado, hoy).completo);
+}
+
+function horaActual() {
+  const f = new Date();
+  return `${String(f.getHours()).padStart(2, '0')}:${String(f.getMinutes()).padStart(2, '0')}`;
 }
 
 function diaEditable(clave) {
@@ -177,6 +189,11 @@ function pantallaHoy(d) {
       <span>⚖️ Hoy es ${DIAS_LARGOS[diaSemana(diaVisto)]}: toca pesarte.</span>
       <button class="btn primario" data-accion="ir-peso">Anotar</button>
     </div>` : ''}
+    ${esHoy && tocaSemaforo(estado, diaVisto, horaActual()) ? `
+    <div class="recordatorio" role="status">
+      <span>🚦 ¿Cómo comiste hoy? Falta completar el semáforo.</span>
+      <button class="btn primario" data-accion="ir-semaforo">Anotar</button>
+    </div>` : ''}
     ${tarjetaPasos(r, d)}
     ${tarjetaComidas(r)}
     ${tarjetaEjercicio(r)}
@@ -243,24 +260,44 @@ function cargaDePasos(pasos) {
       ${enApp() ? '<p class="chico">Para que lleguen solos, conectá Health Connect en Ajustes.</p>' : ''}`;
 }
 
+/** Qué dice Ajustes de la notificación del teléfono para un recordatorio. */
+function estadoEnTelefono(tipo, activo, cuando) {
+  if (puedeNotificar(tipo)) {
+    const n = recordatorioNativo(tipo);
+    if (!activo) return '';
+    return n && n.activo && !n.permiso
+      ? `<p class="chico">⚠️ El teléfono no tiene permiso para mostrar la notificación.</p><button class="btn suave ancho" data-accion="recordatorio-permiso" data-valor="${tipo}">Dar permiso</button>`
+      : `<p class="chico">📱 También te llega una notificación ${cuando}.</p>`;
+  }
+  if (enApp()) {
+    return `<p class="chico">Para recibirlo como notificación, actualizá la app de Android.</p>
+      <a class="btn suave ancho" href="${DESCARGA_APK}">Bajar la versión nueva</a>`;
+  }
+  return '<p class="chico">Con la app de Android, además, llega como notificación.</p>';
+}
+
+/** Ajustes: el recordatorio nocturno del semáforo. */
+function bloqueRecordatorioComidas() {
+  const r = estado.config.recordatorioComidas;
+  return `
+      <form class="recordatorio-form" data-form="recordatorio-comidas">
+        <label class="interruptor"><span>🔔 Recordarme el semáforo a la noche</span>
+          <input type="checkbox" name="activo" ${r.activo ? 'checked' : ''}></label>
+        <div class="metas">
+          <label>Hora<input name="hora" type="time" value="${r.hora}"></label>
+          <button class="btn primario" type="submit">Guardar</button>
+        </div>
+      </form>
+      <p class="chico">Sólo si ese día falta anotar alguna comida.</p>
+      ${estadoEnTelefono('semaforo', r.activo, `a las ${r.hora} si falta anotar`)}`;
+}
+
 /** Ajustes: el recordatorio para pesarse. */
 function bloqueRecordatorio() {
   const r = estado.config.peso.recordatorio;
   const opciones = [1, 2, 3, 4, 5, 6, 0].map((d) =>
     `<option value="${d}" ${r.dia === d ? 'selected' : ''}>${DIAS_LARGOS[d]}</option>`).join('');
-  let telefono = '';
-  if (puedeNotificar()) {
-    const n = recordatorioNativo();
-    telefono = !r.activo ? ''
-      : n && n.activo && !n.permiso
-        ? '<p class="chico">⚠️ El teléfono no tiene permiso para mostrar la notificación.</p><button class="btn suave ancho" data-accion="recordatorio-permiso">Dar permiso</button>'
-        : `<p class="chico">📱 También te llega una notificación los ${DIAS_LARGOS[r.dia]} a las ${r.hora}.</p>`;
-  } else if (enApp()) {
-    telefono = `<p class="chico">Para recibirlo como notificación, actualizá la app de Android.</p>
-      <a class="btn suave ancho" href="${DESCARGA_APK}">Bajar la versión nueva</a>`;
-  } else {
-    telefono = '<p class="chico">Con la app de Android, además, llega como notificación.</p>';
-  }
+  const telefono = estadoEnTelefono('peso', r.activo, `los ${DIAS_LARGOS[r.dia]} a las ${r.hora}`);
   return `
       <form class="recordatorio-form" data-form="recordatorio">
         <label class="interruptor"><span>🔔 Recordarme pesarme</span>
@@ -706,6 +743,7 @@ function pantallaAjustes() {
     <section class="tarjeta">
       <h2>🚦 Comidas del semáforo</h2>
       ${comidas}
+      ${bloqueRecordatorioComidas()}
     </section>
 
     <section class="tarjeta">
@@ -786,7 +824,10 @@ document.addEventListener('click', (ev) => {
     campo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     campo?.focus({ preventScroll: true });
   } else if (accion === 'recordatorio-permiso') {
-    programarRecordatorio(estado.config.peso.recordatorio, true);
+    if (valor === 'semaforo') programarRecordatorio(estado.config.recordatorioComidas, true, 'semaforo');
+    else programarRecordatorio(estado.config.peso.recordatorio, true);
+  } else if (accion === 'ir-semaforo') {
+    document.getElementById('t-comidas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (accion === 'refrescar-pasos') {
     refrescar();
     aviso('Leyendo Health Connect…');
@@ -914,6 +955,12 @@ document.addEventListener('submit', (ev) => {
     }
     cambiar(() => { estado.config.peso = { ...estado.config.peso, altura, meta }; });
     aviso('Guardado');
+  } else if (form.dataset.form === 'recordatorio-comidas') {
+    const hora = String(datos.get('hora') || '');
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) { aviso('Elegí una hora.'); return; }
+    cambiar(() => { estado.config.recordatorioComidas = { activo: datos.get('activo') === 'on', hora }; });
+    programarRecordatorio(estado.config.recordatorioComidas, true, 'semaforo');
+    aviso(estado.config.recordatorioComidas.activo ? 'Recordatorio guardado' : 'Recordatorio apagado');
   } else if (form.dataset.form === 'recordatorio') {
     const dia = Number(datos.get('dia'));
     const hora = String(datos.get('hora') || '');
@@ -1129,6 +1176,8 @@ conectar(
 window.addEventListener(EVENTO_RECORDATORIO, () => { if (vista === 'ajustes') dibujar(); });
 // Al abrir, que la notificación del teléfono coincida con lo configurado.
 programarRecordatorio(estado.config.peso.recordatorio);
+programarRecordatorio(estado.config.recordatorioComidas, false, 'semaforo');
+avisarSemaforoAlTelefono();
 
 dibujar();
 

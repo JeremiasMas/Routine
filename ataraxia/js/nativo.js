@@ -138,18 +138,32 @@ export function usarSoloOrigen(paquete) { window.RutinaNativa?.usarSoloOrigen?.(
 
 export const EVENTO_RECORDATORIO = 'rutina-recordatorio';
 
-export function puedeNotificar() {
-  return typeof window !== 'undefined' && typeof window.RutinaNativa?.recordatorio === 'function';
+/**
+ * Los recordatorios por nombre: 'peso' (semanal) y 'semaforo' (diario).
+ * Un APK con un solo recordatorio sólo conoce los métodos del de peso; con
+ * ese APK, el del semáforo queda adentro de la app hasta que lo actualice.
+ */
+function generico() {
+  return typeof window !== 'undefined' && typeof window.RutinaNativa?.recordatorioDe === 'function';
+}
+
+export function puedeNotificar(tipo = 'peso') {
+  if (generico()) return true;
+  return tipo === 'peso' && typeof window !== 'undefined'
+    && typeof window.RutinaNativa?.recordatorio === 'function';
 }
 
 /** Cómo está programado en el teléfono, o null si la app no lo soporta. */
-export function recordatorioNativo() {
-  if (typeof window?.RutinaNativa?.estadoRecordatorio !== 'function') return null;
+export function recordatorioNativo(tipo = 'peso') {
   try {
-    return JSON.parse(window.RutinaNativa.estadoRecordatorio());
+    if (generico()) return JSON.parse(window.RutinaNativa.estadoRecordatorioDe(tipo));
+    if (tipo === 'peso' && typeof window?.RutinaNativa?.estadoRecordatorio === 'function') {
+      return JSON.parse(window.RutinaNativa.estadoRecordatorio());
+    }
   } catch {
-    return null;
+    // Un JSON roto vale lo mismo que no saber nada.
   }
+  return null;
 }
 
 /** Pasa '08:30' a [8, 30]. */
@@ -158,12 +172,16 @@ export function horaYMinuto(texto) {
   return [Number.isInteger(h) ? h : 8, Number.isInteger(m) ? m : 0];
 }
 
-/** ¿Lo programado en el teléfono coincide con lo que pide la configuración? */
+/**
+ * ¿Lo programado en el teléfono coincide con lo que pide la configuración?
+ * Un recordatorio diario no tiene `dia` en la configuración y el teléfono lo
+ * guarda como -1.
+ */
 export function recordatorioAlDia(config, nativoActual) {
   if (!nativoActual) return false;
   const [hora, minuto] = horaYMinuto(config.hora);
   if (!config.activo) return nativoActual.activo === false;
-  return nativoActual.activo === true && nativoActual.dia === config.dia
+  return nativoActual.activo === true && nativoActual.dia === (config.dia ?? -1)
     && nativoActual.hora === hora && nativoActual.minuto === minuto;
 }
 
@@ -172,14 +190,29 @@ export function recordatorioAlDia(config, nativoActual) {
  * igual, que es lo que vuelve a pedir el permiso si estaba denegado.
  * @returns {boolean} si la app se hizo cargo
  */
-export function programarRecordatorio(config, forzar = false) {
-  if (!puedeNotificar()) return false;
-  if (!forzar && recordatorioAlDia(config, recordatorioNativo())) return true;
+export function programarRecordatorio(config, forzar = false, tipo = 'peso') {
+  if (!puedeNotificar(tipo)) return false;
+  if (!forzar && recordatorioAlDia(config, recordatorioNativo(tipo))) return true;
   const [hora, minuto] = horaYMinuto(config.hora);
+  const dia = config.dia ?? -1;
   try {
-    window.RutinaNativa.recordatorio(Boolean(config.activo), config.dia, hora, minuto);
+    if (generico()) window.RutinaNativa.recordatorioDe(tipo, Boolean(config.activo), dia, hora, minuto);
+    else window.RutinaNativa.recordatorio(Boolean(config.activo), dia, hora, minuto);
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Le avisa al teléfono si ese día ya se hizo lo que pide el recordatorio,
+ * para que no suene de más. Con `hecho` en falso lo deshace.
+ */
+export function marcarRecordatorioHecho(tipo, fecha, hecho) {
+  if (typeof window?.RutinaNativa?.recordatorioHecho !== 'function') return;
+  try {
+    window.RutinaNativa.recordatorioHecho(tipo, hecho ? fecha : '');
+  } catch {
+    // Si falla, en el peor caso suena una notificación de más.
   }
 }
