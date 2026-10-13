@@ -84,7 +84,8 @@ function clima(horas, fecha, desde, hasta) {
 /** El renglón de la caminata, explicado. */
 function textoCaminata(c, horas) {
   if (!c) return null;
-  if (c.cumplida) return '<b>🚶</b> Ya llegaste a la meta de pasos. Si salís, que sea por gusto.';
+  // Con la meta cumplida alcanza con la línea de los pasos.
+  if (c.cumplida) return null;
   const dia = c.etiqueta.toLowerCase();
   const finde = [0, 6].includes(diaDeSemana(c.fecha));
   const rato = (v) => `de ${hora(v.desde)} a ${hora(v.hasta)} h `
@@ -139,7 +140,8 @@ function pintar() {
   const w = lineasWidget(p);
 
   $('#widget').innerHTML = `
-    <div class="w-titulo">${esc(w.titulo)}</div>
+    ${w.titulo ? `<div class="w-titulo">${esc(w.titulo)}</div>` : ''}
+    ${w.aviso ? `<div class="w-aviso">${esc(w.aviso)}</div>` : ''}
     ${w.caminar ? `<div class="w-caminar">${esc(w.caminar)}</div>` : ''}`;
 
   const estado = registro

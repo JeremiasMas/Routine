@@ -23,21 +23,21 @@ export const CASOS = [
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 7 * 60 },
     horas: dia('2026-10-13', (h) => ({ temp: h < 12 ? 9 : 15, viento: 35, rafagas: 50 })),
-    widget: { titulo: 'Campera liviana', caminar: 'Caminá 19–20 h' },
+    widget: { titulo: 'Campera liviana', aviso: '', caminar: 'Caminá 19–20 h' },
   },
   {
     nombre: 'llueve a la vuelta',
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 8 * 60 },
     horas: dia('2026-10-13', (h) => (h >= 17 ? { prob: 80, lluvia: 2 } : {})),
-    widget: { titulo: 'Manga larga · paraguas', caminar: 'Hoy mejor no caminar: lluvia' },
+    widget: { titulo: 'Manga larga', aviso: 'Para la vuelta: paraguas', caminar: 'Hoy mejor no caminar: lluvia' },
   },
   {
     nombre: 'sudestada: el paraguas no sirve',
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 7 * 60 },
     horas: dia('2026-10-13', () => ({ temp: 12, prob: 90, lluvia: 4, viento: 45, rafagas: 75 })),
-    widget: { titulo: 'Campera liviana · capucha', caminar: 'Hoy mejor no caminar: lluvia' },
+    widget: { titulo: 'Campera liviana · capucha', aviso: '', caminar: 'Hoy mejor no caminar: lluvia' },
   },
   {
     nombre: 'sábado de calor húmedo: caminar temprano o a la noche',
@@ -47,7 +47,7 @@ export const CASOS = [
       const temp = h < 10 ? 23 : h < 19 ? 31 : 22;
       return { temp, hum: 75, aparente: temp + 4, uv: h >= 11 && h <= 16 ? 10 : 2 };
     }),
-    widget: { titulo: 'Lo más liviano', caminar: 'Caminá 19–20 h' },
+    widget: { titulo: 'Lo más liviano', aviso: '', caminar: 'Caminá 19–20 h' },
   },
   {
     nombre: 'a la noche ya muestra mañana',
@@ -57,14 +57,14 @@ export const CASOS = [
       ...dia('2026-10-13', () => ({})),
       ...dia('2026-10-14', (h) => ({ temp: h < 12 ? 5 : 11, prob: h === 8 ? 30 : 0 })),
     ],
-    widget: { titulo: 'Campera · ¿paraguas?', caminar: 'Mañana caminá 19–20 h' },
+    widget: { titulo: 'Campera · ¿paraguas?', aviso: '', caminar: 'Mañana caminá 19–20 h' },
   },
   {
-    nombre: 'después de la oficina el plan es para salir ahora',
+    nombre: 'ya en casa después de la oficina: no dice qué ponerte',
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 19 * 60 },
     horas: [...dia('2026-10-13', () => ({ temp: 14 })), ...dia('2026-10-14', () => ({}))],
-    widget: { titulo: 'Manga larga', caminar: 'Caminá 19–20 h' },
+    widget: { titulo: '', aviso: '', caminar: 'Caminá 19–20 h' },
   },
   {
     nombre: 'llueve en tu caminata de las 19 y no queda otro rato',
@@ -72,7 +72,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-13', minutos: 10 * 60 },
     pasos: 5500,
     horas: dia('2026-10-13', (h) => (h >= 18 ? { prob: 70, lluvia: 1 } : {})),
-    widget: { titulo: 'Manga larga · paraguas', caminar: 'Lluvia a las 19, no hay otro rato' },
+    widget: { titulo: '', aviso: '', caminar: 'Lluvia a las 19, no hay otro rato' },
   },
   {
     nombre: 'tu caminata de las 19 con lo que te falta',
@@ -80,7 +80,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-13', minutos: 12 * 60 },
     pasos: 6200,
     horas: dia('2026-10-13', () => ({})),
-    widget: { titulo: 'Manga larga', caminar: 'Caminá 19 h · faltan 38 min' },
+    widget: { titulo: '', aviso: '', caminar: 'Caminá 19 h · faltan 38 min' },
   },
   {
     nombre: 'domingo: el horario óptimo para los pasos que faltan',
@@ -88,7 +88,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-18', minutos: 8 * 60 },
     pasos: 800,
     horas: dia('2026-10-18', (h) => ({ temp: 10 + h * 0.6, uv: h >= 12 && h <= 15 ? 9 : 2 })),
-    widget: { titulo: 'Manga larga', caminar: 'Caminá 8–10 h · faltan 92 min' },
+    widget: { titulo: 'Manga larga', aviso: '', caminar: 'Caminá 8–10 h · faltan 92 min' },
   },
   {
     nombre: 'a la noche, si faltan pasos, todavía es hoy',
@@ -96,7 +96,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-13', minutos: 21 * 60 },
     pasos: 8000,
     horas: [...dia('2026-10-13', () => ({})), ...dia('2026-10-14', () => ({}))],
-    widget: { titulo: 'Manga larga', caminar: 'Caminá 21–22 h · faltan 20 min' },
+    widget: { titulo: 'Manga larga', aviso: '', caminar: 'Caminá 21–22 h · faltan 20 min' },
   },
   {
     nombre: 'meta cumplida',
@@ -104,13 +104,13 @@ export const CASOS = [
     ahora: { fecha: '2026-10-13', minutos: 17 * 60 },
     pasos: 10450,
     horas: dia('2026-10-13', () => ({})),
-    widget: { titulo: 'Manga larga', caminar: 'Meta de pasos cumplida' },
+    widget: { titulo: 'Manga larga', aviso: '', caminar: '' },
   },
   {
     nombre: 'sin pronóstico',
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 9 * 60 },
     horas: [],
-    widget: { titulo: 'Sin pronóstico', caminar: 'Abrí la app con conexión' },
+    widget: { titulo: 'Sin pronóstico', aviso: '', caminar: 'Abrí la app con conexión' },
   },
 ];
