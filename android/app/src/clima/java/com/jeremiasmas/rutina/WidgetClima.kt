@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * El widget del clima: qué ponerte, si llevar paraguas y cuándo caminar. Tres
@@ -18,7 +19,8 @@ import kotlinx.coroutines.launch
  * A diferencia de los de Rutina, este sí calcula: con el pronóstico guardado y
  * la hora de ahora arma las líneas con ClimaLogica, la misma lógica de la web.
  * Cada media hora se redibuja (el plan cambia con la hora aunque el pronóstico
- * sea el mismo) y, si pasó una hora, de paso baja uno nuevo.
+ * sea el mismo), lee los pasos de hoy de Health Connect para saber cuánto te
+ * falta caminar y, si pasó una hora, baja un pronóstico nuevo.
  */
 class WidgetClima : AppWidgetProvider() {
 
@@ -63,16 +65,25 @@ class WidgetClima : AppWidgetProvider() {
           intent.getStringExtra(EXTRA_PRONOSTICO).orEmpty(),
         )
         redibujar(c)
+        ponerAlDia(c)
       }
-      AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
-        val pendiente = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-          try {
-            if (Clima.ponerAlDia(c)) redibujar(c)
-          } finally {
-            pendiente.finish()
-          }
-        }
+      AppWidgetManager.ACTION_APPWIDGET_UPDATE -> ponerAlDia(c)
+    }
+  }
+
+  /** Pasos y pronóstico, en segundo plano, y redibuja con lo que haya. */
+  private fun ponerAlDia(c: Context) {
+    val pendiente = goAsync()
+    CoroutineScope(Dispatchers.IO).launch {
+      try {
+        // Con un tope: un proveedor de Health Connect que no contesta no
+        // puede dejar colgado el receptor hasta que Android lo mate.
+        val pasos = withTimeoutOrNull(8_000L) { Pasos.hoy(c, Pasos.origen(c)) }
+        if (pasos != null) Clima.guardarPasos(c, pasos)
+        Clima.ponerAlDia(c)
+        redibujar(c)
+      } finally {
+        pendiente.finish()
       }
     }
   }

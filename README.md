@@ -465,13 +465,33 @@ Está calibrada para alguien que se crió en **Río Grande**:
 **Paraguas:** sí desde 50% de probabilidad o 0,3 mm en una hora; "por las
 dudas" desde 25%. Con ráfagas de 55 km/h o más, capucha en vez de paraguas.
 
-**Horario de oficina:** en *Horario de oficina* elegís los días, la entrada, la
+**Horario de oficina:** en *Horarios y meta* elegís los días, la entrada, la
 salida y cuánto tardás en llegar (por defecto lunes a viernes de 9 a 18, 45 min
 de viaje). Los días de oficina la ropa sale de la temperatura **a la ida y a la
-vuelta**, y te avisa si a la vuelta refresca o te sobra abrigo. La caminata se
-busca fuera de ese horario, entre las 7 y las 22, en el tramo más largo sin
-lluvia, calor fuerte, ráfagas ni UV alto. Desde las 20 h el plan pasa a ser el
-de mañana.
+vuelta**, y te avisa si a la vuelta refresca o te sobra abrigo. Desde las 20 h
+el plan de ropa pasa a ser el de mañana.
+
+### Caminatas y pasos 👟
+
+- **Tus horarios de lunes a viernes** (hasta tres): la app revisa el próximo.
+  Si llueve, hace calor, sopla fuerte o pega mucho el sol, te propone el mejor
+  otro rato del día. Si está bien pero hay un horario claramente más cómodo,
+  también te lo dice ("19 h ok, mejor 7–8 h").
+- **Fines de semana** (o si no cargaste horarios): te da el horario óptimo,
+  buscando lo más cerca de 15° de sensación, con poca chance de lluvia, poco
+  sol fuerte y sin ráfagas.
+- **Cuánto te falta:** con los pasos de hoy y tu meta (10.000 por defecto) te
+  dice cuántos minutos te faltan, a 100 pasos por minuto, el mismo número que
+  usa Rutina. Esa duración decide cuánto rato hace falta buscar. Si tenés
+  varias caminatas pendientes, se reparte entre ellas. Con la meta cumplida,
+  te deja tranquilo.
+- **De dónde salen los pasos:** en la app de Android, de Health Connect, igual
+  que en Rutina. El permiso es de cada app, así que en Clima hay que darlo una
+  vez (hay un botón). Si Health Connect suma dos apps (el contador del teléfono
+  y Samsung Health, por ejemplo), elegís de cuál contar. En el navegador los
+  cargás a mano.
+- Si de noche todavía te faltan pasos y queda un rato bueno, la caminata sigue
+  siendo la de hoy.
 
 El pronóstico es de [Open-Meteo](https://open-meteo.com) (sin clave ni cuenta)
 y queda guardado para abrir sin conexión.
@@ -483,7 +503,8 @@ Sale en un APK propio, `clima.apk`, del mismo release que los otros:
     https://github.com/JeremiasMas/Routine/releases/download/apk/clima.apk
 
 El widget se calcula solo con la app cerrada: cada media hora se redibuja con la
-hora de ahora y, si pasó una hora, baja un pronóstico nuevo. La lógica está en
+hora de ahora, lee los pasos de hoy de Health Connect y, si pasó una hora, baja
+un pronóstico nuevo. La lógica está en
 Kotlin (`ClimaLogica.kt`) y repite la de `clima/js/logica.js`. Un test compara
 las constantes y los niveles de ropa de los dos archivos. Si tocás un umbral,
 tocalo en los dos. Lo único que el widget no sabe por su cuenta es tu horario:

@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- La app del clima: el mismo WebView abriendo clima/, con su propio widget.
-     Los widgets de Rutina se sacan (mostrarían un día que acá no existe) y los
-     permisos de pasos también: esta app no los usa. -->
+     Los widgets de Rutina se sacan: mostrarían un día que acá no existe. Los
+     permisos de pasos quedan: con ellos sabe cuánto te falta caminar. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-
-  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" tools:node="remove" />
-  <uses-permission android:name="android.permission.health.READ_STEPS" tools:node="remove" />
 
   <application>
     <!-- Qué ponerte, paraguas y cuándo caminar. Escucha además lo que la web

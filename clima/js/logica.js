@@ -62,6 +62,25 @@ export const CAMINATA_HASTA = 22;
 /** Desde esta hora, el plan que se muestra es el de mañana. */
 export const HORA_DE_MANANA = 20;
 
+/** Tu meta de todos los días. */
+export const META_PASOS = 10000;
+/**
+ * Pasos por minuto de caminata: el mismo número que usa Rutina
+ * (js/config.js), del lado largo a propósito.
+ */
+export const PASOS_POR_MINUTO = 100;
+/** La sensación ideal para caminar, para alguien curtido en el sur. */
+export const CAMINATA_IDEAL = 15;
+/**
+ * Cuánto más cómodo (en puntos de penalidad por hora) tiene que ser otro
+ * horario para proponértelo aunque el tuyo esté bien.
+ */
+export const MEJORA = 4;
+/** Cuánto dura una caminata cuando no se sabe cuántos pasos llevás. */
+export const DURACION_SIN_PASOS = 60;
+export const DURACION_MIN = 20;
+export const DURACION_MAX = 120;
+
 /** Los códigos WMO de tormenta eléctrica. */
 export const TORMENTA = [95, 96, 99];
 
@@ -90,6 +109,8 @@ export const HORARIO_DEFAULT = Object.freeze({
   entrada: '09:00',
   salida: '18:00',
   viaje: 45,                // minutos de puerta a puerta
+  caminatas: [],            // tus horarios de caminata de lunes a viernes
+  meta: META_PASOS,
 });
 
 export const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -123,7 +144,14 @@ export function normalizarHorario(h = {}) {
   // Una salida antes de la entrada no es un horario: vuelve el de siempre.
   if (minutos(salida) <= minutos(entrada)) ({ entrada, salida } = HORARIO_DEFAULT);
   const viaje = Number.isFinite(Number(h.viaje)) ? Math.min(180, Math.max(0, Math.round(Number(h.viaje)))) : HORARIO_DEFAULT.viaje;
-  return { dias, entrada, salida, viaje };
+  const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const caminatas = Array.isArray(h.caminatas)
+    ? [...new Set(h.caminatas.map(minutos).filter((m) => m != null))].sort((a, b) => a - b).slice(0, 3).map(hhmm)
+    : [];
+  const meta = Number.isFinite(Number(h.meta)) && Number(h.meta) >= 1000
+    ? Math.min(50000, Math.round(Number(h.meta)))
+    : META_PASOS;
+  return { dias, entrada, salida, viaje, caminatas, meta };
 }
 
 /**
@@ -200,37 +228,49 @@ function motivoDe(h) {
 }
 
 /**
- * El mejor rato para caminar en una fecha: el tramo apto más largo fuera del
- * horario de oficina, y entre dos iguales el primero.
- *
- * @param {number} desdeMin  no se ofrece nada que ya pasó
- * @returns {null | {desde: number, hasta: number} | {motivo: string}}
- *   null si no queda ninguna hora para mirar ese día.
+ * Qué tan incómoda es una hora para caminar: 0 es perfecta. Suma lo lejos que
+ * está de CAMINATA_IDEAL, la chance de lluvia, el sol y las ráfagas fuertes.
+ * Sólo compara horas aptas entre sí; las que no lo son ni se miran.
  */
-export function caminata(horas, fecha, horario, desdeMin = 0, oficina = false) {
-  const h = normalizarHorario(horario);
+export function penalidad(h) {
+  return Math.abs(sensacion(h) - CAMINATA_IDEAL) + h.prob / 10 + (h.uv ?? 0) / 2
+    + Math.max(0, (h.rafagas ?? 0) - 40) / 5;
+}
+
+/** Las horas de una fecha en las que podrías salir: ni pasadas ni de oficina. */
+function libres(horas, fecha, h, desdeMin, oficina) {
   const ocupadoDesde = minutos(h.entrada) - h.viaje;
   const ocupadoHasta = minutos(h.salida) + h.viaje;
-  const candidatas = horas.filter((x) => x.fecha === fecha
+  return horas.filter((x) => x.fecha === fecha
     && x.hora >= CAMINATA_DESDE && x.hora < CAMINATA_HASTA
     && x.hora * 60 >= desdeMin - 59
     && !(oficina && x.hora * 60 < ocupadoHasta && x.hora * 60 + 60 > ocupadoDesde));
-  if (!candidatas.length) return null;
+}
 
-  let mejor = null;
-  let actual = null;
-  for (const x of candidatas) {
-    if (apta(x)) {
-      if (actual && x.hora === actual.hasta) actual.hasta += 1;
-      else actual = { desde: x.hora, hasta: x.hora + 1 };
-      if (!mejor || actual.hasta - actual.desde > mejor.hasta - mejor.desde) mejor = { ...actual };
-    } else {
-      actual = null;
+/**
+ * El tramo más cómodo de `n` horas seguidas, todas aptas. Si no hay de `n`,
+ * prueba más corto. Entre dos iguales, el primero.
+ */
+export function ventanaOptima(candidatas, n) {
+  for (let k = n; k >= 1; k--) {
+    let mejor = null;
+    for (let i = 0; i + k <= candidatas.length; i++) {
+      let suma = 0;
+      let sirve = true;
+      for (let j = 0; j < k; j++) {
+        const x = candidatas[i + j];
+        if (x.hora !== candidatas[i].hora + j || !apta(x)) { sirve = false; break; }
+        suma += penalidad(x);
+      }
+      if (sirve && (!mejor || suma < mejor.suma)) mejor = { desde: candidatas[i].hora, hasta: candidatas[i].hora + k, suma };
     }
+    if (mejor) return { desde: mejor.desde, hasta: mejor.hasta, penal: mejor.suma / k };
   }
-  if (mejor) return mejor;
+  return null;
+}
 
-  // Nada apto: el motivo que más se repite, y entre dos empatados el primero.
+/** El motivo que más se repite, y entre dos empatados el primero. */
+function motivoComun(candidatas) {
   const cuenta = new Map();
   for (const x of candidatas) {
     const m = motivoDe(x);
@@ -238,7 +278,65 @@ export function caminata(horas, fecha, horario, desdeMin = 0, oficina = false) {
   }
   let motivo = null;
   for (const [m, n] of cuenta) if (!motivo || n > cuenta.get(motivo)) motivo = m;
-  return { motivo };
+  return motivo;
+}
+
+const entre = (n, min, max) => Math.min(max, Math.max(min, n));
+
+/**
+ * La caminata de una fecha.
+ *
+ * De lunes a viernes revisa tu próximo horario de caminata: si el clima lo
+ * acompaña, y si no, cuál es el mejor otro rato. Aunque esté bien, si hay un
+ * horario claramente más cómodo te lo propone. Los fines de semana (o si no
+ * cargaste horarios) busca directamente el óptimo.
+ *
+ * La duración sale de los pasos que te faltan: a PASOS_POR_MINUTO, repartidos
+ * entre las caminatas que te quedan en el día.
+ *
+ * @param {number|null} pasos  los de hoy, o null si no se saben
+ * @returns {null | {cumplida: true}
+ *   | {tipo: 'habitual', inicio, ok, motivo?, otra, minutos}
+ *   | {tipo: 'optimo', desde, hasta, minutos}
+ *   | {motivo, minutos}}  null si no queda ninguna hora para mirar ese día.
+ */
+export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) {
+  const h = normalizarHorario(horario);
+  const dia = diaDeSemana(fecha);
+  const faltan = pasos == null ? null : Math.max(0, h.meta - pasos);
+  if (faltan === 0) return { cumplida: true };
+  const faltanMin = faltan == null ? null : Math.ceil(faltan / PASOS_POR_MINUTO);
+  const candidatas = libres(horas, fecha, h, desdeMin, h.dias.includes(dia));
+
+  const semana = dia >= 1 && dia <= 5;
+  const pendientes = semana ? h.caminatas.map(minutos).filter((m) => m >= desdeMin - 30) : [];
+  if (pendientes.length) {
+    const inicio = pendientes[0];
+    const dur = faltanMin == null ? DURACION_SIN_PASOS
+      : entre(Math.ceil(faltanMin / pendientes.length), DURACION_MIN, DURACION_MAX);
+    const tuyo = horas.filter((x) => x.fecha === fecha && x.hora * 60 < inicio + dur && x.hora * 60 + 60 > inicio);
+    if (tuyo.length) {
+      const mejor = ventanaOptima(candidatas, entre(Math.ceil(dur / 60), 1, 2));
+      const malas = tuyo.filter((x) => !apta(x));
+      if (!malas.length) {
+        let prom = 0;
+        for (const x of tuyo) prom += penalidad(x);
+        prom /= tuyo.length;
+        const otra = mejor && mejor.desde !== Math.floor(inicio / 60) && mejor.penal + MEJORA <= prom;
+        return { tipo: 'habitual', inicio, ok: true, otra: otra ? { desde: mejor.desde, hasta: mejor.hasta } : null, minutos: faltanMin };
+      }
+      return {
+        tipo: 'habitual', inicio, ok: false, motivo: motivoDe(malas[0]),
+        otra: mejor ? { desde: mejor.desde, hasta: mejor.hasta } : null, minutos: faltanMin,
+      };
+    }
+  }
+
+  if (!candidatas.length) return null;
+  const n = faltanMin == null ? 1 : entre(Math.ceil(faltanMin / 60), 1, 2);
+  const mejor = ventanaOptima(candidatas, n);
+  if (mejor) return { tipo: 'optimo', desde: mejor.desde, hasta: mejor.hasta, minutos: faltanMin };
+  return { motivo: motivoComun(candidatas), minutos: faltanMin };
 }
 
 /** "2026-10-13" → día de la semana, sin depender del huso del dispositivo. */
@@ -259,8 +357,9 @@ export function sumarDias(fecha, n) {
  * @param {Array} horas  las del pronóstico, ver pronostico.js
  * @param {Object} horario
  * @param {{fecha: string, minutos: number}} ahora  hora de Buenos Aires
+ * @param {number|null} pasos  los de hoy, si se saben
  */
-export function plan(horas, horario, ahora) {
+export function plan(horas, horario, ahora, pasos = null) {
   const h = normalizarHorario(horario);
   const entrada = minutos(h.entrada);
   const salida = minutos(h.salida);
@@ -269,7 +368,6 @@ export function plan(horas, horario, ahora) {
   const manana = ahora.minutos >= HORA_DE_MANANA * 60;
   const fecha = manana ? sumarDias(ahora.fecha, 1) : ahora.fecha;
   const etiqueta = manana ? 'Mañana' : 'Hoy';
-  const desde = manana ? 0 : ahora.minutos;
   const oficina = h.dias.includes(diaDeSemana(fecha)) && (manana || ahora.minutos < salida + h.viaje);
 
   let ida = [];
@@ -302,14 +400,18 @@ export function plan(horas, horario, ahora) {
     nota = [nota, 'Calor pesado para vos: buscá la sombra.'].filter(Boolean).join(' ');
   }
 
-  let camina = caminata(horas, fecha, h, desde, h.dias.includes(diaDeSemana(fecha)));
-  let fechaCaminata = fecha;
-  let etiquetaCaminata = etiqueta;
-  // Si hoy ya no queda nada, la caminata que importa es la de mañana.
-  if (!camina && !manana) {
-    fechaCaminata = sumarDias(fecha, 1);
+  // La caminata es de hoy mientras te falten pasos y quede algún rato, aunque
+  // ya sea de noche; si no, la de mañana (que todavía no tiene pasos).
+  let camina = null;
+  let fechaCaminata = ahora.fecha;
+  let etiquetaCaminata = 'Hoy';
+  if (!manana || (pasos != null && pasos < h.meta)) {
+    camina = planCaminata(horas, h, ahora.fecha, ahora.minutos, pasos);
+  }
+  if (!camina) {
+    fechaCaminata = sumarDias(ahora.fecha, 1);
     etiquetaCaminata = 'Mañana';
-    camina = caminata(horas, fechaCaminata, h, 0, h.dias.includes(diaDeSemana(fechaCaminata)));
+    camina = planCaminata(horas, h, fechaCaminata, 0, null);
   }
 
   const temps = (hs) => (hs.length ? Math.round(Math.min(...hs.map((x) => x.temp))) : null);
@@ -326,6 +428,7 @@ export function plan(horas, horario, ahora) {
     temp: Math.round(salir[0].temp),
     maxima: Math.round(Math.max(...horas.filter((x) => x.fecha === fecha).map((x) => x.temp))),
     caminata: camina ? { ...camina, fecha: fechaCaminata, etiqueta: etiquetaCaminata } : null,
+    pasos: pasos == null ? null : { hoy: pasos, meta: h.meta, faltan: Math.max(0, h.meta - pasos) },
   };
 }
 
@@ -341,9 +444,20 @@ export function lineasWidget(p) {
   const detalle = p.oficina
     ? `${p.etiqueta}: ida ${p.ida.temp ?? '–'}° · vuelta ${p.vuelta.temp ?? '–'}°`
     : `${p.etiqueta}: ${p.temp}° · máx ${p.maxima}°`;
-  const c = p.caminata;
-  let caminar = '';
-  if (c?.motivo) caminar = `🚶 ${c.etiqueta} mejor no: ${c.motivo}`;
-  else if (c) caminar = `🚶 Caminar ${c.etiqueta.toLowerCase()} ${c.desde}–${c.hasta} h`;
-  return { titulo, detalle, caminar };
+  return { titulo, detalle, caminar: lineaCaminata(p.caminata) };
+}
+
+/** La tercera línea del widget: la caminata, en lo que entra en un renglón. */
+export function lineaCaminata(c) {
+  if (!c) return '';
+  if (c.cumplida) return '🚶 Meta de pasos cumplida ✓';
+  const falta = c.minutos != null ? ` · faltan ${c.minutos} min` : '';
+  const rato = (v) => `${v.desde}–${v.hasta} h`;
+  if (c.tipo === 'habitual') {
+    const cuando = `${c.etiqueta === 'Mañana' ? 'Mañana ' : ''}${hora(c.inicio)} h`;
+    if (c.ok) return c.otra ? `🚶 ${cuando} ok, mejor ${rato(c.otra)}` : `🚶 ${cuando} ✓${falta}`;
+    return c.otra ? `🚶 ${cuando}: ${c.motivo} → ${rato(c.otra)}` : `🚶 ${cuando}: ${c.motivo}, no hay otro rato`;
+  }
+  if (c.tipo === 'optimo') return `🚶 ${c.etiqueta} ${rato(c)}${falta}`;
+  return `🚶 ${c.etiqueta} mejor no: ${c.motivo}`;
 }

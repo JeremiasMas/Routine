@@ -38,6 +38,8 @@ object Clima {
   private const val CLAVE_HORARIO = "horario"
   private const val CLAVE_PRONOSTICO = "pronostico"
   private const val CLAVE_BAJADO = "bajado"
+  private const val CLAVE_PASOS = "pasos"
+  private const val CLAVE_PASOS_FECHA = "pasos_fecha"
 
   private fun prefs(c: Context) =
     c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -72,8 +74,12 @@ object Clima {
       val entrada = minutos(j.optString("entrada")) ?: base.entrada
       val salida = minutos(j.optString("salida")) ?: base.salida
       val viaje = j.optInt("viaje", base.viaje).coerceIn(0, 180)
-      if (salida <= entrada) base.copy(dias = dias, viaje = viaje)
-      else ClimaLogica.Horario(dias, entrada, salida, viaje)
+      val listaCaminatas = j.optJSONArray("caminatas")
+      val caminatas = if (listaCaminatas == null) emptyList()
+      else (0 until listaCaminatas.length()).mapNotNull { minutos(listaCaminatas.optString(it)) }.sorted()
+      val meta = j.optInt("meta", ClimaLogica.META_PASOS).takeIf { it in 1000..50000 } ?: ClimaLogica.META_PASOS
+      if (salida <= entrada) base.copy(dias = dias, viaje = viaje, caminatas = caminatas, meta = meta)
+      else ClimaLogica.Horario(dias, entrada, salida, viaje, caminatas, meta)
     } catch (e: Exception) {
       base
     }
@@ -150,6 +156,26 @@ object Clima {
     return true
   }
 
+  /**
+   * Los pasos de hoy, leídos de Health Connect por el widget. Una lectura que
+   * falla (sin permiso, sin respuesta) no pisa la anterior: devuelve null y
+   * queda lo que había.
+   */
+  fun guardarPasos(c: Context, pasos: Long) {
+    prefs(c).edit()
+      .putLong(CLAVE_PASOS, pasos)
+      .putString(CLAVE_PASOS_FECHA, LocalDateTime.now(ZONA).toLocalDate().toString())
+      .apply()
+  }
+
+  /** Los pasos de hoy, o null si no hay lectura de hoy: los de ayer no sirven. */
+  fun pasosDeHoy(c: Context): Long? {
+    val p = prefs(c)
+    val fecha = p.getString(CLAVE_PASOS_FECHA, null) ?: return null
+    if (fecha != LocalDateTime.now(ZONA).toLocalDate().toString()) return null
+    return p.getLong(CLAVE_PASOS, 0L)
+  }
+
   /** Las tres líneas para este momento, con lo que haya guardado. */
   fun lineas(c: Context): ClimaLogica.Lineas {
     val ahora = LocalDateTime.now(ZONA)
@@ -158,6 +184,7 @@ object Clima {
       horario(c),
       ahora.toLocalDate().toString(),
       ahora.hour * 60 + ahora.minute,
+      pasosDeHoy(c),
     )
   }
 }
