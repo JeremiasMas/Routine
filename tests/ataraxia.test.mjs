@@ -315,6 +315,22 @@ test('el teléfono sólo se reprograma cuando no coincide con la configuración'
   assert.ok(recordatorioAlDia({ ...config, activo: false }, { activo: false, dia: 4, hora: 9, minuto: 0 }));
 });
 
+test('la práctica es un tick diario que suma XP y no entra en el día pleno', () => {
+  const comidas = { desayuno: 'verde', almuerzo: 'verde', merienda: 'verde', cena: 'verde' };
+  const conTodo = { pasos: 8000, comidas, postura: todaLaPostura };
+  const sin = resumenDia(con({ [LUNES]: conTodo }), LUNES);
+  const con_ = resumenDia(con({ [LUNES]: { ...conTodo, practica: true } }), LUNES);
+  assert.ok(sin.pleno, 'no hacerla no le quita el pleno a un día');
+  assert.equal(con_.xp - sin.xp, 100);
+  const e = con({
+    '2026-10-02': { practica: true }, '2026-10-03': { practica: true }, [DOMINGO]: { practica: true },
+  });
+  const d = derivar(e, LUNES);
+  assert.equal(d.rachas.practica, 3, 'hoy sin marcar todavía no corta');
+  assert.equal(d.totales.practicas, 3);
+  assert.equal(derivar(e, sumarDias(LUNES, 1)).rachas.practica, 0);
+});
+
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {
   const sw = readFileSync('ataraxia/sw.js', 'utf8');
   for (const nombre of readdirSync('ataraxia/js')) {

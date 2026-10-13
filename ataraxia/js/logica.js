@@ -406,6 +406,17 @@ export function semanaConPesada(estado, lunes, hoy) {
 export const BONUS_PLENO = 50;
 
 /**
+ * La práctica: una tarea diaria que se marca con un tick, y nada más. Vale
+ * lo que cualquier meta cumplida, pero queda afuera del día pleno a
+ * propósito: es algo personal, y no tiene que poder "arruinar" un día.
+ */
+export const XP_PRACTICA = 100;
+
+export function practicaDelDia(estado, clave) {
+  return estado.dias[clave]?.practica === true;
+}
+
+/**
  * Todo lo de un día: qué tocaba, qué se cumplió y cuánta XP dio.
  * "Pleno" es cumplir todo lo que tocaba ese día.
  */
@@ -432,9 +443,10 @@ export function resumenDia(estado, clave) {
   const pleno = habitos.length > 0 && habitos.every((k) => ok[k]);
   const peso = pesoDelDia(estado, clave);
   const xpPeso = primeraPesadaDeLaSemana(estado, clave) ? XP_PESO : 0;
+  const practica = practicaDelDia(estado, clave);
   const xp = xpPasos(pasos, meta.meta) + semaforo.xp + postura.xp
-    + (ejercicio?.xp || 0) + xpPeso + (pleno ? BONUS_PLENO : 0);
-  return { clave, meta, pasos, semaforo, postura, ejercicio, peso, xpPeso, toca, ok, pleno, xp };
+    + (ejercicio?.xp || 0) + xpPeso + (practica ? XP_PRACTICA : 0) + (pleno ? BONUS_PLENO : 0);
+  return { clave, meta, pasos, semaforo, postura, ejercicio, peso, xpPeso, practica, toca, ok, pleno, xp };
 }
 
 /* -------------------------------------------------------------------------
@@ -514,7 +526,7 @@ export function derivar(estado, hoy = claveDe()) {
 
   const totales = {
     xp: 0, pasos: 0, comidas: 0, verdes: 0, rojas: 0, diasVerdes: 0,
-    posturas: 0, plenos: 0, diasConAlgo: 0, mejorDiaPasos: 0, ejercicios: 0, pesadas: 0,
+    posturas: 0, plenos: 0, diasConAlgo: 0, mejorDiaPasos: 0, ejercicios: 0, pesadas: 0, practicas: 0,
   };
   for (let clave = desde; clave <= hoy; clave = sumarDias(clave, 1)) {
     const r = dia(clave);
@@ -529,7 +541,8 @@ export function derivar(estado, hoy = claveDe()) {
     if (r.pleno) totales.plenos += 1;
     if (r.ejercicio?.completa) totales.ejercicios += 1;
     if (r.peso != null) totales.pesadas += 1;
-    if (r.pasos || r.semaforo.registradas || r.postura.hechos || r.ejercicio || r.peso != null) {
+    if (r.practica) totales.practicas += 1;
+    if (r.pasos || r.semaforo.registradas || r.postura.hechos || r.ejercicio || r.peso != null || r.practica) {
       totales.diasConAlgo += 1;
     }
   }
@@ -538,6 +551,7 @@ export function derivar(estado, hoy = claveDe()) {
     pasos: { toca: (k) => dia(k).toca.pasos, cumple: (k) => dia(k).ok.pasos },
     comidas: { toca: (k) => dia(k).toca.comidas, cumple: (k) => dia(k).ok.comidas },
     postura: { toca: (k) => dia(k).toca.postura, cumple: (k) => dia(k).ok.postura },
+    practica: { toca: () => true, cumple: (k) => dia(k).practica },
     plenos: { toca: () => true, cumple: (k) => dia(k).pleno },
     sinRojo: {
       toca: (k) => dia(k).toca.comidas,

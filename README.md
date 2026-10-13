@@ -431,6 +431,11 @@ Rutina. El release `apk` publica los dos archivos:
   programar sola al reiniciar el teléfono. Sólo Ataraxia declara el
   receptor y el permiso de notificaciones: Rutina no los pide.
 
+- **🌸 Mi práctica:** un tick diario para marcar que hizo su tarea, sin
+  más detalle. Suma 100 XP y lleva su racha en la misma tarjeta, pero no
+  entra en el día pleno ni en el panel de rachas: es algo personal y no
+  tiene que poder arruinar un día.
+
 Cumplir todo lo que tocaba en el día lo hace *pleno* y suma 50 XP. Los niveles
 no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
 se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar

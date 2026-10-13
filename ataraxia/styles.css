@@ -454,3 +454,8 @@ select, input[type='time'] {
   min-height: 44px; padding: 10px 12px; border-radius: 12px; font: inherit; color: inherit;
   border: 1px solid var(--line); background: rgba(3, 10, 25, .55); text-transform: capitalize;
 }
+
+/* ---- Práctica ----------------------------------------------------------- */
+
+.tick-grande { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: var(--panel); }
+.tick-grande .check-caja { width: 32px; height: 32px; border-radius: 10px; }
