@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4x1, estirable a 4x2: tres líneas de texto. Sólo existe en el APK del
+     clima (el receiver se declara en src/clima). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="60dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="50dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:initialLayout="@layout/widget_clima"
+    android:previewLayout="@layout/widget_clima"
+    android:description="@string/clima_widget_desc"
+    android:updatePeriodMillis="1800000" />

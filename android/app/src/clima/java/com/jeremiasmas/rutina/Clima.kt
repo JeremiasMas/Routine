@@ -1,0 +1,163 @@
+package com.jeremiasmas.rutina
+
+import android.content.Context
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+/**
+ * Lo que el widget del clima necesita y no puede sacar de la web: el horario
+ * de oficina que elegiste y el último pronóstico.
+ *
+ * La web los manda cada vez que la abrís (MainActivity.guardarClima). Además el
+ * widget baja el pronóstico por su cuenta cada tanto, así sigue al día aunque
+ * no abras la app en una semana.
+ */
+object Clima {
+
+  /** La misma URL que clima/js/pronostico.js. */
+  const val URL_PRONOSTICO = "https://api.open-meteo.com/v1/forecast" +
+    "?latitude=-34.6037&longitude=-58.3816" +
+    "&hourly=temperature_2m,relative_humidity_2m,apparent_temperature," +
+    "precipitation_probability,precipitation,weather_code," +
+    "wind_speed_10m,wind_gusts_10m,uv_index" +
+    "&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=4&wind_speed_unit=kmh"
+
+  val ZONA: ZoneId = ZoneId.of("America/Argentina/Buenos_Aires")
+
+  /**
+   * Cada cuánto, como mucho, se baja el pronóstico. El widget se despierta
+   * cada media hora: entre medio redibuja con el que ya tiene, que trae las
+   * próximas 96 horas.
+   */
+  private const val CADA_CUANTO_MS = 60 * 60 * 1000L
+
+  private const val PREFS = "clima_widget"
+  private const val CLAVE_HORARIO = "horario"
+  private const val CLAVE_PRONOSTICO = "pronostico"
+  private const val CLAVE_BAJADO = "bajado"
+
+  private fun prefs(c: Context) =
+    c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+  /** Lo que manda la web. El pronóstico puede venir vacío: entonces no se toca. */
+  fun guardar(c: Context, horario: String, pronostico: String) {
+    val e = prefs(c).edit().putString(CLAVE_HORARIO, horario)
+    if (pronostico.isNotBlank() && horas(pronostico).isNotEmpty()) {
+      e.putString(CLAVE_PRONOSTICO, pronostico).putLong(CLAVE_BAJADO, System.currentTimeMillis())
+    }
+    e.apply()
+  }
+
+  /** "09:30" → 570, o null si no se entiende. */
+  private fun minutos(hhmm: String?): Int? {
+    val partes = hhmm?.split(":") ?: return null
+    if (partes.size != 2) return null
+    val h = partes[0].toIntOrNull() ?: return null
+    val m = partes[1].toIntOrNull() ?: return null
+    return if (h in 0..23 && m in 0..59) h * 60 + m else null
+  }
+
+  /** El horario que eligió la web, ya normalizado allá. Sin nada, el de siempre. */
+  fun horario(c: Context): ClimaLogica.Horario {
+    val base = ClimaLogica.Horario.DEFAULT
+    val crudo = prefs(c).getString(CLAVE_HORARIO, null) ?: return base
+    return try {
+      val j = JSONObject(crudo)
+      val lista = j.optJSONArray("dias")
+      val dias = if (lista == null) base.dias
+      else (0 until lista.length()).map { lista.optInt(it, -1) }.filter { it in 0..6 }.toSet()
+      val entrada = minutos(j.optString("entrada")) ?: base.entrada
+      val salida = minutos(j.optString("salida")) ?: base.salida
+      val viaje = j.optInt("viaje", base.viaje).coerceIn(0, 180)
+      if (salida <= entrada) base.copy(dias = dias, viaje = viaje)
+      else ClimaLogica.Horario(dias, entrada, salida, viaje)
+    } catch (e: Exception) {
+      base
+    }
+  }
+
+  /** La respuesta de Open-Meteo → horas. Lo que no se entiende se saltea. */
+  fun horas(json: String): List<ClimaLogica.Hora> {
+    return try {
+      val h = JSONObject(json).getJSONObject("hourly")
+      val tiempos = h.getJSONArray("time")
+      val temps = h.getJSONArray("temperature_2m")
+      fun num(campo: String, i: Int, def: Double): Double {
+        val arr = h.optJSONArray(campo) ?: return def
+        return if (arr.isNull(i)) def else arr.optDouble(i, def).takeIf { !it.isNaN() } ?: def
+      }
+      val salida = ArrayList<ClimaLogica.Hora>()
+      for (i in 0 until tiempos.length()) {
+        val t = tiempos.optString(i)
+        if (t.length != 16 || temps.isNull(i)) continue
+        val temp = temps.optDouble(i)
+        val hora = t.substring(11, 13).toIntOrNull() ?: continue
+        if (temp.isNaN()) continue
+        salida.add(
+          ClimaLogica.Hora(
+            fecha = t.substring(0, 10),
+            hora = hora,
+            temp = temp,
+            hum = num("relative_humidity_2m", i, 60.0),
+            aparente = num("apparent_temperature", i, temp),
+            prob = num("precipitation_probability", i, 0.0),
+            lluvia = num("precipitation", i, 0.0),
+            codigo = num("weather_code", i, 0.0).toInt(),
+            viento = num("wind_speed_10m", i, 0.0),
+            rafagas = num("wind_gusts_10m", i, 0.0),
+            uv = num("uv_index", i, 0.0),
+          )
+        )
+      }
+      salida
+    } catch (e: Exception) {
+      emptyList()
+    }
+  }
+
+  fun horasGuardadas(c: Context): List<ClimaLogica.Hora> =
+    prefs(c).getString(CLAVE_PRONOSTICO, null)?.let { horas(it) } ?: emptyList()
+
+  /**
+   * Baja el pronóstico si el guardado tiene más de una hora. Corre en un hilo
+   * de fondo: nunca en el principal.
+   *
+   * @return true si hay uno nuevo
+   */
+  fun ponerAlDia(c: Context): Boolean {
+    val ahora = System.currentTimeMillis()
+    val bajado = prefs(c).getLong(CLAVE_BAJADO, 0L)
+    // El reloj puede ir para atrás: un "bajado" en el futuro no frena para siempre.
+    if (bajado in (ahora - CADA_CUANTO_MS + 1)..ahora) return false
+    val json = try {
+      val con = URL(URL_PRONOSTICO).openConnection() as HttpURLConnection
+      con.connectTimeout = 8_000
+      con.readTimeout = 8_000
+      try {
+        if (con.responseCode != 200) return false
+        con.inputStream.bufferedReader().use { it.readText() }
+      } finally {
+        con.disconnect()
+      }
+    } catch (e: Exception) {
+      return false
+    }
+    if (horas(json).isEmpty()) return false
+    prefs(c).edit().putString(CLAVE_PRONOSTICO, json).putLong(CLAVE_BAJADO, ahora).apply()
+    return true
+  }
+
+  /** Las tres líneas para este momento, con lo que haya guardado. */
+  fun lineas(c: Context): ClimaLogica.Lineas {
+    val ahora = LocalDateTime.now(ZONA)
+    return ClimaLogica.lineas(
+      horasGuardadas(c),
+      horario(c),
+      ahora.toLocalDate().toString(),
+      ahora.hour * 60 + ahora.minute,
+    )
+  }
+}

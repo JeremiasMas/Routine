@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El widget del clima: qué ponerte, paraguas y cuándo caminar. Sin fondo,
+     como los de Rutina: se apoya sobre el fondo de pantalla. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/clima_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:padding="10dp">
+
+  <TextView
+      style="@style/TextoDeWidget"
+      android:id="@+id/clima_titulo"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/clima_cargando"
+      android:textColor="@color/widget_texto"
+      android:textSize="20sp"
+      android:textStyle="bold"
+      android:maxLines="1"
+      android:ellipsize="end" />
+
+  <TextView
+      style="@style/TextoDeWidget"
+      android:id="@+id/clima_detalle"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:textColor="@color/widget_suave"
+      android:textSize="13sp"
+      android:maxLines="1"
+      android:ellipsize="end" />
+
+  <TextView
+      style="@style/TextoDeWidget"
+      android:id="@+id/clima_caminar"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:textColor="@color/widget_texto"
+      android:textSize="13sp"
+      android:maxLines="1"
+      android:ellipsize="end" />
+</LinearLayout>

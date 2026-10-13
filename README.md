@@ -436,6 +436,59 @@ no son generales sino **filósofos, uno por nivel y en orden de nacimiento**:
 se arranca con Tales de Mileto y se llega al 60 con Camus, que pidió imaginar
 a Sísifo feliz. La paleta es toda en azules.
 
+## Clima: qué ponerte hoy 🧥
+
+En `clima/` vive una tercera app, con un widget de tres líneas: **qué ponerte,
+si llevar paraguas y cuándo conviene salir a caminar** en Buenos Aires.
+
+    https://jeremiasmas.github.io/Routine/clima/
+
+Está calibrada para alguien que se crió en **Río Grande**:
+
+- **El viento de menos de 20 km/h no cuenta.** Allá ese es el aire quieto; sólo
+  el que pasa de ahí te enfría (0,1 °C por km/h).
+- **Los niveles de ropa saltan unos 4 °C más abajo** que los de un porteño. La
+  app te muestra con qué iría alguien de acá, para comparar.
+- **El calor húmedo sí pesa:** desde 22 °C manda la sensación térmica, y por
+  encima de 27 °C no te propone caminar.
+- **El frío húmedo porteño** (85% de humedad o más, por debajo de 15 °C) resta un grado.
+
+| Lo que sentís | Ropa |
+|---|---|
+| menos de 3° | 🧣 Abrigo completo |
+| 3 – 7° | 🧥 Campera |
+| 7 – 13° | 🧥 Campera liviana |
+| 13 – 19° | 👔 Manga larga |
+| 19 – 25° | 👕 Remera |
+| 25° o más | 🥵 Lo más liviano |
+
+**Paraguas:** sí desde 50% de probabilidad o 0,3 mm en una hora; "por las
+dudas" desde 25%. Con ráfagas de 55 km/h o más, capucha en vez de paraguas.
+
+**Horario de oficina:** en *Horario de oficina* elegís los días, la entrada, la
+salida y cuánto tardás en llegar (por defecto lunes a viernes de 9 a 18, 45 min
+de viaje). Los días de oficina la ropa sale de la temperatura **a la ida y a la
+vuelta**, y te avisa si a la vuelta refresca o te sobra abrigo. La caminata se
+busca fuera de ese horario, entre las 7 y las 22, en el tramo más largo sin
+lluvia, calor fuerte, ráfagas ni UV alto. Desde las 20 h el plan pasa a ser el
+de mañana.
+
+El pronóstico es de [Open-Meteo](https://open-meteo.com) (sin clave ni cuenta)
+y queda guardado para abrir sin conexión.
+
+### El widget
+
+Sale en un APK propio, `clima.apk`, del mismo release que los otros:
+
+    https://github.com/JeremiasMas/Routine/releases/download/apk/clima.apk
+
+El widget se calcula solo con la app cerrada: cada media hora se redibuja con la
+hora de ahora y, si pasó una hora, baja un pronóstico nuevo. La lógica está en
+Kotlin (`ClimaLogica.kt`) y repite la de `clima/js/logica.js`. Un test compara
+las constantes y los niveles de ropa de los dos archivos. Si tocás un umbral,
+tocalo en los dos. Lo único que el widget no sabe por su cuenta es tu horario:
+se lo pasa la web cada vez que la abrís.
+
 ## Cómo funciona la XP
 
 La regla de oro: **cumplir la meta vale 100 XP, sea la actividad que sea.** Así 45
