@@ -133,7 +133,6 @@ export const HORARIO_DEFAULT = Object.freeze({
     Object.freeze({ nombre: 'K1', dias: [2, 4], desde: '20:30', hasta: '22:00' }),
     Object.freeze({ nombre: 'Gimnasio', dias: [3], desde: '19:00', hasta: '20:00' }),
     Object.freeze({ nombre: 'Gimnasio', dias: [5], desde: '18:00', hasta: '20:00' }),
-    Object.freeze({ nombre: 'Piano', dias: [5], desde: '21:00', hasta: '21:30' }),
   ]),
 });
 
