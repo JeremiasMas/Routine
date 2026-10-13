@@ -104,11 +104,17 @@ export const ROPA = [
     detalle: 'Ropa liviana y clara. El calor húmedo es lo que menos tenés entrenado: llevá agua.' },
 ];
 
+/**
+ * Tu semana: oficina martes, miércoles y jueves, de 9 a 18, con una hora de
+ * colectivo de cada lado (salís de casa a las 8, llegás a las 19). En el medio,
+ * de 13 a 14:30, el almuerzo: el rato que tenés para caminar esos días.
+ */
 export const HORARIO_DEFAULT = Object.freeze({
-  dias: [1, 2, 3, 4, 5],   // como en JavaScript: 0 = domingo
+  dias: [2, 3, 4],          // como en JavaScript: 0 = domingo
   entrada: '09:00',
   salida: '18:00',
-  viaje: 45,                // minutos de puerta a puerta
+  viaje: 60,                // minutos de puerta a puerta, en colectivo
+  almuerzo: Object.freeze({ desde: '13:00', hasta: '14:30' }),
   caminatas: [],            // tus horarios de caminata de lunes a viernes
   meta: META_PASOS,
 });
@@ -145,13 +151,22 @@ export function normalizarHorario(h = {}) {
   if (minutos(salida) <= minutos(entrada)) ({ entrada, salida } = HORARIO_DEFAULT);
   const viaje = Number.isFinite(Number(h.viaje)) ? Math.min(180, Math.max(0, Math.round(Number(h.viaje)))) : HORARIO_DEFAULT.viaje;
   const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  // Sin almuerzo cargado vale el de siempre; null es "no tengo almuerzo libre".
+  // Uno que no cae adentro del horario de oficina no es un almuerzo.
+  const alm = h.almuerzo === undefined ? HORARIO_DEFAULT.almuerzo : h.almuerzo;
+  const almDesde = minutos(alm?.desde);
+  const almHasta = minutos(alm?.hasta);
+  const almuerzo = almDesde != null && almHasta != null && almDesde < almHasta
+    && almDesde >= minutos(entrada) && almHasta <= minutos(salida)
+    ? { desde: hhmm(almDesde), hasta: hhmm(almHasta) }
+    : null;
   const caminatas = Array.isArray(h.caminatas)
     ? [...new Set(h.caminatas.map(minutos).filter((m) => m != null))].sort((a, b) => a - b).slice(0, 3).map(hhmm)
     : [];
   const meta = Number.isFinite(Number(h.meta)) && Number(h.meta) >= 1000
     ? Math.min(50000, Math.round(Number(h.meta)))
     : META_PASOS;
-  return { dias, entrada, salida, viaje, caminatas, meta };
+  return { dias, entrada, salida, viaje, almuerzo, caminatas, meta };
 }
 
 /**
@@ -237,14 +252,35 @@ export function penalidad(h) {
     + Math.max(0, (h.rafagas ?? 0) - 40) / 5;
 }
 
-/** Las horas de una fecha en las que podrías salir: ni pasadas ni de oficina. */
+/**
+ * Las horas de una fecha en las que podrías salir: ni pasadas ni de oficina,
+ * salvo las del almuerzo. Una hora cuenta para el almuerzo si arranca adentro
+ * de él (de 13 a 14:30 son las 13 y las 14).
+ */
 function libres(horas, fecha, h, desdeMin, oficina) {
   const ocupadoDesde = minutos(h.entrada) - h.viaje;
   const ocupadoHasta = minutos(h.salida) + h.viaje;
+  const almD = h.almuerzo ? minutos(h.almuerzo.desde) : -1;
+  const almH = h.almuerzo ? minutos(h.almuerzo.hasta) : -1;
   return horas.filter((x) => x.fecha === fecha
     && x.hora >= CAMINATA_DESDE && x.hora < CAMINATA_HASTA
     && x.hora * 60 >= desdeMin - 59
-    && !(oficina && x.hora * 60 < ocupadoHasta && x.hora * 60 + 60 > ocupadoDesde));
+    && !(oficina && x.hora * 60 < ocupadoHasta && x.hora * 60 + 60 > ocupadoDesde
+      && !(x.hora * 60 >= almD && x.hora * 60 < almH)));
+}
+
+/**
+ * Un tramo de horas enteras, en minutos y recortado a lo que de verdad tenés
+ * libre: si cae en el almuerzo, termina cuando termina el almuerzo.
+ */
+function recortar(v, h, oficina) {
+  const desde = v.desde * 60;
+  const hasta = v.hasta * 60;
+  if (!oficina || !h.almuerzo) return { desde, hasta };
+  const ocupadoDesde = minutos(h.entrada) - h.viaje;
+  const ocupadoHasta = minutos(h.salida) + h.viaje;
+  if (!(desde < ocupadoHasta && hasta > ocupadoDesde)) return { desde, hasta };
+  return { desde: Math.max(desde, minutos(h.almuerzo.desde)), hasta: Math.min(hasta, minutos(h.almuerzo.hasta)) };
 }
 
 /**
@@ -291,12 +327,16 @@ const entre = (n, min, max) => Math.min(max, Math.max(min, n));
  * horario claramente más cómodo te lo propone. Los fines de semana (o si no
  * cargaste horarios) busca directamente el óptimo.
  *
+ * Los días de oficina el almuerzo cuenta como una caminata más, y la de ese
+ * rato no puede durar más que el almuerzo.
+ *
  * La duración sale de los pasos que te faltan: a PASOS_POR_MINUTO, repartidos
- * entre las caminatas que te quedan en el día.
+ * entre las caminatas que te quedan en el día. Los horarios vuelven en
+ * minutos desde la medianoche.
  *
  * @param {number|null} pasos  los de hoy, o null si no se saben
  * @returns {null | {cumplida: true}
- *   | {tipo: 'habitual', inicio, ok, motivo?, otra, minutos}
+ *   | {tipo: 'habitual', inicio, almuerzo, ok, motivo?, otra, minutos, quedan}
  *   | {tipo: 'optimo', desde, hasta, minutos}
  *   | {motivo, minutos}}  null si no queda ninguna hora para mirar ese día.
  */
@@ -306,36 +346,42 @@ export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) 
   const faltan = pasos == null ? null : Math.max(0, h.meta - pasos);
   if (faltan === 0) return { cumplida: true };
   const faltanMin = faltan == null ? null : Math.ceil(faltan / PASOS_POR_MINUTO);
-  const candidatas = libres(horas, fecha, h, desdeMin, h.dias.includes(dia));
+  const oficina = h.dias.includes(dia);
+  const candidatas = libres(horas, fecha, h, desdeMin, oficina);
+  const almD = oficina && h.almuerzo ? minutos(h.almuerzo.desde) : null;
 
   const semana = dia >= 1 && dia <= 5;
-  const pendientes = semana ? h.caminatas.map(minutos).filter((m) => m >= desdeMin - 30) : [];
+  const habituales = semana ? h.caminatas.map(minutos) : [];
+  if (almD != null && !habituales.includes(almD)) habituales.push(almD);
+  habituales.sort((a, b) => a - b);
+  const pendientes = habituales.filter((m) => m >= desdeMin - 30);
   if (pendientes.length) {
     const inicio = pendientes[0];
-    const dur = faltanMin == null ? DURACION_SIN_PASOS
+    const almuerzo = inicio === almD;
+    let dur = faltanMin == null ? DURACION_SIN_PASOS
       : entre(Math.ceil(faltanMin / pendientes.length), DURACION_MIN, DURACION_MAX);
+    if (almuerzo) dur = Math.min(dur, minutos(h.almuerzo.hasta) - inicio);
     const tuyo = horas.filter((x) => x.fecha === fecha && x.hora * 60 < inicio + dur && x.hora * 60 + 60 > inicio);
     if (tuyo.length) {
-      const mejor = ventanaOptima(candidatas, entre(Math.ceil(dur / 60), 1, 2));
+      const v = ventanaOptima(candidatas, entre(Math.ceil(dur / 60), 1, 2));
+      const mejor = v ? { ...recortar(v, h, oficina), penal: v.penal } : null;
       const malas = tuyo.filter((x) => !apta(x));
+      const base = { tipo: 'habitual', inicio, almuerzo, minutos: faltanMin, quedan: pendientes.length };
       if (!malas.length) {
         let prom = 0;
         for (const x of tuyo) prom += penalidad(x);
         prom /= tuyo.length;
-        const otra = mejor && mejor.desde !== Math.floor(inicio / 60) && mejor.penal + MEJORA <= prom;
-        return { tipo: 'habitual', inicio, ok: true, otra: otra ? { desde: mejor.desde, hasta: mejor.hasta } : null, minutos: faltanMin };
+        const otra = mejor && mejor.desde !== Math.floor(inicio / 60) * 60 && mejor.penal + MEJORA <= prom;
+        return { ...base, ok: true, otra: otra ? { desde: mejor.desde, hasta: mejor.hasta } : null };
       }
-      return {
-        tipo: 'habitual', inicio, ok: false, motivo: motivoDe(malas[0]),
-        otra: mejor ? { desde: mejor.desde, hasta: mejor.hasta } : null, minutos: faltanMin,
-      };
+      return { ...base, ok: false, motivo: motivoDe(malas[0]), otra: mejor ? { desde: mejor.desde, hasta: mejor.hasta } : null };
     }
   }
 
   if (!candidatas.length) return null;
   const n = faltanMin == null ? 1 : entre(Math.ceil(faltanMin / 60), 1, 2);
   const mejor = ventanaOptima(candidatas, n);
-  if (mejor) return { tipo: 'optimo', desde: mejor.desde, hasta: mejor.hasta, minutos: faltanMin };
+  if (mejor) return { tipo: 'optimo', ...recortar(mejor, h, oficina), minutos: faltanMin };
   return { motivo: motivoComun(candidatas), minutos: faltanMin };
 }
 
@@ -372,11 +418,14 @@ export function plan(horas, horario, ahora, pasos = null) {
 
   let ida = [];
   let vuelta = [];
+  let almuerzo = [];
   let salir;
   if (oficina) {
     ida = tramo(horas, fecha, entrada - h.viaje, entrada);
     vuelta = tramo(horas, fecha, salida, salida + h.viaje);
     salir = [...ida, ...vuelta];
+    // Al almuerzo también salís: si llueve a esa hora, el paraguas va.
+    if (h.almuerzo) almuerzo = tramo(horas, fecha, minutos(h.almuerzo.desde), minutos(h.almuerzo.hasta));
   } else {
     // Día libre: lo que hace falta para salir ahora y las próximas horas, o
     // el mediodía si es para mañana.
@@ -421,7 +470,7 @@ export function plan(horas, horario, ahora, pasos = null) {
     oficina,
     ropa,
     portena,
-    paraguas: paraguas(salir),
+    paraguas: paraguas([...salir, ...almuerzo]),
     nota,
     ida: oficina ? { temp: temps(ida), desde: entrada - h.viaje } : null,
     vuelta: oficina ? { temp: temps(vuelta), desde: salida } : null,
@@ -452,9 +501,11 @@ export function lineaCaminata(c) {
   if (!c) return '';
   if (c.cumplida) return '🚶 Meta de pasos cumplida ✓';
   const falta = c.minutos != null ? ` · faltan ${c.minutos} min` : '';
-  const rato = (v) => `${v.desde}–${v.hasta} h`;
+  const rato = (v) => `${hora(v.desde)}–${hora(v.hasta)} h`;
   if (c.tipo === 'habitual') {
-    const cuando = `${c.etiqueta === 'Mañana' ? 'Mañana ' : ''}${hora(c.inicio)} h`;
+    const cuando = c.almuerzo
+      ? (c.etiqueta === 'Mañana' ? 'Mañana almuerzo' : 'Almuerzo')
+      : `${c.etiqueta === 'Mañana' ? 'Mañana ' : ''}${hora(c.inicio)} h`;
     if (c.ok) return c.otra ? `🚶 ${cuando} ok, mejor ${rato(c.otra)}` : `🚶 ${cuando} ✓${falta}`;
     return c.otra ? `🚶 ${cuando}: ${c.motivo} → ${rato(c.otra)}` : `🚶 ${cuando}: ${c.motivo}, no hay otro rato`;
   }

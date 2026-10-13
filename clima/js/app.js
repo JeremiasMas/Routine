@@ -1,6 +1,6 @@
 import {
   plan, lineasWidget, sensacion, lluviaEn, normalizarHorario, HORARIO_DEFAULT, DIAS, hora,
-  VIENTO_DE_CASA, PASOS_POR_MINUTO, diaDeSemana,
+  VIENTO_DE_CASA, PASOS_POR_MINUTO, diaDeSemana, minutos,
 } from './logica.js';
 import { traer, guardado, horasDe, ahoraEnBA, descripcion, LUGAR } from './pronostico.js';
 import {
@@ -25,7 +25,18 @@ function escribir(clave, valor) {
   try { localStorage.setItem(clave, JSON.stringify(valor)); } catch { /* modo privado */ }
 }
 
-let horario = normalizarHorario(leer(CLAVE_HORARIO, HORARIO_DEFAULT));
+/**
+ * Un horario guardado antes de que existiera el almuerzo es el de prueba (lunes
+ * a viernes, 45 minutos de viaje): se reemplaza por tu semana real y sólo se
+ * conservan tus caminatas y tu meta.
+ */
+function horarioGuardado() {
+  const crudo = leer(CLAVE_HORARIO, null);
+  if (crudo && 'almuerzo' in crudo) return normalizarHorario(crudo);
+  return normalizarHorario({ caminatas: crudo?.caminatas, meta: crudo?.meta });
+}
+
+let horario = horarioGuardado();
 let registro = guardado();
 
 /**
@@ -76,9 +87,12 @@ function textoCaminata(c, horas) {
   if (c.cumplida) return '<b>🚶</b> Ya llegaste a la meta de pasos. Si salís, que sea por gusto.';
   const dia = c.etiqueta.toLowerCase();
   const finde = [0, 6].includes(diaDeSemana(c.fecha));
-  const rato = (v) => `de ${v.desde} a ${v.hasta} h (${clima(horas, c.fecha, v.desde, v.hasta)})`;
+  const rato = (v) => `de ${hora(v.desde)} a ${hora(v.hasta)} h `
+    + `(${clima(horas, c.fecha, Math.floor(v.desde / 60), Math.ceil(v.hasta / 60))})`;
   if (c.tipo === 'habitual') {
-    const tuya = `Tu caminata de las ${hora(c.inicio)} h`;
+    const tuya = c.almuerzo
+      ? `Tu caminata del almuerzo (${hora(c.inicio)} a ${hora(minutos(horario.almuerzo.hasta))} h)`
+      : `Tu caminata de las ${hora(c.inicio)} h`;
     const h0 = Math.floor(c.inicio / 60);
     if (c.ok && c.otra) {
       return `<b>🚶</b> ${tuya} viene bien (${clima(horas, c.fecha, h0, h0 + 1)}), `
@@ -106,12 +120,8 @@ function textoPasos(p, c) {
   const min = Math.ceil(faltan / PASOS_POR_MINUTO);
   let txt = `<b>👟</b> Llevás ${miles(hoy)} de ${miles(meta)} pasos. Te faltan ${miles(faltan)}: `
     + `unos <b>${min} min</b> caminando.`;
-  if (c?.tipo === 'habitual') {
-    const quedan = horario.caminatas.filter((x) => {
-      const [hh, mm] = x.split(':').map(Number);
-      return hh * 60 + mm >= c.inicio;
-    }).length;
-    if (quedan > 1) txt += ` Repartidos en tus ${quedan} caminatas que quedan, ${Math.ceil(min / quedan)} min cada una.`;
+  if (c?.tipo === 'habitual' && c.quedan > 1) {
+    txt += ` Repartidos en tus ${c.quedan} caminatas que quedan, ${Math.ceil(min / c.quedan)} min cada una.`;
   }
   return txt;
 }
@@ -147,8 +157,9 @@ function pintar() {
   items.push(`<li><b>${p.paraguas.nivel === 'no' ? '🌂' : '☂️'}</b> ${esc(p.paraguas.texto)}</li>`);
   if (p.nota) items.push(`<li>${esc(p.nota)}</li>`);
   if (p.oficina) {
-    items.push(`<li class="suave">Oficina: salís ${hora(p.ida.desde)} h con ${p.ida.temp ?? '–'}°, `
-      + `volvés ${hora(p.vuelta.desde)} h con ${p.vuelta.temp ?? '–'}°.</li>`);
+    items.push(`<li class="suave">Oficina: salís de casa a las ${hora(p.ida.desde)} h con ${p.ida.temp ?? '–'}°; `
+      + `a la vuelta tomás el colectivo a las ${hora(p.vuelta.desde)} h con ${p.vuelta.temp ?? '–'}° `
+      + `y llegás a las ${hora(p.vuelta.desde + horario.viaje)} h.</li>`);
   }
   const pasos = textoPasos(p, p.caminata);
   if (pasos) items.push(`<li>${pasos}</li>`);
@@ -221,6 +232,13 @@ function pintarAjustes() {
       <label>Salida <input type="time" id="salida" value="${horario.salida}"></label>
       <label>Viaje (min) <input type="number" id="viaje" min="0" max="180" step="5" value="${horario.viaje}"></label>
     </div>
+    <p class="suave">Entrada y salida son las de la oficina: con el viaje, la app sabe a qué hora salís de casa y
+      a qué hora volvés.</p>
+    <div class="campos">
+      <label>Almuerzo desde <input type="time" id="almuerzo-desde" value="${horario.almuerzo?.desde ?? ''}"></label>
+      <label>hasta <input type="time" id="almuerzo-hasta" value="${horario.almuerzo?.hasta ?? ''}"></label>
+    </div>
+    <p class="suave">Los días de oficina, el almuerzo es tu rato para caminar. Vacío si no salís.</p>
     <h3>Tus caminatas de lunes a viernes</h3>
     <p class="suave">A qué hora salís a caminar. La app revisa si el clima acompaña y, si no, te propone otro
       horario. Los fines de semana te da directamente el óptimo. Dejá vacías las que no uses.</p>
@@ -236,6 +254,9 @@ function pintarAjustes() {
       entrada: $('#entrada').value,
       salida: $('#salida').value,
       viaje: $('#viaje').value,
+      almuerzo: $('#almuerzo-desde').value && $('#almuerzo-hasta').value
+        ? { desde: $('#almuerzo-desde').value, hasta: $('#almuerzo-hasta').value }
+        : null,
       caminatas: [...document.querySelectorAll('.caminata')].map((i) => i.value).filter(Boolean),
       meta: $('#meta').value,
     });

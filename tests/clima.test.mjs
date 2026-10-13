@@ -57,65 +57,68 @@ test('paraguas: lluvia sí, llovizna probable chico, sudestada capucha', () => {
 });
 
 test('el horario roto vuelve al de siempre', () => {
-  assert.deepEqual(normalizarHorario(null ?? undefined), { ...HORARIO_DEFAULT, dias: [1, 2, 3, 4, 5], caminatas: [] });
+  assert.deepEqual(normalizarHorario(null ?? undefined), { ...HORARIO_DEFAULT, dias: [2, 3, 4], almuerzo: { ...HORARIO_DEFAULT.almuerzo }, caminatas: [] });
   assert.deepEqual(normalizarHorario({ entrada: '18:00', salida: '09:00' }).entrada, '09:00');
   assert.deepEqual(normalizarHorario({ dias: [5, 1, 9, 1] }).dias, [1, 5]);
   assert.equal(normalizarHorario({ viaje: 999 }).viaje, 180);
 });
 
 const SABADO = '2026-10-17';
-const conCaminata = (caminatas, extra = {}) => ({ ...HORARIO_DEFAULT, caminatas, ...extra });
+// Las reglas generales se prueban con un horario fijo de lunes a viernes, sin
+// almuerzo libre; tu semana real se prueba aparte, más abajo.
+const LV = { dias: [1, 2, 3, 4, 5], entrada: '09:00', salida: '18:00', viaje: 45, almuerzo: null };
+const conCaminata = (caminatas, extra = {}) => ({ ...LV, caminatas, ...extra });
 
 test('sin horarios propios busca el óptimo, fuera de la oficina', () => {
   const horas = dia(MARTES, () => ({}));
   // Libre a las 7 (a las 8:15 salís) y de 19 a 22. Todo igual de bueno: el primero.
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MARTES), { tipo: 'optimo', desde: 7, hasta: 8, minutos: null });
+  assert.deepEqual(planCaminata(horas, LV, MARTES), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: null });
 });
 
 test('con los pasos que faltan calcula cuánto caminar', () => {
   const horas = dia(MARTES, () => ({}));
   // 8.000 pasos que faltan son 80 minutos: hacen falta dos horas seguidas, y
   // a la mañana hay una sola.
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MARTES, 0, 2000), { tipo: 'optimo', desde: 19, hasta: 21, minutos: 80 });
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MARTES, 0, 9950), { tipo: 'optimo', desde: 7, hasta: 8, minutos: 1 });
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MARTES, 0, 10200), { cumplida: true });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 2000), { tipo: 'optimo', desde: 19 * 60, hasta: 21 * 60, minutos: 80 });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 9950), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: 1 });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 10200), { cumplida: true });
   assert.deepEqual(planCaminata(horas, conCaminata([], { meta: 12000 }), MARTES, 0, 10200).minutos, 18);
 });
 
 test('tu horario de siempre, si el clima acompaña, queda', () => {
   const horas = dia(MARTES, () => ({}));
   assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), MARTES, 0, 4000),
-    { tipo: 'habitual', inicio: 19 * 60, ok: true, otra: null, minutos: 60 });
+    { tipo: 'habitual', inicio: 19 * 60, almuerzo: false, quedan: 1, ok: true, otra: null, minutos: 60 });
 });
 
 test('si llueve en tu horario, propone otro', () => {
   const horas = dia(MARTES, (h) => (h === 19 ? { prob: 80 } : h === 7 ? { temp: 30, aparente: 30 } : {}));
   assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), MARTES),
-    { tipo: 'habitual', inicio: 19 * 60, ok: false, motivo: 'lluvia', otra: { desde: 20, hasta: 21 }, minutos: null });
+    { tipo: 'habitual', inicio: 19 * 60, almuerzo: false, quedan: 1, ok: false, motivo: 'lluvia', otra: { desde: 20 * 60, hasta: 21 * 60 }, minutos: null });
 });
 
 test('aunque tu horario sirva, avisa si otro es mucho mejor', () => {
   const horas = dia(MARTES, (h) => (h === 13 ? { temp: 26, aparente: 26 } : {}));
   const casa = conCaminata(['13:00'], { dias: [] });
   assert.deepEqual(planCaminata(horas, casa, MARTES),
-    { tipo: 'habitual', inicio: 13 * 60, ok: true, otra: { desde: 7, hasta: 8 }, minutos: null });
+    { tipo: 'habitual', inicio: 13 * 60, almuerzo: false, quedan: 1, ok: true, otra: { desde: 7 * 60, hasta: 8 * 60 }, minutos: null });
 });
 
 test('el fin de semana da el horario óptimo, sin mirar los de la semana', () => {
   const horas = dia(SABADO, (h) => (h === 10 || h === 11 ? { temp: 15, uv: 0 } : {}));
   assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), SABADO, 0, 2000),
-    { tipo: 'optimo', desde: 10, hasta: 12, minutos: 80 });
+    { tipo: 'optimo', desde: 10 * 60, hasta: 12 * 60, minutos: 80 });
 });
 
 test('un horario que ya pasó no se revisa', () => {
   const horas = dia(MARTES, () => ({}));
   assert.equal(planCaminata(horas, conCaminata(['07:00', '19:00']), MARTES, 12 * 60).inicio, 19 * 60);
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MARTES, 20 * 60 + 10), { tipo: 'optimo', desde: 20, hasta: 21, minutos: null });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 20 * 60 + 10), { tipo: 'optimo', desde: 20 * 60, hasta: 21 * 60, minutos: null });
 });
 
 test('sin ningún rato bueno, dice por qué', () => {
   const horas = dia(MARTES, () => ({ prob: 90 }));
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MARTES), { motivo: 'lluvia', minutos: null });
+  assert.deepEqual(planCaminata(horas, LV, MARTES), { motivo: 'lluvia', minutos: null });
 });
 
 test('los horarios de caminata se ordenan y se limpian', () => {
@@ -128,10 +131,13 @@ test('la línea de la caminata entra en un renglón', () => {
   const casos = [
     [{ cumplida: true }, '🚶 Meta de pasos cumplida ✓'],
     [{ tipo: 'habitual', inicio: 1140, ok: true, otra: null, minutos: 45, etiqueta: 'Hoy' }, '🚶 19 h ✓ · faltan 45 min'],
-    [{ tipo: 'habitual', inicio: 1170, ok: true, otra: { desde: 7, hasta: 8 }, minutos: null, etiqueta: 'Hoy' }, '🚶 19:30 h ok, mejor 7–8 h'],
-    [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'lluvia', otra: { desde: 16, hasta: 17 }, etiqueta: 'Mañana' }, '🚶 Mañana 19 h: lluvia → 16–17 h'],
+    [{ tipo: 'habitual', inicio: 1170, ok: true, otra: { desde: 7 * 60, hasta: 8 * 60 }, minutos: null, etiqueta: 'Hoy' }, '🚶 19:30 h ok, mejor 7–8 h'],
+    [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'lluvia', otra: { desde: 16 * 60, hasta: 17 * 60 }, etiqueta: 'Mañana' }, '🚶 Mañana 19 h: lluvia → 16–17 h'],
     [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'calor', otra: null, etiqueta: 'Hoy' }, '🚶 19 h: calor, no hay otro rato'],
-    [{ tipo: 'optimo', desde: 9, hasta: 11, minutos: 80, etiqueta: 'Hoy' }, '🚶 Hoy 9–11 h · faltan 80 min'],
+    [{ tipo: 'optimo', desde: 9 * 60, hasta: 11 * 60, minutos: 80, etiqueta: 'Hoy' }, '🚶 Hoy 9–11 h · faltan 80 min'],
+    [{ tipo: 'optimo', desde: 13 * 60, hasta: 14 * 60 + 30, minutos: 90, etiqueta: 'Hoy' }, '🚶 Hoy 13–14:30 h · faltan 90 min'],
+    [{ tipo: 'habitual', inicio: 780, almuerzo: true, ok: true, otra: null, minutos: 40, etiqueta: 'Hoy' }, '🚶 Almuerzo ✓ · faltan 40 min'],
+    [{ tipo: 'habitual', inicio: 780, almuerzo: true, ok: false, motivo: 'lluvia', otra: { desde: 1140, hasta: 1200 }, etiqueta: 'Hoy' }, '🚶 Almuerzo: lluvia → 19–20 h'],
     [{ motivo: 'tormenta', etiqueta: 'Hoy' }, '🚶 Hoy mejor no: tormenta'],
   ];
   for (const [c, texto] of casos) {
@@ -144,6 +150,82 @@ test('los pasos por minuto son los mismos que en Rutina', async () => {
   const { PASOS_POR_MINUTO: deRutina } = await import('../js/config.js');
   const { PASOS_POR_MINUTO } = await import('../clima/js/logica.js');
   assert.equal(PASOS_POR_MINUTO, deRutina);
+});
+
+// ---------------------------------------------------------------------------
+// Tu semana: oficina martes a jueves de 9 a 18, una hora de colectivo, y el
+// almuerzo de 13 a 14:30 para caminar.
+// ---------------------------------------------------------------------------
+
+const MIERCOLES = '2026-10-14';
+const LUNES = '2026-10-12';
+
+test('el horario por defecto es tu semana', () => {
+  const h = normalizarHorario({});
+  assert.deepEqual(h.dias, [2, 3, 4]);
+  assert.equal(minutos(h.entrada) - h.viaje, 8 * 60, 'salís de casa a las 8');
+  assert.equal(minutos(h.salida) + h.viaje, 19 * 60, 'llegás a las 19');
+  assert.deepEqual(h.almuerzo, { desde: '13:00', hasta: '14:30' });
+  // Sacarlo a mano vale; uno que no cae en el horario de oficina, no.
+  assert.equal(normalizarHorario({ almuerzo: null }).almuerzo, null);
+  assert.equal(normalizarHorario({ almuerzo: { desde: '19:00', hasta: '20:00' } }).almuerzo, null);
+});
+
+test('un día de oficina, la caminata es la del almuerzo', () => {
+  const horas = dia(MIERCOLES, () => ({}));
+  // 3.000 pasos que faltan son 30 minutos: entran en el almuerzo.
+  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 7000),
+    { tipo: 'habitual', inicio: 13 * 60, almuerzo: true, minutos: 30, quedan: 1, ok: true, otra: null });
+});
+
+test('si llueve al mediodía, propone la vuelta a casa o la mañana', () => {
+  const horas = dia(MIERCOLES, (h) => (h === 13 || h === 14 ? { prob: 80, lluvia: 2 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 7000);
+  assert.equal(c.ok, false);
+  assert.equal(c.motivo, 'lluvia');
+  // Llegás a las 19: de 19 a 20 es el primer rato bueno después.
+  assert.deepEqual(c.otra, { desde: 19 * 60, hasta: 20 * 60 });
+});
+
+test('nunca propone caminar en horario de oficina, fuera del almuerzo', () => {
+  // Las horas de escritorio son las más lindas del día: igual no se ofrecen.
+  const oficina = (h) => h >= 8 && h < 19 && h !== 13 && h !== 14;
+  const horas = dia(MIERCOLES, (h) => (oficina(h) ? { temp: 15, uv: 0 } : {}));
+  const sinAlmuerzo = planCaminata(horas, { ...HORARIO_DEFAULT, almuerzo: null }, MIERCOLES, 0, 0);
+  assert.equal(sinAlmuerzo.tipo, 'optimo');
+  assert.ok(sinAlmuerzo.hasta <= 8 * 60 || sinAlmuerzo.desde >= 19 * 60, JSON.stringify(sinAlmuerzo));
+  const conAlmuerzo = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 0, 0);
+  assert.deepEqual([conAlmuerzo.almuerzo, conAlmuerzo.ok], [true, true]);
+  const o = conAlmuerzo.otra;
+  assert.ok(!o || o.hasta <= 8 * 60 || o.desde >= 19 * 60 || (o.desde >= 13 * 60 && o.hasta <= 14 * 60 + 30), JSON.stringify(o));
+});
+
+test('el óptimo de un día de oficina puede caer en el almuerzo, recortado', () => {
+  // Pasado el horario del almuerzo como caminata habitual (ya son las 14:10),
+  // vuelve el óptimo del resto del día.
+  const horas = dia(MIERCOLES, (h) => (h >= 19 ? { prob: 90 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 14 * 60 + 10, 8000);
+  assert.deepEqual(c, { tipo: 'optimo', desde: 14 * 60, hasta: 14 * 60 + 30, minutos: 20 });
+});
+
+test('lunes y viernes no son de oficina: el óptimo es todo el día', () => {
+  const horas = dia(LUNES, (h) => (h === 11 || h === 12 ? { temp: 15, uv: 0 } : {}));
+  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, LUNES, 8 * 60, 2000),
+    { tipo: 'optimo', desde: 11 * 60, hasta: 13 * 60, minutos: 80 });
+});
+
+test('si llueve al mediodía, el paraguas va aunque la ida y la vuelta estén secas', () => {
+  const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80 } : {}));
+  const ahora = { fecha: MIERCOLES, minutos: 7 * 60 };
+  assert.equal(plan(horas, HORARIO_DEFAULT, ahora).paraguas.nivel, 'si');
+  assert.equal(plan(horas, { ...HORARIO_DEFAULT, almuerzo: null }, ahora).paraguas.nivel, 'no');
+});
+
+test('tu semana en el widget', () => {
+  const horas = dia(MIERCOLES, () => ({}));
+  const w = lineasWidget(plan(horas, HORARIO_DEFAULT, { fecha: MIERCOLES, minutos: 7 * 60 }, 6000));
+  assert.equal(w.detalle, 'Hoy: ida 16° · vuelta 16°');
+  assert.equal(w.caminar, '🚶 Almuerzo ✓ · faltan 40 min');
 });
 
 for (const caso of CASOS) {

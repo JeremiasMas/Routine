@@ -78,8 +78,17 @@ object Clima {
       val caminatas = if (listaCaminatas == null) emptyList()
       else (0 until listaCaminatas.length()).mapNotNull { minutos(listaCaminatas.optString(it)) }.sorted()
       val meta = j.optInt("meta", ClimaLogica.META_PASOS).takeIf { it in 1000..50000 } ?: ClimaLogica.META_PASOS
-      if (salida <= entrada) base.copy(dias = dias, viaje = viaje, caminatas = caminatas, meta = meta)
-      else ClimaLogica.Horario(dias, entrada, salida, viaje, caminatas, meta)
+      val (ent, sal) = if (salida <= entrada) base.entrada to base.salida else entrada to salida
+      // Sin la clave vale el de siempre; null es "no tengo almuerzo libre". Uno
+      // que no cae adentro del horario de oficina no es un almuerzo.
+      val cargado = if (!j.has("almuerzo")) base.almuerzo
+      else j.optJSONObject("almuerzo")?.let { a ->
+        val d = minutos(a.optString("desde"))
+        val hs = minutos(a.optString("hasta"))
+        if (d != null && hs != null) d to hs else null
+      }
+      val almuerzo = cargado?.takeIf { it.first < it.second && it.first >= ent && it.second <= sal }
+      ClimaLogica.Horario(dias, ent, sal, viaje, caminatas, meta, almuerzo)
     } catch (e: Exception) {
       base
     }

@@ -465,15 +465,23 @@ Está calibrada para alguien que se crió en **Río Grande**:
 **Paraguas:** sí desde 50% de probabilidad o 0,3 mm en una hora; "por las
 dudas" desde 25%. Con ráfagas de 55 km/h o más, capucha en vez de paraguas.
 
-**Horario de oficina:** en *Horarios y meta* elegís los días, la entrada, la
-salida y cuánto tardás en llegar (por defecto lunes a viernes de 9 a 18, 45 min
-de viaje). Los días de oficina la ropa sale de la temperatura **a la ida y a la
-vuelta**, y te avisa si a la vuelta refresca o te sobra abrigo. Desde las 20 h
-el plan de ropa pasa a ser el de mañana.
+**Tu semana:** oficina **martes, miércoles y jueves de 9 a 18**, con **una
+hora de colectivo** de cada lado (salís de casa a las 8 y llegás a las 19), y
+**almuerzo libre de 13 a 14:30**. Lunes, viernes y fin de semana son días
+libres. Todo se cambia en *Horarios y meta*.
+
+Los días de oficina la ropa sale de la temperatura **a la ida (8 a 9) y a la
+vuelta (18 a 19)**, y te avisa si a la vuelta refresca o te sobra abrigo. El
+paraguas mira además el almuerzo, porque a esa hora también salís. Desde las
+20 h el plan de ropa pasa a ser el de mañana.
 
 ### Caminatas y pasos 👟
 
-- **Tus horarios de lunes a viernes** (hasta tres): la app revisa el próximo.
+- **El almuerzo** es tu caminata de los días de oficina: la app revisa si el
+  clima acompaña de 13 a 14:30 y, si no, te propone otro rato fuera del
+  horario de oficina (temprano, antes de las 8, o después de las 19). Nunca te
+  propone caminar en horas de escritorio.
+- **Tus horarios de lunes a viernes** (hasta tres, opcionales): la app revisa el próximo.
   Si llueve, hace calor, sopla fuerte o pega mucho el sol, te propone el mejor
   otro rato del día. Si está bien pero hay un horario claramente más cómodo,
   también te lo dice ("19 h ok, mejor 7–8 h").
