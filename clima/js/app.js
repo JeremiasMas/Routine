@@ -161,6 +161,10 @@ function pintar() {
       + `a la vuelta tomás el colectivo a las ${hora(p.vuelta.desde)} h con ${p.vuelta.temp ?? '–'}° `
       + `y llegás a las ${hora(p.vuelta.desde + horario.viaje)} h.</li>`);
   }
+  if (p.casa) {
+    items.push(`<li class="suave">Home office: la ropa es para salir al almuerzo, de ${hora(minutos(horario.almuerzo.desde))} `
+      + `a ${hora(minutos(horario.almuerzo.hasta))} h (${p.temp}°).</li>`);
+  }
   const pasos = textoPasos(p, p.caminata);
   if (pasos) items.push(`<li>${pasos}</li>`);
   const camina = textoCaminata(p.caminata, horas);
@@ -217,16 +221,18 @@ function pintarPasos() {
 }
 
 function pintarAjustes() {
-  const dias = [1, 2, 3, 4, 5, 6, 0].map((d) => `
-    <label class="dia"><input type="checkbox" value="${d}" ${horario.dias.includes(d) ? 'checked' : ''}>
+  const chips = (clase, elegidos) => [1, 2, 3, 4, 5, 6, 0].map((d) => `
+    <label class="dia"><input type="checkbox" class="${clase}" value="${d}" ${elegidos.includes(d) ? 'checked' : ''}>
       <span>${DIAS[d].slice(0, 2)}</span></label>`).join('');
   const caminatas = [0, 1, 2].map((i) => `
       <label>Caminata ${i + 1} <input type="time" class="caminata" value="${horario.caminatas[i] ?? ''}"></label>`).join('');
   $('#ajustes').innerHTML = `
     <summary>Horarios y meta</summary>
-    <h3>Oficina</h3>
-    <p class="suave">Los días que vas a la oficina. El resto son días libres (o de home office).</p>
-    <div class="dias">${dias}</div>
+    <h3>Trabajo</h3>
+    <p class="suave">Los días que vas a la oficina, en colectivo:</p>
+    <div class="dias">${chips('dia-oficina', horario.dias)}</div>
+    <p class="suave">Los de home office, mismo horario y sin viaje:</p>
+    <div class="dias">${chips('dia-remoto', horario.remoto)}</div>
     <div class="campos">
       <label>Entrada <input type="time" id="entrada" value="${horario.entrada}"></label>
       <label>Salida <input type="time" id="salida" value="${horario.salida}"></label>
@@ -238,7 +244,7 @@ function pintarAjustes() {
       <label>Almuerzo desde <input type="time" id="almuerzo-desde" value="${horario.almuerzo?.desde ?? ''}"></label>
       <label>hasta <input type="time" id="almuerzo-hasta" value="${horario.almuerzo?.hasta ?? ''}"></label>
     </div>
-    <p class="suave">Los días de oficina, el almuerzo es tu rato para caminar. Vacío si no salís.</p>
+    <p class="suave">Los días de trabajo, el almuerzo es tu rato para caminar. Vacío si no salís.</p>
     <h3>Tus caminatas de lunes a viernes</h3>
     <p class="suave">A qué hora salís a caminar. La app revisa si el clima acompaña y, si no, te propone otro
       horario. Los fines de semana te da directamente el óptimo. Dejá vacías las que no uses.</p>
@@ -248,9 +254,15 @@ function pintarAjustes() {
     </div>
     ${enApp() ? '' : `<p class="suave">¿Querés el widget en la pantalla de inicio? <a href="${DESCARGA_APK}">Bajá la app para Android</a>.</p>`}`;
 
-  $('#ajustes').addEventListener('change', () => {
+  $('#ajustes').addEventListener('change', (e) => {
+    // Un día es de oficina o de home office: marcar uno desmarca el otro.
+    if (e.target.matches('.dia-oficina, .dia-remoto') && e.target.checked) {
+      const otro = e.target.classList.contains('dia-oficina') ? 'dia-remoto' : 'dia-oficina';
+      document.querySelector(`.${otro}[value="${e.target.value}"]`).checked = false;
+    }
     horario = normalizarHorario({
-      dias: [...document.querySelectorAll('.dia input:checked')].map((i) => Number(i.value)),
+      dias: [...document.querySelectorAll('.dia-oficina:checked')].map((i) => Number(i.value)),
+      remoto: [...document.querySelectorAll('.dia-remoto:checked')].map((i) => Number(i.value)),
       entrada: $('#entrada').value,
       salida: $('#salida').value,
       viaje: $('#viaje').value,

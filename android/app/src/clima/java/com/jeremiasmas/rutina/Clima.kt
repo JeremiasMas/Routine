@@ -68,9 +68,13 @@ object Clima {
     val crudo = prefs(c).getString(CLAVE_HORARIO, null) ?: return base
     return try {
       val j = JSONObject(crudo)
-      val lista = j.optJSONArray("dias")
-      val dias = if (lista == null) base.dias
-      else (0 until lista.length()).map { lista.optInt(it, -1) }.filter { it in 0..6 }.toSet()
+      fun diasDe(clave: String, def: Set<Int>): Set<Int> {
+        val lista = j.optJSONArray(clave) ?: return def
+        return (0 until lista.length()).map { lista.optInt(it, -1) }.filter { it in 0..6 }.toSet()
+      }
+      val dias = diasDe("dias", base.dias)
+      // Un día es de oficina o de home office, no las dos cosas: gana la oficina.
+      val remoto = diasDe("remoto", base.remoto) - dias
       val entrada = minutos(j.optString("entrada")) ?: base.entrada
       val salida = minutos(j.optString("salida")) ?: base.salida
       val viaje = j.optInt("viaje", base.viaje).coerceIn(0, 180)
@@ -88,7 +92,7 @@ object Clima {
         if (d != null && hs != null) d to hs else null
       }
       val almuerzo = cargado?.takeIf { it.first < it.second && it.first >= ent && it.second <= sal }
-      ClimaLogica.Horario(dias, ent, sal, viaje, caminatas, meta, almuerzo)
+      ClimaLogica.Horario(dias, ent, sal, viaje, caminatas, meta, almuerzo, remoto)
     } catch (e: Exception) {
       base
     }

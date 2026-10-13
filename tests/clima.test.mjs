@@ -208,10 +208,35 @@ test('el óptimo de un día de oficina puede caer en el almuerzo, recortado', ()
   assert.deepEqual(c, { tipo: 'optimo', desde: 14 * 60, hasta: 14 * 60 + 30, minutos: 20 });
 });
 
-test('lunes y viernes no son de oficina: el óptimo es todo el día', () => {
-  const horas = dia(LUNES, (h) => (h === 11 || h === 12 ? { temp: 15, uv: 0 } : {}));
-  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, LUNES, 8 * 60, 2000),
-    { tipo: 'optimo', desde: 11 * 60, hasta: 13 * 60, minutos: 80 });
+test('lunes y viernes de home office: la caminata también es al almuerzo', () => {
+  const horas = dia(LUNES, () => ({}));
+  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, LUNES, 8 * 60, 7000),
+    { tipo: 'habitual', inicio: 13 * 60, almuerzo: true, minutos: 30, quedan: 1, ok: true, otra: null });
+});
+
+test('en home office no hay colectivo: estás libre a las 18, no a las 19', () => {
+  // Llueve en el almuerzo y hasta las 18: el primer rato bueno es a las 18.
+  const horas = dia(LUNES, (h) => (h >= 10 && h < 18 ? { prob: 90 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, LUNES, 10 * 60, 7000);
+  assert.deepEqual([c.ok, c.motivo, c.otra], [false, 'lluvia', { desde: 18 * 60, hasta: 19 * 60 }]);
+  // Y antes de las 9 también: no hay que salir a las 8 para el colectivo.
+  const temprano = dia(LUNES, (h) => (h === 8 ? { temp: 15, uv: 0 } : h >= 10 ? { prob: 90 } : {}));
+  assert.deepEqual(planCaminata(temprano, HORARIO_DEFAULT, LUNES, 7 * 60, 9000).otra, { desde: 8 * 60, hasta: 9 * 60 });
+});
+
+test('en home office la ropa es para salir al almuerzo, y después para cuando terminás', () => {
+  const horas = dia(LUNES, (h) => ({ temp: h < 13 ? 8 : h < 15 ? 15 : h < 18 ? 20 : 12 }));
+  const manana = lineasWidget(plan(horas, HORARIO_DEFAULT, { fecha: LUNES, minutos: 7 * 60 }));
+  assert.equal(manana.titulo, '👔 Manga larga');
+  assert.equal(manana.detalle, 'Hoy: almuerzo 15° · máx 20°');
+  const tarde = plan(horas, HORARIO_DEFAULT, { fecha: LUNES, minutos: 15 * 60 });
+  assert.equal(tarde.casa, false);
+  assert.equal(tarde.temp, 12, 'a las 15 la ropa es para cuando terminás, a las 18');
+});
+
+test('un día no puede ser de oficina y de home office a la vez', () => {
+  assert.deepEqual(normalizarHorario({ dias: [1, 2], remoto: [1, 5] }).remoto, [5]);
+  assert.deepEqual(normalizarHorario({}).remoto, [1, 5]);
 });
 
 test('si llueve al mediodía, el paraguas va aunque la ida y la vuelta estén secas', () => {
