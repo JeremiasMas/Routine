@@ -181,6 +181,7 @@ function pantallaHoy(d) {
     ${tarjetaComidas(r)}
     ${tarjetaEjercicio(r)}
     ${tarjetaPostura(r)}
+    ${tarjetaPractica(r, d)}
     ${tarjetaPeso(r, d)}
   `;
 }
@@ -497,6 +498,23 @@ function seccionPeso(p) {
       <p class="chico">Los niveles para ${p.altura} cm:</p>
       <ul class="niveles-peso">${filas}</ul>
       <p class="chico">Son los niveles de IMC de la OMS. El IMC no distingue músculo de grasa: sirve para ubicarse y ver la tendencia, no para diagnosticar.</p>
+    </section>`;
+}
+
+/** La práctica diaria: un tick y nada más. */
+function tarjetaPractica(r, d) {
+  const n = d.rachas.practica;
+  return `
+    <section class="tarjeta" aria-labelledby="t-practica">
+      <header class="tarjeta-cab">
+        <h2 id="t-practica">🌸 Mi práctica</h2>
+        ${n ? `<span class="pildora">${n} ${n === 1 ? 'día' : 'días'} seguidos</span>` : ''}
+      </header>
+      <label class="check tick-grande">
+        <input type="checkbox" data-accion="practica" ${r.practica ? 'checked' : ''}>
+        <span class="check-caja" aria-hidden="true"></span>
+        <span class="check-txt"><b>${r.practica ? 'Hecha ✓' : `La hice ${diaVisto === claveDe() ? 'hoy' : 'este día'}`}</b></span>
+      </label>
     </section>`;
 }
 
@@ -836,6 +854,11 @@ document.addEventListener('change', (ev) => {
   const { accion, valor } = el.dataset || {};
   if (accion === 'ejercicio') {
     cambiar(() => marcarEjercicio(diaVisto, valor, el.checked));
+  } else if (accion === 'practica') {
+    cambiar(() => {
+      const dia = diaEditable(diaVisto);
+      if (el.checked) dia.practica = true; else delete dia.practica;
+    });
   } else if (accion === 'comida-activa') {
     cambiar(() => {
       const set = new Set(estado.config.comidas);
