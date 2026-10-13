@@ -340,7 +340,8 @@ object ClimaLogica {
   /** La tercera línea, igual que lineaCaminata en la web. */
   fun lineaCaminata(c: Caminata?, etiqueta: String): String {
     if (c == null) return ""
-    if (c.tipo == "cumplida") return "Meta de pasos cumplida"
+    // Con la meta cumplida no hay nada que decir: el widget queda en una línea.
+    if (c.tipo == "cumplida") return ""
     val falta = if (c.minutos != null) " · faltan ${c.minutos} min" else ""
     fun rato(v: Ventana) = "${hora(v.desde)}–${hora(v.hasta)} h"
     val camina = if (etiqueta == "Mañana") "Mañana caminá" else "Caminá"

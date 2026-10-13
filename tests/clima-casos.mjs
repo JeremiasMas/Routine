@@ -104,7 +104,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-13', minutos: 17 * 60 },
     pasos: 10450,
     horas: dia('2026-10-13', () => ({})),
-    widget: { titulo: 'Manga larga', caminar: 'Meta de pasos cumplida' },
+    widget: { titulo: 'Manga larga', caminar: '' },
   },
   {
     nombre: 'sin pronóstico',

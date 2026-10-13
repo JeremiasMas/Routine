@@ -593,7 +593,8 @@ const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 /** La segunda línea del widget: la caminata, en lo que entra en un renglón. */
 export function lineaCaminata(c) {
   if (!c) return '';
-  if (c.cumplida) return 'Meta de pasos cumplida';
+  // Con la meta cumplida no hay nada que decir: el widget queda en una línea.
+  if (c.cumplida) return '';
   const falta = c.minutos != null ? ` · faltan ${c.minutos} min` : '';
   const rato = (v) => `${hora(v.desde)}–${hora(v.hasta)} h`;
   const camina = c.etiqueta === 'Mañana' ? 'Mañana caminá' : 'Caminá';

@@ -445,7 +445,8 @@ si llevar paraguas y cuándo conviene salir a caminar** en Buenos Aires.
     Caminá 13–14:30 h · faltan 40 min
 
 Sin emojis ni temperaturas: la temperatura ya la da el reloj del teléfono, y
-el widget sólo dice lo que cambia lo que hacés. Las temperaturas de ida y
+el widget sólo dice lo que cambia lo que hacés. Con la meta de pasos cumplida, la
+segunda línea desaparece. Las temperaturas de ida y
 vuelta siguen en la app.
 
     https://jeremiasmas.github.io/Routine/clima/

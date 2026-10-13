@@ -176,7 +176,6 @@ test('los horarios de caminata se ordenan y se limpian', () => {
 
 test('la línea de la caminata entra en un renglón', () => {
   const casos = [
-    [{ cumplida: true }, 'Meta de pasos cumplida'],
     [{ tipo: 'habitual', inicio: 1140, ok: true, otra: null, minutos: 45, etiqueta: 'Hoy' }, 'Caminá 19 h · faltan 45 min'],
     [{ tipo: 'habitual', inicio: 1170, ok: true, otra: { desde: 7 * 60, hasta: 8 * 60 }, minutos: null, etiqueta: 'Hoy' }, 'Caminá 7–8 h, mejor que a las 19:30'],
     [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'lluvia', otra: { desde: 16 * 60, hasta: 17 * 60 }, etiqueta: 'Mañana' }, 'Mañana: lluvia a las 19, caminá 16–17 h'],
@@ -196,6 +195,13 @@ test('la línea de la caminata entra en un renglón', () => {
     assert.doesNotMatch(texto, /\p{Extended_Pictographic}/u, `"${texto}" lleva un emoji`);
     assert.ok([...texto].length <= 40, `"${texto}" no entra en el widget`);
   }
+});
+
+test('con la meta de pasos cumplida, el widget no dice nada de caminar', () => {
+  assert.equal(lineaCaminata({ cumplida: true, etiqueta: 'Hoy' }), '');
+  const horas = dia(MARTES, () => ({}));
+  const w = lineasWidget(plan(horas, LV, { fecha: MARTES, minutos: 15 * 60 }, 10400));
+  assert.deepEqual(w, { titulo: 'Manga larga', caminar: '' });
 });
 
 test('el widget son dos líneas: qué ponerte y cuándo caminar', () => {
