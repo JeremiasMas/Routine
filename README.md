@@ -475,8 +475,7 @@ En home office la ropa es para salir al almuerzo; pasado el almuerzo, para
 cuando terminás a las 18.
 
 **Lo fijo de la semana**, sacado de tu calendario: K1 martes y jueves de 20:30
-a 22, gimnasio miércoles de 19 a 20 y viernes de 18 a 20, piano viernes de 21
-a 21:30. Ahí la app nunca propone caminar: alcanza con que un rato se pise un
+a 22, y gimnasio miércoles de 19 a 20 y viernes de 18 a 20. Ahí la app nunca propone caminar: alcanza con que un rato se pise un
 minuto con algo fijo para que no se ofrezca. Se agregan, cambian o sacan en
 *Horarios y meta → Ocupado*.
 

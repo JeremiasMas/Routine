@@ -219,7 +219,7 @@ test('si llueve al mediodía, propone la vuelta a casa o la mañana', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Lo fijo de tu semana: K1, gimnasio, piano
+// Lo fijo de tu semana: K1 y el gimnasio
 // ---------------------------------------------------------------------------
 
 const MARTES_K1 = '2026-10-13';
@@ -232,7 +232,6 @@ test('los horarios ocupados por defecto son los de tu calendario', () => {
     'K1 2,4 20:30-22:00',
     'Gimnasio 3 19:00-20:00',
     'Gimnasio 5 18:00-20:00',
-    'Piano 5 21:00-21:30',
   ]);
   assert.deepEqual(normalizarHorario({ ocupados: [] }).ocupados, []);
   // Lo roto se descarta: sin días, al revés, o con horas que no existen.
@@ -253,7 +252,7 @@ test('martes y jueves no te manda a caminar a la hora de K1', () => {
   }
 });
 
-test('el viernes, entre el gimnasio y el piano, queda de 20 a 21', () => {
+test('el viernes, después del gimnasio, queda desde las 20', () => {
   const horas = dia(VIERNES, (h) => (h < 20 ? { prob: 90 } : {}));
   const c = planCaminata(horas, HORARIO_DEFAULT, VIERNES, 15 * 60, 9000);
   assert.deepEqual([c.tipo, c.desde, c.hasta], ['optimo', 20 * 60, 21 * 60]);
@@ -430,4 +429,16 @@ test('el service worker del clima cachea todo y nada que no exista', () => {
   for (const base of ['index.html', 'manifest.webmanifest', 'styles.css']) {
     assert.ok(listados.includes(base), `falta ${base} en clima/sw.js`);
   }
+});
+
+test('los campos de los ajustes bajan de renglón en vez de desbordar la pantalla', () => {
+  // Tres inputs de hora por fila ("08:30 p.m." con su reloj) no entran en un
+  // teléfono: con columnas fijas la pantalla entera se desplazaba de costado.
+  const css = readFileSync('clima/styles.css', 'utf8');
+  const campos = /^\.campos \{([^}]*)\}/m.exec(css)?.[1] ?? '';
+  assert.match(campos, /grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(/,
+    '.campos tiene que acomodar las columnas que entren, no un número fijo');
+  const inputs = /^\.campos input \{([^}]*)\}/m.exec(css)?.[1] ?? '';
+  assert.match(inputs, /min-width:\s*0/);
+  assert.match(inputs, /max-width:\s*100%/);
 });

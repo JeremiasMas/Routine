@@ -113,7 +113,6 @@ object ClimaLogica {
           Ocupado(setOf(2, 4), 20 * 60 + 30, 22 * 60),   // K1
           Ocupado(setOf(3), 19 * 60, 20 * 60),           // Gimnasio
           Ocupado(setOf(5), 18 * 60, 20 * 60),           // Gimnasio
-          Ocupado(setOf(5), 21 * 60, 21 * 60 + 30),      // Piano
         ),
       )
     }
