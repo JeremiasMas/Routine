@@ -106,7 +106,13 @@ function textoCaminata(c, horas) {
   if (c.tipo === 'optimo') {
     const cuando = finde ? `Es fin de semana: el horario óptimo ${dia === 'hoy' ? 'de hoy' : 'de mañana'}`
       : `El mejor rato ${dia === 'hoy' ? 'de hoy' : 'de mañana'}`;
-    return `<b>🚶</b> ${cuando} para caminar es ${rato(c)}.`;
+    let sol = '';
+    if (finde) {
+      sol = c.sol
+        ? ' Con sol para la vitamina D: 15 a 20 minutos con brazos y cara al sol alcanzan.'
+        : ' Viene nublado: no hay sol suficiente para la vitamina D.';
+    }
+    return `<b>🚶</b> ${cuando} para caminar es ${rato(c)}.${sol}`;
   }
   return `<b>🚶</b> ${c.etiqueta} no conviene caminar afuera: ${c.motivo}.`;
 }

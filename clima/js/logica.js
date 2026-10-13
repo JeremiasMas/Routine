@@ -72,6 +72,15 @@ export const PASOS_POR_MINUTO = 100;
 /** La sensación ideal para caminar, para alguien curtido en el sur. */
 export const CAMINATA_IDEAL = 15;
 /**
+ * Los fines de semana se busca sol para la vitamina D: con índice UV de 3 o
+ * más la piel la fabrica, y entre 15 y 20 minutos con brazos y cara alcanzan.
+ * Arriba de 6 ya te quemás rápido. Cada punto fuera de esa franja suma
+ * FACTOR_SOL a la penalidad.
+ */
+export const UV_VITAMINA_MIN = 3;
+export const UV_VITAMINA_MAX = 6;
+export const FACTOR_SOL = 1.5;
+/**
  * Cuánto más cómodo (en puntos de penalidad por hora) tiene que ser otro
  * horario para proponértelo aunque el tuyo esté bien.
  */
@@ -270,10 +279,24 @@ function motivoDe(h) {
  * Qué tan incómoda es una hora para caminar: 0 es perfecta. Suma lo lejos que
  * está de CAMINATA_IDEAL, la chance de lluvia, el sol y las ráfagas fuertes.
  * Sólo compara horas aptas entre sí; las que no lo son ni se miran.
+ *
+ * Entre semana el sol suma (se camina con lo que hay puesto). El fin de
+ * semana se busca: lo que suma es estar lejos de la franja buena para la
+ * vitamina D, por poco sol o por demasiado.
  */
-export function penalidad(h) {
-  return Math.abs(sensacion(h) - CAMINATA_IDEAL) + h.prob / 10 + (h.uv ?? 0) / 2
+export function penalidad(h, finde = false) {
+  const uv = h.uv ?? 0;
+  const sol = finde
+    ? (uv < UV_VITAMINA_MIN ? (UV_VITAMINA_MIN - uv) * FACTOR_SOL
+      : uv > UV_VITAMINA_MAX ? (uv - UV_VITAMINA_MAX) * FACTOR_SOL : 0)
+    : uv / 2;
+  return Math.abs(sensacion(h) - CAMINATA_IDEAL) + h.prob / 10 + sol
     + Math.max(0, (h.rafagas ?? 0) - 40) / 5;
+}
+
+/** ¿Hay sol para la vitamina D en todas estas horas? */
+export function conSol(horas) {
+  return horas.length > 0 && horas.every((x) => (x.uv ?? 0) >= UV_VITAMINA_MIN);
 }
 
 /**
@@ -323,7 +346,7 @@ function recortar(v, h, trabaja, viaje) {
  * El tramo más cómodo de `n` horas seguidas, todas aptas. Si no hay de `n`,
  * prueba más corto. Entre dos iguales, el primero.
  */
-export function ventanaOptima(candidatas, n) {
+export function ventanaOptima(candidatas, n, finde = false) {
   for (let k = n; k >= 1; k--) {
     let mejor = null;
     for (let i = 0; i + k <= candidatas.length; i++) {
@@ -332,7 +355,7 @@ export function ventanaOptima(candidatas, n) {
       for (let j = 0; j < k; j++) {
         const x = candidatas[i + j];
         if (x.hora !== candidatas[i].hora + j || !apta(x)) { sirve = false; break; }
-        suma += penalidad(x);
+        suma += penalidad(x, finde);
       }
       if (sirve && (!mejor || suma < mejor.suma)) mejor = { desde: candidatas[i].hora, hasta: candidatas[i].hora + k, suma };
     }
@@ -390,6 +413,7 @@ export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) 
   const almD = trabaja && h.almuerzo ? minutos(h.almuerzo.desde) : null;
 
   const semana = dia >= 1 && dia <= 5;
+  const finde = !semana;
   const habituales = semana ? h.caminatas.map(minutos) : [];
   if (almD != null && !habituales.includes(almD)) habituales.push(almD);
   habituales.sort((a, b) => a - b);
@@ -403,13 +427,13 @@ export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) 
     if (almuerzo) dur = Math.min(dur, minutos(h.almuerzo.hasta) - inicio);
     const tuyo = horas.filter((x) => x.fecha === fecha && x.hora * 60 < inicio + dur && x.hora * 60 + 60 > inicio);
     if (tuyo.length) {
-      const v = ventanaOptima(candidatas, entre(Math.ceil(dur / 60), 1, 2));
+      const v = ventanaOptima(candidatas, entre(Math.ceil(dur / 60), 1, 2), finde);
       const mejor = v ? { ...recortar(v, h, trabaja, viaje), penal: v.penal } : null;
       const malas = tuyo.filter((x) => !apta(x));
       const base = { tipo: 'habitual', inicio, almuerzo, minutos: faltanMin, quedan: pendientes.length };
       if (!malas.length) {
         let prom = 0;
-        for (const x of tuyo) prom += penalidad(x);
+        for (const x of tuyo) prom += penalidad(x, finde);
         prom /= tuyo.length;
         const otra = mejor && mejor.desde !== Math.floor(inicio / 60) * 60 && mejor.penal + MEJORA <= prom;
         return { ...base, ok: true, otra: otra ? { desde: mejor.desde, hasta: mejor.hasta } : null };
@@ -420,8 +444,11 @@ export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) 
 
   if (!candidatas.length) return null;
   const n = faltanMin == null ? 1 : entre(Math.ceil(faltanMin / 60), 1, 2);
-  const mejor = ventanaOptima(candidatas, n);
-  if (mejor) return { tipo: 'optimo', ...recortar(mejor, h, trabaja, viaje), minutos: faltanMin };
+  const mejor = ventanaOptima(candidatas, n, finde);
+  if (mejor) {
+    const sol = finde && conSol(candidatas.filter((x) => x.hora >= mejor.desde && x.hora < mejor.hasta));
+    return { tipo: 'optimo', ...recortar(mejor, h, trabaja, viaje), minutos: faltanMin, sol };
+  }
   return { motivo: motivoComun(candidatas), minutos: faltanMin };
 }
 
@@ -557,6 +584,6 @@ export function lineaCaminata(c) {
     if (c.ok) return c.otra ? `🚶 ${cuando} ok, mejor ${rato(c.otra)}` : `🚶 ${cuando} ✓${falta}`;
     return c.otra ? `🚶 ${cuando}: ${c.motivo} → ${rato(c.otra)}` : `🚶 ${cuando}: ${c.motivo}, no hay otro rato`;
   }
-  if (c.tipo === 'optimo') return `🚶 ${c.etiqueta} ${rato(c)}${falta}`;
+  if (c.tipo === 'optimo') return `🚶 ${c.etiqueta} ${rato(c)}${c.sol ? ' ☀️' : ''}${falta}`;
   return `🚶 ${c.etiqueta} mejor no: ${c.motivo}`;
 }
