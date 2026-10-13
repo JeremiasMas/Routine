@@ -1,6 +1,6 @@
 import {
   plan, lineasWidget, sensacion, lluviaEn, normalizarHorario, HORARIO_DEFAULT, DIAS, hora,
-  VIENTO_DE_CASA, PASOS_POR_MINUTO, diaDeSemana, minutos,
+  VIENTO_DE_CASA, PASOS_POR_MINUTO, diaDeSemana, minutos, MAX_OCUPADOS,
 } from './logica.js';
 import { traer, guardado, horasDe, ahoraEnBA, descripcion, LUGAR } from './pronostico.js';
 import {
@@ -220,10 +220,54 @@ function pintarPasos() {
     </label>`;
 }
 
-function pintarAjustes() {
-  const chips = (clase, elegidos) => [1, 2, 3, 4, 5, 6, 0].map((d) => `
+const chips = (clase, elegidos) => [1, 2, 3, 4, 5, 6, 0].map((d) => `
     <label class="dia"><input type="checkbox" class="${clase}" value="${d}" ${elegidos.includes(d) ? 'checked' : ''}>
       <span>${DIAS[d].slice(0, 2)}</span></label>`).join('');
+
+/** Una fila de "ocupado": qué es, qué días y de qué hora a qué hora. */
+function filaOcupado(o = { nombre: '', dias: [], desde: '', hasta: '' }) {
+  return `
+    <div class="ocupado">
+      <div class="ocupado-arriba">
+        <input type="text" class="oc-nombre" maxlength="30" placeholder="Qué es (K1, gimnasio…)" value="${esc(o.nombre)}">
+        <button type="button" class="quitar" aria-label="Quitar">✕</button>
+      </div>
+      <div class="dias dias-chicos">${chips('oc-dia', o.dias)}</div>
+      <div class="campos">
+        <label>desde <input type="time" class="oc-desde" value="${o.desde}"></label>
+        <label>hasta <input type="time" class="oc-hasta" value="${o.hasta}"></label>
+      </div>
+    </div>`;
+}
+
+/** Lee lo que hay en pantalla, lo guarda y se lo pasa al widget. */
+function guardarAjustes() {
+  horario = normalizarHorario({
+    dias: [...document.querySelectorAll('.dia-oficina:checked')].map((i) => Number(i.value)),
+    remoto: [...document.querySelectorAll('.dia-remoto:checked')].map((i) => Number(i.value)),
+    entrada: $('#entrada').value,
+    salida: $('#salida').value,
+    viaje: $('#viaje').value,
+    almuerzo: $('#almuerzo-desde').value && $('#almuerzo-hasta').value
+      ? { desde: $('#almuerzo-desde').value, hasta: $('#almuerzo-hasta').value }
+      : null,
+    caminatas: [...document.querySelectorAll('.caminata')].map((i) => i.value).filter(Boolean),
+    meta: $('#meta').value,
+    // Una fila a medio cargar (sin días o sin horas) queda en pantalla pero
+    // no cuenta hasta que esté completa.
+    ocupados: [...document.querySelectorAll('.ocupado')].map((f) => ({
+      nombre: f.querySelector('.oc-nombre').value,
+      dias: [...f.querySelectorAll('.oc-dia:checked')].map((i) => Number(i.value)),
+      desde: f.querySelector('.oc-desde').value,
+      hasta: f.querySelector('.oc-hasta').value,
+    })),
+  });
+  escribir(CLAVE_HORARIO, horario);
+  sincronizar(horario, registro?.json);
+  pintar();
+}
+
+function pintarAjustes() {
   const caminatas = [0, 1, 2].map((i) => `
       <label>Caminata ${i + 1} <input type="time" class="caminata" value="${horario.caminatas[i] ?? ''}"></label>`).join('');
   $('#ajustes').innerHTML = `
@@ -252,6 +296,10 @@ function pintarAjustes() {
     <div class="campos">
       <label>Meta de pasos <input type="number" id="meta" min="1000" max="50000" step="500" value="${horario.meta}"></label>
     </div>
+    <h3>Ocupado</h3>
+    <p class="suave">Lo fijo de cada semana. Ahí la app nunca te propone caminar.</p>
+    <div id="ocupados">${horario.ocupados.map(filaOcupado).join('')}</div>
+    <button type="button" class="boton boton-suave" id="agregar-ocupado">Agregar</button>
     ${enApp() ? '' : `<p class="suave">¿Querés el widget en la pantalla de inicio? <a href="${DESCARGA_APK}">Bajá la app para Android</a>.</p>`}`;
 
   $('#ajustes').addEventListener('change', (e) => {
@@ -260,21 +308,18 @@ function pintarAjustes() {
       const otro = e.target.classList.contains('dia-oficina') ? 'dia-remoto' : 'dia-oficina';
       document.querySelector(`.${otro}[value="${e.target.value}"]`).checked = false;
     }
-    horario = normalizarHorario({
-      dias: [...document.querySelectorAll('.dia-oficina:checked')].map((i) => Number(i.value)),
-      remoto: [...document.querySelectorAll('.dia-remoto:checked')].map((i) => Number(i.value)),
-      entrada: $('#entrada').value,
-      salida: $('#salida').value,
-      viaje: $('#viaje').value,
-      almuerzo: $('#almuerzo-desde').value && $('#almuerzo-hasta').value
-        ? { desde: $('#almuerzo-desde').value, hasta: $('#almuerzo-hasta').value }
-        : null,
-      caminatas: [...document.querySelectorAll('.caminata')].map((i) => i.value).filter(Boolean),
-      meta: $('#meta').value,
-    });
-    escribir(CLAVE_HORARIO, horario);
-    sincronizar(horario, registro?.json);
-    pintar();
+    guardarAjustes();
+  });
+
+  $('#ajustes').addEventListener('click', (e) => {
+    if (e.target.id === 'agregar-ocupado') {
+      if (document.querySelectorAll('.ocupado').length >= MAX_OCUPADOS) return;
+      $('#ocupados').insertAdjacentHTML('beforeend', filaOcupado());
+      $('#ocupados .ocupado:last-child .oc-nombre').focus();
+    } else if (e.target.classList.contains('quitar')) {
+      e.target.closest('.ocupado').remove();
+      guardarAjustes();
+    }
   });
 }
 

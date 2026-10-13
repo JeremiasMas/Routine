@@ -15,7 +15,7 @@ export function dia(fecha, f) {
 
 // Un horario fijo de lunes a viernes, sin almuerzo libre: los casos no dependen
 // de lo que valga el horario por defecto.
-const HORARIO = { dias: [1, 2, 3, 4, 5], entrada: '09:00', salida: '18:00', viaje: 45, almuerzo: null };
+const HORARIO = { dias: [1, 2, 3, 4, 5], entrada: '09:00', salida: '18:00', viaje: 45, almuerzo: null, ocupados: [] };
 
 export const CASOS = [
   {
