@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <!-- El fondo de la web del clima, para que no haya un flash de otro color al
-       abrir. Y el halo de los textos del widget, en el mismo azul noche. -->
+       abrir. El widget no se pisa: usa los mismos blancos y el mismo halo
+       oscuro que los de Rutina, que son los que ya están en tu pantalla. -->
   <color name="fondo">#0b1620</color>
-  <color name="widget_fondo">#0b1620</color>
-  <color name="widget_suave">#b7c7d3</color>
 </resources>
