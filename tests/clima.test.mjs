@@ -50,10 +50,30 @@ test('paraguas: lluvia sí, llovizna probable chico, sudestada capucha', () => {
   const seco = { prob: 5, lluvia: 0, codigo: 1, rafagas: 20 };
   assert.equal(paraguas([seco]).nivel, 'no');
   assert.equal(paraguas([{ ...seco, prob: 30 }]).nivel, 'quizas');
-  assert.equal(paraguas([{ ...seco, prob: 70 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, prob: 70, lluvia: 0.2 }]).nivel, 'si');
   assert.equal(paraguas([{ ...seco, lluvia: 1.2 }]).nivel, 'si');
   assert.equal(paraguas([{ ...seco, codigo: 95 }]).nivel, 'si');
-  assert.equal(paraguas([{ ...seco, prob: 80, rafagas: 70 }]).nivel, 'capucha');
+  assert.equal(paraguas([{ ...seco, prob: 80, lluvia: 2, rafagas: 70 }]).nivel, 'capucha');
+});
+
+test('una probabilidad alta sin agua esperada no es lluvia, es "por las dudas"', () => {
+  // Lo que pasó el 13/10: chubascos sueltos a la mañana, y a la tarde
+  // Open-Meteo con probabilidad alta pero sin milímetros. No era para
+  // mandarte a caminar a las 19 en vez de al almuerzo.
+  const seco = { prob: 5, lluvia: 0, codigo: 1, rafagas: 20 };
+  assert.equal(paraguas([{ ...seco, prob: 70 }]).nivel, 'quizas');
+  assert.equal(paraguas([{ ...seco, prob: 10, lluvia: 0.1 }]).nivel, 'quizas');
+  assert.equal(paraguas([{ ...seco, prob: 10, lluvia: 0.3 }]).nivel, 'si');
+});
+
+test('la lluvia que ya pasó no cuenta para el paraguas', () => {
+  // Llovió a la ida (8 a 9); al mediodía ya no llueve más en el día.
+  const horas = dia(MIERCOLES, (h) => (h === 8 ? { prob: 90, lluvia: 2 } : {}));
+  const alas7 = plan(horas, HORARIO_DEFAULT, { fecha: MIERCOLES, minutos: 7 * 60 });
+  assert.equal(alas7.paraguas.nivel, 'si');
+  const mediodia = plan(horas, HORARIO_DEFAULT, { fecha: MIERCOLES, minutos: 12 * 60 + 50 });
+  assert.equal(mediodia.paraguas.nivel, 'no');
+  assert.equal(lineasWidget(mediodia).titulo, 'Manga larga');
 });
 
 test('el horario roto vuelve al de siempre', () => {
@@ -340,7 +360,7 @@ test('un día no puede ser de oficina y de home office a la vez', () => {
 });
 
 test('si llueve al mediodía, el paraguas va aunque la ida y la vuelta estén secas', () => {
-  const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80 } : {}));
+  const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : {}));
   const ahora = { fecha: MIERCOLES, minutos: 7 * 60 };
   assert.equal(plan(horas, HORARIO_DEFAULT, ahora).paraguas.nivel, 'si');
   assert.equal(plan(horas, { ...HORARIO_DEFAULT, almuerzo: null }, ahora).paraguas.nivel, 'no');
