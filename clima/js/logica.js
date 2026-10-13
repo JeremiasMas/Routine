@@ -571,6 +571,7 @@ export function plan(horas, horario, ahora, pasos = null) {
     temp: Math.round(salir[0].temp),
     maxima: Math.round(Math.max(...horas.filter((x) => x.fecha === fecha).map((x) => x.temp))),
     caminata: camina ? { ...camina, fecha: fechaCaminata, etiqueta: etiquetaCaminata } : null,
+    vestir: vestir(horas, h, ahora, camina ? { ...camina, fecha: fechaCaminata } : null),
     pasos: pasos == null ? null : { hoy: pasos, meta: h.meta, faltan: Math.max(0, h.meta - pasos) },
   };
 }
@@ -584,8 +585,99 @@ const TEXTO_PARAGUAS = { no: '', quizas: ' · ¿paraguas?', si: ' · paraguas', 
  * los dos con los mismos casos.
  */
 export function lineasWidget(p) {
-  if (!p) return { titulo: 'Sin pronóstico', caminar: 'Abrí la app con conexión' };
-  return { titulo: `${p.ropa.corto}${TEXTO_PARAGUAS[p.paraguas.nivel]}`, caminar: lineaCaminata(p.caminata) };
+  if (!p) return { titulo: 'Sin pronóstico', aviso: '', caminar: 'Abrí la app con conexión' };
+  return { titulo: p.vestir.titulo, aviso: p.vestir.aviso, caminar: lineaCaminata(p.caminata) };
+}
+
+/** Cuánto antes de salir de la oficina empieza a decirte cómo volver. */
+export const AVISO_SALIDA = 60;
+
+const RANGO_PARAGUAS = { no: 0, quizas: 1, si: 2, capucha: 3 };
+const PALABRA_PARAGUAS = { no: '', quizas: '¿paraguas?', si: 'paraguas', capucha: 'capucha' };
+
+/** "Campera liviana · paraguas" para un tramo de horas. */
+function prenda(hs) {
+  return `${ropaPara(Math.min(...hs.map(sensacion))).corto}${TEXTO_PARAGUAS[paraguas(hs).nivel]}`;
+}
+
+/**
+ * Qué ponerte, sólo cuando estás por salir. Es la primera línea del widget,
+ * y queda vacía cuando no hay ninguna salida cerca:
+ *
+ * - Día de oficina, antes de llegar: lo de la ida. Si a la vuelta (o al
+ *   almuerzo) hace falta algo que a la ida no, lo avisa en una segunda línea:
+ *   "Para la vuelta: campera y paraguas".
+ * - En la oficina, nada; desde AVISO_SALIDA minutos antes de salir y hasta
+ *   llegar a casa, lo de la vuelta. Ya en casa, nada.
+ * - Home office: lo de tu próxima caminata; sin caminata, nada.
+ * - Fin de semana o día libre: lo de salir ahora y las próximas horas.
+ *
+ * Desde HORA_DE_MANANA es todo para mañana, para dejar la ropa preparada.
+ *
+ * @param {Object|null} caminata  la de plan(), con su `fecha`
+ */
+export function vestir(horas, horario, ahora, caminata) {
+  const h = normalizarHorario(horario);
+  const nada = { titulo: '', aviso: '' };
+  const manana = ahora.minutos >= HORA_DE_MANANA * 60;
+  const fecha = manana ? sumarDias(ahora.fecha, 1) : ahora.fecha;
+  const min = manana ? -1 : ahora.minutos;
+  const pendiente = (x) => x.hora * 60 + 60 > min;
+  const dia = diaDeSemana(fecha);
+  const entrada = minutos(h.entrada);
+  const salida = minutos(h.salida);
+
+  if (h.dias.includes(dia)) {
+    const ida = tramo(horas, fecha, entrada - h.viaje, entrada);
+    const vuelta = tramo(horas, fecha, salida, salida + h.viaje);
+    if (min < entrada) {
+      const base = ida.some(pendiente) ? ida.filter(pendiente) : ida;
+      if (!base.length) return nada;
+      const ropaIda = ropaPara(Math.min(...base.map(sensacion)));
+      const lluviaIda = RANGO_PARAGUAS[paraguas(base).nivel];
+      const titulo = prenda(base);
+      // Lo que la ida no cubre: más abrigo o lluvia a la vuelta o al almuerzo.
+      const vueltaPide = [];
+      let lluviaVuelta = 0;
+      if (vuelta.length) {
+        const ropaVuelta = ropaPara(Math.min(...vuelta.map(sensacion)));
+        if (ropaVuelta.hasta < ropaIda.hasta) vueltaPide.push(ropaVuelta.corto.toLowerCase());
+        const nivel = paraguas(vuelta).nivel;
+        lluviaVuelta = RANGO_PARAGUAS[nivel];
+        if (lluviaVuelta > lluviaIda) vueltaPide.push(PALABRA_PARAGUAS[nivel]);
+      }
+      const partes = [];
+      if (vueltaPide.length) partes.push(`Para la vuelta: ${vueltaPide.join(' y ')}`);
+      if (h.almuerzo) {
+        const nivel = paraguas(tramo(horas, fecha, minutos(h.almuerzo.desde), minutos(h.almuerzo.hasta))).nivel;
+        if (RANGO_PARAGUAS[nivel] > Math.max(lluviaIda, lluviaVuelta)) partes.push(`Al almuerzo: ${PALABRA_PARAGUAS[nivel]}`);
+      }
+      return { titulo, aviso: partes.join(' · ') };
+    }
+    if (min >= salida - AVISO_SALIDA && min < salida + h.viaje && vuelta.length) {
+      const base = vuelta.some(pendiente) ? vuelta.filter(pendiente) : vuelta;
+      return { titulo: prenda(base), aviso: '' };
+    }
+    return nada;
+  }
+
+  if (h.remoto.includes(dia)) {
+    const c = caminata?.fecha === fecha ? caminata : null;
+    let rato = null;
+    if (c?.tipo === 'habitual') {
+      if (c.ok || !c.otra) rato = c.ok ? { desde: c.inicio, hasta: c.fin ?? c.inicio + 60 } : null;
+      else rato = c.otra;
+    } else if (c?.tipo === 'optimo') {
+      rato = c;
+    }
+    if (!rato) return nada;
+    const hs = tramo(horas, fecha, rato.desde, rato.hasta).filter(pendiente);
+    return hs.length ? { titulo: prenda(hs), aviso: '' } : nada;
+  }
+
+  const inicio = manana ? 10 * 60 : ahora.minutos;
+  const hs = tramo(horas, fecha, inicio, inicio + 4 * 60);
+  return hs.length ? { titulo: prenda(hs), aviso: '' } : nada;
 }
 
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);

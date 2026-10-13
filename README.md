@@ -438,16 +438,28 @@ a Sísifo feliz. La paleta es toda en azules.
 
 ## Clima: qué ponerte hoy 🧥
 
-En `clima/` vive una tercera app, con un widget de dos líneas: **qué ponerte,
-si llevar paraguas y cuándo conviene salir a caminar** en Buenos Aires.
+En `clima/` vive una tercera app, con un widget de texto corto: **qué
+ponerte, si llevar paraguas y cuándo conviene salir a caminar** en Buenos
+Aires.
 
-    Campera liviana · paraguas
+    Remera
+    Para la vuelta: campera y paraguas
     Caminá 13–14:30 h · faltan 40 min
 
 Sin emojis ni temperaturas: la temperatura ya la da el reloj del teléfono, y
-el widget sólo dice lo que cambia lo que hacés. Con la meta de pasos cumplida, la
-segunda línea desaparece. Las temperaturas de ida y
-vuelta siguen en la app.
+el widget sólo dice lo que cambia lo que hacés. Lo que no aplica no se ve:
+
+| Cuándo | Qué ponerte |
+|---|---|
+| Día de oficina, antes de llegar | Lo de la ida, y si la vuelta (o el almuerzo) pide algo más, un aviso: "Para la vuelta: campera y paraguas" |
+| En la oficina | Nada, hasta una hora antes de salir |
+| De una hora antes de salir hasta llegar a casa | Lo de la vuelta |
+| Ya en casa | Nada; desde las 20, lo de mañana |
+| Home office | Lo de tu próxima caminata; sin caminata, nada |
+| Fin de semana | Lo de salir ahora |
+
+La línea de la caminata desaparece con la meta de pasos cumplida. Las
+temperaturas de ida y vuelta siguen en la app.
 
     https://jeremiasmas.github.io/Routine/clima/
 

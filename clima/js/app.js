@@ -140,7 +140,8 @@ function pintar() {
   const w = lineasWidget(p);
 
   $('#widget').innerHTML = `
-    <div class="w-titulo">${esc(w.titulo)}</div>
+    ${w.titulo ? `<div class="w-titulo">${esc(w.titulo)}</div>` : ''}
+    ${w.aviso ? `<div class="w-aviso">${esc(w.aviso)}</div>` : ''}
     ${w.caminar ? `<div class="w-caminar">${esc(w.caminar)}</div>` : ''}`;
 
   const estado = registro

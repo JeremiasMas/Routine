@@ -73,7 +73,8 @@ test('la lluvia que ya pasó no cuenta para el paraguas', () => {
   assert.equal(alas7.paraguas.nivel, 'si');
   const mediodia = plan(horas, HORARIO_DEFAULT, { fecha: MIERCOLES, minutos: 12 * 60 + 50 });
   assert.equal(mediodia.paraguas.nivel, 'no');
-  assert.equal(lineasWidget(mediodia).titulo, 'Manga larga');
+  // Y al mediodía estás en la oficina: el widget no dice qué ponerte.
+  assert.equal(lineasWidget(mediodia).titulo, '');
 });
 
 test('el horario roto vuelve al de siempre', () => {
@@ -197,17 +198,68 @@ test('la línea de la caminata entra en un renglón', () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Qué ponerte, sólo cuando estás por salir
+// ---------------------------------------------------------------------------
+
+const wid = (horas, horario, fecha, min, pasos = null) => lineasWidget(plan(horas, horario, { fecha, minutos: min }, pasos));
+
+test('a la mañana de oficina avisa si a la vuelta hace falta abrigo o paraguas', () => {
+  // Mañana despejada y templada; a la vuelta refresca fuerte y llueve.
+  const horas = dia(MIERCOLES, (h) => (h >= 18 ? { temp: 6, prob: 80, lluvia: 1 } : { temp: 21 }));
+  const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w.titulo, 'Remera');
+  assert.equal(w.aviso, 'Para la vuelta: campera y paraguas');
+  // Si la vuelta está igual o mejor que la ida, no hay aviso.
+  const parejo = dia(MIERCOLES, () => ({ temp: 21 }));
+  assert.equal(wid(parejo, HORARIO_DEFAULT, MIERCOLES, 7 * 60).aviso, '');
+});
+
+test('si sólo llueve al almuerzo, lo avisa aparte', () => {
+  const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : {}));
+  const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w.titulo, 'Manga larga');
+  assert.equal(w.aviso, 'Al almuerzo: paraguas');
+});
+
+test('en la oficina no dice qué ponerte hasta una hora antes de salir', () => {
+  const horas = dia(MIERCOLES, (h) => (h >= 18 ? { temp: 6 } : {}));
+  assert.equal(wid(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 10400).titulo, '');
+  assert.equal(wid(horas, HORARIO_DEFAULT, MIERCOLES, 16 * 60 + 59, 10400).titulo, '');
+  // Desde las 17 y hasta llegar a casa (19), lo de la vuelta.
+  assert.equal(wid(horas, HORARIO_DEFAULT, MIERCOLES, 17 * 60, 10400).titulo, 'Campera');
+  assert.equal(wid(horas, HORARIO_DEFAULT, MIERCOLES, 18 * 60 + 30, 10400).titulo, 'Campera');
+  // Ya en casa, nada.
+  assert.equal(wid(horas, HORARIO_DEFAULT, MIERCOLES, 19 * 60 + 10, 10400).titulo, '');
+});
+
+test('en home office, lo de tu próxima caminata; sin caminata, nada', () => {
+  // Lunes: el almuerzo es tu caminata, y a esa hora hace 12°.
+  const horas = dia(LUNES, (h) => ({ temp: h === 13 || h === 14 ? 12 : 20 }));
+  assert.equal(wid(horas, HORARIO_DEFAULT, LUNES, 9 * 60, 4000).titulo, 'Campera liviana');
+  // Con la meta cumplida no hay caminata, y no hay qué ponerse.
+  assert.equal(wid(horas, HORARIO_DEFAULT, LUNES, 9 * 60, 10400).titulo, '');
+});
+
+test('el fin de semana, lo de salir ahora', () => {
+  const horas = dia(SABADO, (h) => ({ temp: h < 12 ? 10 : 20 }));
+  assert.equal(wid(horas, HORARIO_DEFAULT, SABADO, 9 * 60).titulo, 'Campera liviana');
+  assert.equal(wid(horas, HORARIO_DEFAULT, SABADO, 15 * 60).titulo, 'Remera');
+});
+
 test('con la meta de pasos cumplida, el widget no dice nada de caminar', () => {
   assert.equal(lineaCaminata({ cumplida: true, etiqueta: 'Hoy' }), '');
   const horas = dia(MARTES, () => ({}));
+  // A las 15 estás en la oficina y ya caminaste: el widget no dice nada.
   const w = lineasWidget(plan(horas, LV, { fecha: MARTES, minutos: 15 * 60 }, 10400));
-  assert.deepEqual(w, { titulo: 'Manga larga', caminar: '' });
+  assert.deepEqual(w, { titulo: '', aviso: '', caminar: '' });
 });
 
-test('el widget son dos líneas: qué ponerte y cuándo caminar', () => {
+test('el widget son líneas cortas: qué ponerte, un aviso si hace falta, cuándo caminar', () => {
   const horas = dia(MARTES, (h) => (h === 8 ? { prob: 30 } : {}));
   const w = lineasWidget(plan(horas, LV, { fecha: MARTES, minutos: 7 * 60 }));
-  assert.deepEqual(Object.keys(w), ['titulo', 'caminar']);
+  assert.deepEqual(Object.keys(w), ['titulo', 'aviso', 'caminar']);
+  assert.equal(w.aviso, '');
   assert.equal(w.titulo, 'Manga larga · ¿paraguas?');
   for (const t of Object.values(w)) assert.doesNotMatch(t, /\p{Extended_Pictographic}/u);
 });
