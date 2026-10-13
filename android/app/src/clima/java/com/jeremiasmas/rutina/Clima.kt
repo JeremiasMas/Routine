@@ -92,7 +92,20 @@ object Clima {
         if (d != null && hs != null) d to hs else null
       }
       val almuerzo = cargado?.takeIf { it.first < it.second && it.first >= ent && it.second <= sal }
-      ClimaLogica.Horario(dias, ent, sal, viaje, caminatas, meta, almuerzo, remoto)
+      // Sin la lista vale la de siempre; una lista vacía es "no tengo nada fijo".
+      val listaOcupados = j.optJSONArray("ocupados")
+      val ocupados = if (listaOcupados == null) base.ocupados
+      else (0 until listaOcupados.length()).mapNotNull { i ->
+        val o = listaOcupados.optJSONObject(i) ?: return@mapNotNull null
+        val d = minutos(o.optString("desde"))
+        val hs = minutos(o.optString("hasta"))
+        val diasO = o.optJSONArray("dias")?.let { arr ->
+          (0 until arr.length()).map { arr.optInt(it, -1) }.filter { it in 0..6 }.toSet()
+        }.orEmpty()
+        if (d == null || hs == null || d >= hs || diasO.isEmpty()) null
+        else ClimaLogica.Ocupado(diasO, d, hs)
+      }.take(ClimaLogica.MAX_OCUPADOS)
+      ClimaLogica.Horario(dias, ent, sal, viaje, caminatas, meta, almuerzo, remoto, ocupados)
     } catch (e: Exception) {
       base
     }

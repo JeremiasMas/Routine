@@ -474,6 +474,12 @@ cambia en *Horarios y meta*.
 En home office la ropa es para salir al almuerzo; pasado el almuerzo, para
 cuando terminás a las 18.
 
+**Lo fijo de la semana**, sacado de tu calendario: K1 martes y jueves de 20:30
+a 22, gimnasio miércoles de 19 a 20 y viernes de 18 a 20, piano viernes de 21
+a 21:30. Ahí la app nunca propone caminar: alcanza con que un rato se pise un
+minuto con algo fijo para que no se ofrezca. Se agregan, cambian o sacan en
+*Horarios y meta → Ocupado*.
+
 Los días de oficina la ropa sale de la temperatura **a la ida (8 a 9) y a la
 vuelta (18 a 19)**, y te avisa si a la vuelta refresca o te sobra abrigo. El
 paraguas mira además el almuerzo, porque a esa hora también salís. Desde las

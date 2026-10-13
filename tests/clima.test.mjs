@@ -66,7 +66,7 @@ test('el horario roto vuelve al de siempre', () => {
 const SABADO = '2026-10-17';
 // Las reglas generales se prueban con un horario fijo de lunes a viernes, sin
 // almuerzo libre; tu semana real se prueba aparte, más abajo.
-const LV = { dias: [1, 2, 3, 4, 5], entrada: '09:00', salida: '18:00', viaje: 45, almuerzo: null };
+const LV = { dias: [1, 2, 3, 4, 5], entrada: '09:00', salida: '18:00', viaje: 45, almuerzo: null, ocupados: [] };
 const conCaminata = (caminatas, extra = {}) => ({ ...LV, caminatas, ...extra });
 
 test('sin horarios propios busca el óptimo, fuera de la oficina', () => {
@@ -180,11 +180,63 @@ test('un día de oficina, la caminata es la del almuerzo', () => {
 
 test('si llueve al mediodía, propone la vuelta a casa o la mañana', () => {
   const horas = dia(MIERCOLES, (h) => (h === 13 || h === 14 ? { prob: 80, lluvia: 2 } : {}));
-  const c = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 7000);
+  const sinNadaFijo = { ...HORARIO_DEFAULT, ocupados: [] };
+  const c = planCaminata(horas, sinNadaFijo, MIERCOLES, 10 * 60, 7000);
   assert.equal(c.ok, false);
   assert.equal(c.motivo, 'lluvia');
   // Llegás a las 19: de 19 a 20 es el primer rato bueno después.
   assert.deepEqual(c.otra, { desde: 19 * 60, hasta: 20 * 60 });
+  // Pero los miércoles a las 19 tenés gimnasio: el rato pasa a las 20.
+  assert.deepEqual(planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 7000).otra, { desde: 20 * 60, hasta: 21 * 60 });
+});
+
+// ---------------------------------------------------------------------------
+// Lo fijo de tu semana: K1, gimnasio, piano
+// ---------------------------------------------------------------------------
+
+const MARTES_K1 = '2026-10-13';
+const JUEVES = '2026-10-15';
+const VIERNES = '2026-10-16';
+
+test('los horarios ocupados por defecto son los de tu calendario', () => {
+  const o = normalizarHorario({}).ocupados;
+  assert.deepEqual(o.map((x) => `${x.nombre} ${x.dias.join(',')} ${x.desde}-${x.hasta}`), [
+    'K1 2,4 20:30-22:00',
+    'Gimnasio 3 19:00-20:00',
+    'Gimnasio 5 18:00-20:00',
+    'Piano 5 21:00-21:30',
+  ]);
+  assert.deepEqual(normalizarHorario({ ocupados: [] }).ocupados, []);
+  // Lo roto se descarta: sin días, al revés, o con horas que no existen.
+  assert.deepEqual(normalizarHorario({ ocupados: [
+    { nombre: 'x', dias: [], desde: '10:00', hasta: '11:00' },
+    { nombre: 'y', dias: [1], desde: '12:00', hasta: '11:00' },
+    { nombre: 'z', dias: [1], desde: '25:00', hasta: '26:00' },
+    { nombre: ' Yoga ', dias: [6, 6], desde: '9:00', hasta: '10:00' },
+  ] }).ocupados, [{ nombre: 'Yoga', dias: [6], desde: '09:00', hasta: '10:00' }]);
+});
+
+test('martes y jueves no te manda a caminar a la hora de K1', () => {
+  // A la noche: llegás a las 19 y K1 es a las 20:30. Queda de 19 a 20.
+  for (const fecha of [MARTES_K1, JUEVES]) {
+    const horas = dia(fecha, (h) => (h < 19 ? { prob: 90 } : {}));
+    const c = planCaminata(horas, HORARIO_DEFAULT, fecha, 15 * 60, 9000);
+    assert.deepEqual([c.tipo, c.desde, c.hasta], ['optimo', 19 * 60, 20 * 60], `${fecha}: ${JSON.stringify(c)}`);
+  }
+});
+
+test('el viernes, entre el gimnasio y el piano, queda de 20 a 21', () => {
+  const horas = dia(VIERNES, (h) => (h < 20 ? { prob: 90 } : {}));
+  const c = planCaminata(horas, HORARIO_DEFAULT, VIERNES, 15 * 60, 9000);
+  assert.deepEqual([c.tipo, c.desde, c.hasta], ['optimo', 20 * 60, 21 * 60]);
+});
+
+test('una caminata habitual que cae adentro de algo fijo no se revisa', () => {
+  const horas = dia(MARTES_K1, () => ({}));
+  const conReunion = { ...HORARIO_DEFAULT, ocupados: [{ nombre: 'Almuerzo de trabajo', dias: [2], desde: '13:00', hasta: '14:30' }] };
+  const c = planCaminata(horas, conReunion, MARTES_K1, 10 * 60, 9000);
+  assert.notEqual(c.tipo, 'habitual');
+  assert.ok(c.desde >= 19 * 60, JSON.stringify(c));
 });
 
 test('nunca propone caminar en horario de oficina, fuera del almuerzo', () => {

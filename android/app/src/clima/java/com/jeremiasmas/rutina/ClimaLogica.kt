@@ -48,6 +48,7 @@ object ClimaLogica {
   const val DURACION_SIN_PASOS = 60
   const val DURACION_MIN = 20
   const val DURACION_MAX = 120
+  const val MAX_OCUPADOS = 8
 
   private val TORMENTA = setOf(95, 96, 99)
 
@@ -92,6 +93,8 @@ object ClimaLogica {
     val almuerzo: Pair<Int, Int>? = null,
     /** Los días de home office: mismo horario, sin viaje. */
     val remoto: Set<Int> = emptySet(),
+    /** Lo fijo de cada semana (K1, gimnasio): ahí no se camina. */
+    val ocupados: List<Ocupado> = emptyList(),
   ) {
     companion object {
       /**
@@ -102,9 +105,22 @@ object ClimaLogica {
       val DEFAULT = Horario(
         setOf(2, 3, 4), 9 * 60, 18 * 60, 60,
         almuerzo = 13 * 60 to 14 * 60 + 30, remoto = setOf(1, 5),
+        ocupados = listOf(
+          Ocupado(setOf(2, 4), 20 * 60 + 30, 22 * 60),   // K1
+          Ocupado(setOf(3), 19 * 60, 20 * 60),           // Gimnasio
+          Ocupado(setOf(5), 18 * 60, 20 * 60),           // Gimnasio
+          Ocupado(setOf(5), 21 * 60, 21 * 60 + 30),      // Piano
+        ),
       )
     }
   }
+
+  /** Un bloque fijo de la semana, [desde, hasta) en minutos, los `dias` que toca. */
+  data class Ocupado(val dias: Set<Int>, val desde: Int, val hasta: Int)
+
+  /** ¿Choca [desde, hasta) con algo fijo de ese día de la semana? */
+  private fun ocupado(h: Horario, dia: Int, desde: Int, hasta: Int): Boolean =
+    h.ocupados.any { dia in it.dias && desde < it.hasta && hasta > it.desde }
 
   data class Lineas(val titulo: String, val detalle: String, val caminar: String)
 
@@ -166,11 +182,13 @@ object ClimaLogica {
     val ocupadoHasta = h.salida + viaje
     val almD = h.almuerzo?.first ?: -1
     val almH = h.almuerzo?.second ?: -1
+    val dia = diaDeSemana(fecha)
     return horas.filter {
       it.fecha == fecha && it.hora >= CAMINATA_DESDE && it.hora < CAMINATA_HASTA &&
         it.hora * 60 >= desdeMin - 59 &&
         !(trabaja && it.hora * 60 < ocupadoHasta && it.hora * 60 + 60 > ocupadoDesde &&
-          !(it.hora * 60 >= almD && it.hora * 60 < almH))
+          !(it.hora * 60 >= almD && it.hora * 60 < almH)) &&
+        !ocupado(h, dia, it.hora * 60, it.hora * 60 + 60)
     }
   }
 
@@ -256,7 +274,8 @@ object ClimaLogica {
     val habituales = (if (semana) h.caminatas else emptyList()).toMutableList()
     if (almD != null && almD !in habituales) habituales.add(almD)
     habituales.sort()
-    val pendientes = habituales.filter { it >= desdeMin - 30 }
+    // Una caminata que arranca adentro de algo fijo no es una caminata.
+    val pendientes = habituales.filter { it >= desdeMin - 30 && !ocupado(h, dia, it, it + 1) }
     if (pendientes.isNotEmpty()) {
       val inicio = pendientes[0]
       val almuerzo = inicio == almD

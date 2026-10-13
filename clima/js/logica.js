@@ -119,7 +119,17 @@ export const HORARIO_DEFAULT = Object.freeze({
   almuerzo: Object.freeze({ desde: '13:00', hasta: '14:30' }),
   caminatas: [],            // tus horarios de caminata de lunes a viernes
   meta: META_PASOS,
+  // Lo fijo de cada semana, sacado de tu calendario: ahí no se camina.
+  ocupados: Object.freeze([
+    Object.freeze({ nombre: 'K1', dias: [2, 4], desde: '20:30', hasta: '22:00' }),
+    Object.freeze({ nombre: 'Gimnasio', dias: [3], desde: '19:00', hasta: '20:00' }),
+    Object.freeze({ nombre: 'Gimnasio', dias: [5], desde: '18:00', hasta: '20:00' }),
+    Object.freeze({ nombre: 'Piano', dias: [5], desde: '21:00', hasta: '21:30' }),
+  ]),
 });
+
+/** Cuántos horarios ocupados se pueden cargar. */
+export const MAX_OCUPADOS = 8;
 
 export const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
@@ -171,7 +181,16 @@ export function normalizarHorario(h = {}) {
   const meta = Number.isFinite(Number(h.meta)) && Number(h.meta) >= 1000
     ? Math.min(50000, Math.round(Number(h.meta)))
     : META_PASOS;
-  return { dias, remoto, entrada, salida, viaje, almuerzo, caminatas, meta };
+  // Sin la lista vale la de siempre; una lista vacía es "no tengo nada fijo".
+  const crudos = Array.isArray(h.ocupados) ? h.ocupados : HORARIO_DEFAULT.ocupados;
+  const ocupados = crudos.map((o) => {
+    const d = minutos(o?.desde);
+    const hs = minutos(o?.hasta);
+    const diasO = validos(o?.dias, []);
+    if (d == null || hs == null || d >= hs || !diasO.length) return null;
+    return { nombre: String(o.nombre ?? '').trim().slice(0, 30), dias: diasO, desde: hhmm(d), hasta: hhmm(hs) };
+  }).filter(Boolean).slice(0, MAX_OCUPADOS);
+  return { dias, remoto, entrada, salida, viaje, almuerzo, caminatas, meta, ocupados };
 }
 
 /**
@@ -258,11 +277,22 @@ export function penalidad(h) {
 }
 
 /**
- * Las horas de una fecha en las que podrías salir: ni pasadas ni de oficina,
- * salvo las del almuerzo. Una hora cuenta para el almuerzo si arranca adentro
- * de él (de 13 a 14:30 son las 13 y las 14).
+ * ¿Choca [desde, hasta) con algo fijo de ese día de la semana (K1, el
+ * gimnasio)? Alcanza con que se pise un minuto: con K1 a las 20:30, la hora
+ * de las 20 ya no se ofrece.
+ */
+function ocupado(h, dia, desde, hasta) {
+  return h.ocupados.some((o) => o.dias.includes(dia)
+    && desde < minutos(o.hasta) && hasta > minutos(o.desde));
+}
+
+/**
+ * Las horas de una fecha en las que podrías salir: ni pasadas, ni de oficina
+ * (salvo las del almuerzo), ni pisadas por algo fijo. Una hora cuenta para el
+ * almuerzo si arranca adentro de él (de 13 a 14:30 son las 13 y las 14).
  */
 function libres(horas, fecha, h, desdeMin, trabaja, viaje) {
+  const dia = diaDeSemana(fecha);
   const ocupadoDesde = minutos(h.entrada) - viaje;
   const ocupadoHasta = minutos(h.salida) + viaje;
   const almD = h.almuerzo ? minutos(h.almuerzo.desde) : -1;
@@ -271,7 +301,8 @@ function libres(horas, fecha, h, desdeMin, trabaja, viaje) {
     && x.hora >= CAMINATA_DESDE && x.hora < CAMINATA_HASTA
     && x.hora * 60 >= desdeMin - 59
     && !(trabaja && x.hora * 60 < ocupadoHasta && x.hora * 60 + 60 > ocupadoDesde
-      && !(x.hora * 60 >= almD && x.hora * 60 < almH)));
+      && !(x.hora * 60 >= almD && x.hora * 60 < almH))
+    && !ocupado(h, dia, x.hora * 60, x.hora * 60 + 60));
 }
 
 /**
@@ -362,7 +393,8 @@ export function planCaminata(horas, horario, fecha, desdeMin = 0, pasos = null) 
   const habituales = semana ? h.caminatas.map(minutos) : [];
   if (almD != null && !habituales.includes(almD)) habituales.push(almD);
   habituales.sort((a, b) => a - b);
-  const pendientes = habituales.filter((m) => m >= desdeMin - 30);
+  // Una caminata que arranca adentro de algo fijo no es una caminata.
+  const pendientes = habituales.filter((m) => m >= desdeMin - 30 && !ocupado(h, dia, m, m + 1));
   if (pendientes.length) {
     const inicio = pendientes[0];
     const almuerzo = inicio === almD;
