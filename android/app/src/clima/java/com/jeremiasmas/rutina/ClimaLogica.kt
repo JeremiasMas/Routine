@@ -31,6 +31,7 @@ object ClimaLogica {
   const val PROB_LLUEVE = 50.0
   const val PROB_QUIZAS = 25.0
   const val MM_LLUEVE = 0.3
+  const val MM_LLOVIZNA = 0.1
   const val RAFAGAS_PARAGUAS = 55.0
 
   const val CAMINATA_MIN = -3.0
@@ -142,8 +143,8 @@ object ClimaLogica {
   /** "tormenta", "lluvia", "quizas" o null. */
   fun lluviaEn(h: Hora): String? = when {
     h.codigo in TORMENTA -> "tormenta"
-    h.prob >= PROB_LLUEVE || h.lluvia >= MM_LLUEVE -> "lluvia"
-    h.prob >= PROB_QUIZAS -> "quizas"
+    h.lluvia >= MM_LLUEVE || (h.prob >= PROB_LLUEVE && h.lluvia >= MM_LLOVIZNA) -> "lluvia"
+    h.prob >= PROB_QUIZAS || h.lluvia >= MM_LLOVIZNA -> "quizas"
     else -> null
   }
 
@@ -378,7 +379,7 @@ object ClimaLogica {
     val casa = remoto && alm != null && (manana || minutosAhora < alm.second)
 
     var almuerzo = emptyList<Hora>()
-    val salir: List<Hora>
+    var salir: List<Hora>
     if (oficina) {
       salir = tramo(horas, fecha, h.entrada - h.viaje, h.entrada) + tramo(horas, fecha, h.salida, h.salida + h.viaje)
       // Al almuerzo también salís: si llueve a esa hora, el paraguas va.
@@ -389,6 +390,13 @@ object ClimaLogica {
       var inicio = if (manana) 10 * 60 else minutosAhora
       if (remoto && !manana && minutosAhora < h.salida) inicio = h.salida
       salir = tramo(horas, fecha, inicio, inicio + 4 * 60)
+    }
+    // Lo que ya pasó no cuenta: la lluvia de la ida no te hace llevar paraguas
+    // al mediodía, y la ropa es para lo que todavía tenés por delante.
+    if (!manana) {
+      val pendiente = { x: Hora -> x.hora * 60 + 60 > minutosAhora }
+      if (salir.any(pendiente)) salir = salir.filter(pendiente)
+      almuerzo = almuerzo.filter(pendiente)
     }
     if (salir.isEmpty()) return sinDatos
 

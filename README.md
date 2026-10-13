@@ -469,8 +469,12 @@ Está calibrada para alguien que se crió en **Río Grande**:
 | 19 – 25° | 👕 Remera |
 | 25° o más | 🥵 Lo más liviano |
 
-**Paraguas:** sí desde 50% de probabilidad o 0,3 mm en una hora; "por las
-dudas" desde 25%. Con ráfagas de 55 km/h o más, capucha en vez de paraguas.
+**Paraguas:** sí con 0,3 mm o más en una hora, o con 50% de probabilidad *y*
+al menos 0,1 mm esperados; "por las dudas" desde 25% o con 0,1 mm. La
+probabilidad sola no alcanza: en un día de chubascos sueltos se infla aunque
+no se espere agua. Lo que ya pasó no cuenta: la lluvia de la ida no te hace
+llevar paraguas al mediodía. Con ráfagas de 55 km/h o más, capucha en vez de
+paraguas.
 
 **Tu semana:** oficina **martes, miércoles y jueves de 9 a 18**, con **una
 hora de colectivo** de cada lado (salís de casa a las 8 y llegás a las 19).

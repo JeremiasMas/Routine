@@ -45,6 +45,12 @@ export const PROB_QUIZAS = 25;
 /** Milímetros en una hora que ya cuentan como lluvia, diga lo que diga la probabilidad. */
 export const MM_LLUEVE = 0.3;
 /**
+ * La probabilidad sola no alcanza para decir "llueve": Open-Meteo la saca de
+ * muchos modelos y en un día de chubascos sueltos se infla aunque esperen 0
+ * mm. Con probabilidad alta tiene que esperar además al menos esto de agua.
+ */
+export const MM_LLOVIZNA = 0.1;
+/**
  * Ráfagas desde las que el paraguas se da vuelta. En Río Grande nadie usa
  * paraguas por esto mismo; en Buenos Aires sirve casi siempre, salvo con
  * sudestada.
@@ -230,8 +236,8 @@ export function ropaPara(s) {
 /** 'tormenta', 'lluvia', 'quizas' o null. */
 export function lluviaEn(h) {
   if (TORMENTA.includes(h.codigo)) return 'tormenta';
-  if (h.prob >= PROB_LLUEVE || h.lluvia >= MM_LLUEVE) return 'lluvia';
-  if (h.prob >= PROB_QUIZAS) return 'quizas';
+  if (h.lluvia >= MM_LLUEVE || (h.prob >= PROB_LLUEVE && h.lluvia >= MM_LLOVIZNA)) return 'lluvia';
+  if (h.prob >= PROB_QUIZAS || h.lluvia >= MM_LLOVIZNA) return 'quizas';
   return null;
 }
 
@@ -511,6 +517,13 @@ export function plan(horas, horario, ahora, pasos = null) {
     let inicio = manana ? 10 * 60 : ahora.minutos;
     if (remoto && !manana && ahora.minutos < salida) inicio = salida;
     salir = tramo(horas, fecha, inicio, inicio + 4 * 60);
+  }
+  // Lo que ya pasó no cuenta: la lluvia de la ida no te hace llevar paraguas
+  // al mediodía, y la ropa es para lo que todavía tenés por delante.
+  if (!manana) {
+    const pendiente = (x) => x.hora * 60 + 60 > ahora.minutos;
+    if (salir.some(pendiente)) salir = salir.filter(pendiente);
+    almuerzo = almuerzo.filter(pendiente);
   }
   if (!salir.length) return null;
 
