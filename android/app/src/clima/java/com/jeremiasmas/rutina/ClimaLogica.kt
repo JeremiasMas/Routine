@@ -44,6 +44,10 @@ object ClimaLogica {
   const val META_PASOS = 10000
   const val PASOS_POR_MINUTO = 100
   const val CAMINATA_IDEAL = 15.0
+  /** El fin de semana se busca sol para la vitamina D: UV entre estos dos. */
+  const val UV_VITAMINA_MIN = 3.0
+  const val UV_VITAMINA_MAX = 6.0
+  const val FACTOR_SOL = 1.5
   const val MEJORA = 4.0
   const val DURACION_SIN_PASOS = 60
   const val DURACION_MIN = 20
@@ -174,8 +178,17 @@ object ClimaLogica {
     }
   }
 
-  fun penalidad(h: Hora): Double =
-    abs(sensacion(h) - CAMINATA_IDEAL) + h.prob / 10 + h.uv / 2 + max(0.0, h.rafagas - 40) / 5
+  /** Como penalidad en la web: el fin de semana el sol se busca en vez de sumar. */
+  fun penalidad(h: Hora, finde: Boolean = false): Double {
+    val sol = if (!finde) h.uv / 2
+    else if (h.uv < UV_VITAMINA_MIN) (UV_VITAMINA_MIN - h.uv) * FACTOR_SOL
+    else if (h.uv > UV_VITAMINA_MAX) (h.uv - UV_VITAMINA_MAX) * FACTOR_SOL
+    else 0.0
+    return abs(sensacion(h) - CAMINATA_IDEAL) + h.prob / 10 + sol + max(0.0, h.rafagas - 40) / 5
+  }
+
+  /** ¿Hay sol para la vitamina D en todas estas horas? */
+  fun conSol(horas: List<Hora>): Boolean = horas.isNotEmpty() && horas.all { it.uv >= UV_VITAMINA_MIN }
 
   private fun libres(horas: List<Hora>, fecha: String, h: Horario, desdeMin: Int, trabaja: Boolean, viaje: Int): List<Hora> {
     val ocupadoDesde = h.entrada - viaje
@@ -210,7 +223,7 @@ object ClimaLogica {
    */
   data class Ventana(val desde: Int, val hasta: Int, val penal: Double)
 
-  fun ventanaOptima(candidatas: List<Hora>, n: Int): Ventana? {
+  fun ventanaOptima(candidatas: List<Hora>, n: Int, finde: Boolean = false): Ventana? {
     for (k in n downTo 1) {
       var mejor: Ventana? = null
       var mejorSuma = 0.0
@@ -220,7 +233,7 @@ object ClimaLogica {
         for (j in 0 until k) {
           val x = candidatas[i + j]
           if (x.hora != candidatas[i].hora + j || !apta(x)) { sirve = false; break }
-          suma += penalidad(x)
+          suma += penalidad(x, finde)
         }
         if (sirve && (mejor == null || suma < mejorSuma)) {
           mejor = Ventana(candidatas[i].hora, candidatas[i].hora + k, 0.0)
@@ -255,6 +268,8 @@ object ClimaLogica {
     val motivo: String? = null,
     val otra: Ventana? = null,
     val minutos: Int? = null,
+    /** Un óptimo de fin de semana con sol para la vitamina D. */
+    val sol: Boolean = false,
   )
 
   private fun entre(n: Int, minimo: Int, maximo: Int) = min(maximo, max(minimo, n))
@@ -271,6 +286,7 @@ object ClimaLogica {
     val almD = if (trabaja) h.almuerzo?.first else null
 
     val semana = dia in 1..5
+    val finde = !semana
     val habituales = (if (semana) h.caminatas else emptyList()).toMutableList()
     if (almD != null && almD !in habituales) habituales.add(almD)
     habituales.sort()
@@ -284,11 +300,11 @@ object ClimaLogica {
       if (almuerzo) dur = min(dur, h.almuerzo!!.second - inicio)
       val tuyo = horas.filter { it.fecha == fecha && it.hora * 60 < inicio + dur && it.hora * 60 + 60 > inicio }
       if (tuyo.isNotEmpty()) {
-        val mejor = ventanaOptima(candidatas, entre(ceil(dur / 60.0).toInt(), 1, 2))?.let { recortar(it, h, trabaja, viaje) }
+        val mejor = ventanaOptima(candidatas, entre(ceil(dur / 60.0).toInt(), 1, 2), finde)?.let { recortar(it, h, trabaja, viaje) }
         val malas = tuyo.filter { !apta(it) }
         if (malas.isEmpty()) {
           var prom = 0.0
-          for (x in tuyo) prom += penalidad(x)
+          for (x in tuyo) prom += penalidad(x, finde)
           prom /= tuyo.size
           val otra = mejor != null && mejor.desde != (inicio / 60) * 60 && mejor.penal + MEJORA <= prom
           return Caminata("habitual", inicio, almuerzo, true, null, if (otra) mejor else null, faltanMin)
@@ -299,8 +315,11 @@ object ClimaLogica {
 
     if (candidatas.isEmpty()) return null
     val n = if (faltanMin == null) 1 else entre(ceil(faltanMin / 60.0).toInt(), 1, 2)
-    val mejor = ventanaOptima(candidatas, n)
-    if (mejor != null) return Caminata("optimo", otra = recortar(mejor, h, trabaja, viaje), minutos = faltanMin)
+    val mejor = ventanaOptima(candidatas, n, finde)
+    if (mejor != null) {
+      val sol = finde && conSol(candidatas.filter { it.hora >= mejor.desde && it.hora < mejor.hasta })
+      return Caminata("optimo", otra = recortar(mejor, h, trabaja, viaje), minutos = faltanMin, sol = sol)
+    }
     return Caminata("nada", motivo = motivoComun(candidatas), minutos = faltanMin)
   }
 
@@ -331,7 +350,7 @@ object ClimaLogica {
           if (otra != null) "🚶 $cuando: ${c.motivo} → ${rato(otra)}" else "🚶 $cuando: ${c.motivo}, no hay otro rato"
         }
       }
-      "optimo" -> "🚶 $etiqueta ${rato(otra!!)}$falta"
+      "optimo" -> "🚶 $etiqueta ${rato(otra!!)}${if (c.sol) " ☀️" else ""}$falta"
       else -> "🚶 $etiqueta mejor no: ${c.motivo}"
     }
   }

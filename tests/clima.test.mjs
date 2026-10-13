@@ -72,15 +72,15 @@ const conCaminata = (caminatas, extra = {}) => ({ ...LV, caminatas, ...extra });
 test('sin horarios propios busca el óptimo, fuera de la oficina', () => {
   const horas = dia(MARTES, () => ({}));
   // Libre a las 7 (a las 8:15 salís) y de 19 a 22. Todo igual de bueno: el primero.
-  assert.deepEqual(planCaminata(horas, LV, MARTES), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: null });
+  assert.deepEqual(planCaminata(horas, LV, MARTES), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: null, sol: false });
 });
 
 test('con los pasos que faltan calcula cuánto caminar', () => {
   const horas = dia(MARTES, () => ({}));
   // 8.000 pasos que faltan son 80 minutos: hacen falta dos horas seguidas, y
   // a la mañana hay una sola.
-  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 2000), { tipo: 'optimo', desde: 19 * 60, hasta: 21 * 60, minutos: 80 });
-  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 9950), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: 1 });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 2000), { tipo: 'optimo', desde: 19 * 60, hasta: 21 * 60, minutos: 80, sol: false });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 9950), { tipo: 'optimo', desde: 7 * 60, hasta: 8 * 60, minutos: 1, sol: false });
   assert.deepEqual(planCaminata(horas, LV, MARTES, 0, 10200), { cumplida: true });
   assert.deepEqual(planCaminata(horas, conCaminata([], { meta: 12000 }), MARTES, 0, 10200).minutos, 18);
 });
@@ -105,15 +105,42 @@ test('aunque tu horario sirva, avisa si otro es mucho mejor', () => {
 });
 
 test('el fin de semana da el horario óptimo, sin mirar los de la semana', () => {
-  const horas = dia(SABADO, (h) => (h === 10 || h === 11 ? { temp: 15, uv: 0 } : {}));
+  // Nublado todo el día salvo de 10 a 12, que además está a 15°.
+  const horas = dia(SABADO, (h) => (h === 10 || h === 11 ? { temp: 15, uv: 4 } : { uv: 1 }));
   assert.deepEqual(planCaminata(horas, conCaminata(['19:00']), SABADO, 0, 2000),
-    { tipo: 'optimo', desde: 10 * 60, hasta: 12 * 60, minutos: 80 });
+    { tipo: 'optimo', desde: 10 * 60, hasta: 12 * 60, minutos: 80, sol: true });
+});
+
+test('el fin de semana busca sol para la vitamina D, sin pasarse', () => {
+  // Una curva de UV de primavera: sube a la mañana, pico de 9 al mediodía.
+  const uv = [0, 0, 0, 0, 0, 0, 0, 0.5, 1.5, 3, 4.5, 6.5, 8.5, 9, 8, 6, 4, 2, 0.5, 0, 0, 0, 0, 0];
+  const horas = dia(SABADO, (h) => ({ uv: uv[h] }));
+  const c = planCaminata(horas, conCaminata([]), SABADO, 7 * 60, 2000);
+  // De 9 a 11: UV de 3 a 4,5. El mediodía (8,5 y más) ni se ofrece, y a
+  // las 11 (6,5) ya se pasa de la franja.
+  assert.deepEqual([c.desde, c.hasta, c.sol], [9 * 60, 11 * 60, true]);
+  // Por la tarde, si a la mañana llueve: de 15 a 17, cuando el sol baja.
+  const tarde = dia(SABADO, (h) => ({ uv: uv[h], ...(h < 13 ? { prob: 90 } : {}) }));
+  const t = planCaminata(tarde, conCaminata([]), SABADO, 7 * 60, 2000);
+  assert.deepEqual([t.desde, t.hasta, t.sol], [15 * 60, 17 * 60, true]);
+});
+
+test('entre semana el sol no se busca, y el widget no lo marca', () => {
+  const horas = dia(MARTES, (h) => ({ uv: h >= 10 && h <= 16 ? 5 : 0 }));
+  const c = planCaminata(horas, LV, MARTES, 0, null);
+  assert.equal(c.sol, false);
+  assert.ok(!lineaCaminata({ ...c, etiqueta: 'Hoy' }).includes('☀️'));
+});
+
+test('un fin de semana nublado no promete sol', () => {
+  const horas = dia(SABADO, () => ({ uv: 1 }));
+  assert.equal(planCaminata(horas, conCaminata([]), SABADO, 7 * 60, null).sol, false);
 });
 
 test('un horario que ya pasó no se revisa', () => {
   const horas = dia(MARTES, () => ({}));
   assert.equal(planCaminata(horas, conCaminata(['07:00', '19:00']), MARTES, 12 * 60).inicio, 19 * 60);
-  assert.deepEqual(planCaminata(horas, LV, MARTES, 20 * 60 + 10), { tipo: 'optimo', desde: 20 * 60, hasta: 21 * 60, minutos: null });
+  assert.deepEqual(planCaminata(horas, LV, MARTES, 20 * 60 + 10), { tipo: 'optimo', desde: 20 * 60, hasta: 21 * 60, minutos: null, sol: false });
 });
 
 test('sin ningún rato bueno, dice por qué', () => {
@@ -135,6 +162,7 @@ test('la línea de la caminata entra en un renglón', () => {
     [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'lluvia', otra: { desde: 16 * 60, hasta: 17 * 60 }, etiqueta: 'Mañana' }, '🚶 Mañana 19 h: lluvia → 16–17 h'],
     [{ tipo: 'habitual', inicio: 1140, ok: false, motivo: 'calor', otra: null, etiqueta: 'Hoy' }, '🚶 19 h: calor, no hay otro rato'],
     [{ tipo: 'optimo', desde: 9 * 60, hasta: 11 * 60, minutos: 80, etiqueta: 'Hoy' }, '🚶 Hoy 9–11 h · faltan 80 min'],
+    [{ tipo: 'optimo', desde: 9 * 60, hasta: 11 * 60, minutos: 80, sol: true, etiqueta: 'Hoy' }, '🚶 Hoy 9–11 h ☀️ · faltan 80 min'],
     [{ tipo: 'optimo', desde: 13 * 60, hasta: 14 * 60 + 30, minutos: 90, etiqueta: 'Hoy' }, '🚶 Hoy 13–14:30 h · faltan 90 min'],
     [{ tipo: 'habitual', inicio: 780, almuerzo: true, ok: true, otra: null, minutos: 40, etiqueta: 'Hoy' }, '🚶 Almuerzo ✓ · faltan 40 min'],
     [{ tipo: 'habitual', inicio: 780, almuerzo: true, ok: false, motivo: 'lluvia', otra: { desde: 1140, hasta: 1200 }, etiqueta: 'Hoy' }, '🚶 Almuerzo: lluvia → 19–20 h'],
@@ -257,7 +285,7 @@ test('el óptimo de un día de oficina puede caer en el almuerzo, recortado', ()
   // vuelve el óptimo del resto del día.
   const horas = dia(MIERCOLES, (h) => (h >= 19 ? { prob: 90 } : {}));
   const c = planCaminata(horas, HORARIO_DEFAULT, MIERCOLES, 14 * 60 + 10, 8000);
-  assert.deepEqual(c, { tipo: 'optimo', desde: 14 * 60, hasta: 14 * 60 + 30, minutos: 20 });
+  assert.deepEqual(c, { tipo: 'optimo', desde: 14 * 60, hasta: 14 * 60 + 30, minutos: 20, sol: false });
 });
 
 test('lunes y viernes de home office: la caminata también es al almuerzo', () => {

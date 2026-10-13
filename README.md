@@ -497,8 +497,12 @@ paraguas mira además el almuerzo, porque a esa hora también salís. Desde las
   otro rato del día. Si está bien pero hay un horario claramente más cómodo,
   también te lo dice ("19 h ok, mejor 7–8 h").
 - **Fines de semana** (o si no cargaste horarios): te da el horario óptimo,
-  buscando lo más cerca de 15° de sensación, con poca chance de lluvia, poco
-  sol fuerte y sin ráfagas.
+  buscando lo más cerca de 15° de sensación, con poca chance de lluvia y sin
+  ráfagas. El fin de semana además **busca sol para la vitamina D**: índice
+  UV entre 3 y 6, que es cuando la piel la fabrica sin quemarse (con 15 a 20
+  minutos con brazos y cara alcanza). En primavera eso suele ser a media
+  mañana o a media tarde, nunca al mediodía. El widget marca esos ratos con
+  ☀️, y si viene nublado lo dice.
 - **Cuánto te falta:** con los pasos de hoy y tu meta (10.000 por defecto) te
   dice cuántos minutos te faltan, a 100 pasos por minuto, el mismo número que
   usa Rutina. Esa duración decide cuánto rato hace falta buscar. Si tenés
