@@ -55,7 +55,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-13', minutos: 21 * 60 },
     horas: [
       ...dia('2026-10-13', () => ({})),
-      ...dia('2026-10-14', (h) => ({ temp: h < 12 ? 5 : 11, prob: h === 8 ? 30 : 0 })),
+      ...dia('2026-10-14', (h) => ({ temp: h < 12 ? 5 : 11, prob: h === 8 ? 45 : 0 })),
     ],
     widget: { titulo: 'Campera 🌂', aviso: '', caminar: 'Mañana caminá 19–20 h' },
   },

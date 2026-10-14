@@ -39,16 +39,19 @@ export const TEMP_CALOR = 22;
  */
 export const ACLIMATACION = 4;
 
-/** Probabilidad de lluvia desde la que se lleva paraguas, y desde la que "por las dudas". */
-export const PROB_LLUEVE = 50;
-export const PROB_QUIZAS = 25;
-/** Milímetros en una hora que ya cuentan como lluvia, diga lo que diga la probabilidad. */
-export const MM_LLUEVE = 0.3;
 /**
- * La probabilidad sola no alcanza para decir "llueve": Open-Meteo la saca de
- * muchos modelos y en un día de chubascos sueltos se infla aunque esperen 0
- * mm. Con probabilidad alta tiene que esperar además al menos esto de agua.
+ * Probabilidad de lluvia desde la que se lleva paraguas, y desde la que "por
+ * las dudas". Altas a propósito: en Buenos Aires los chubascos sueltos inflan
+ * la probabilidad y el paraguas termina sin abrirse.
  */
+export const PROB_LLUEVE = 50;
+export const PROB_QUIZAS = 40;
+/**
+ * Milímetros en una hora que ya cuentan como lluvia. Para "llueve" hacen
+ * falta los dos: agua medible y probabilidad alta. Uno solo es "quizás".
+ */
+export const MM_LLUEVE = 0.3;
+/** Menos que esto en un modelo es seco (ver consenso). */
 export const MM_LLOVIZNA = 0.1;
 /**
  * Ráfagas desde las que el paraguas se da vuelta. En Río Grande nadie usa
@@ -252,9 +255,10 @@ export function consenso(prob, lluvia, mm) {
 
 /** 'tormenta', 'lluvia', 'quizas' o null. */
 export function lluviaEn(h) {
-  if (TORMENTA.includes(h.codigo)) return 'tormenta';
-  if (h.lluvia >= MM_LLUEVE || (h.prob >= PROB_LLUEVE && h.lluvia >= MM_LLOVIZNA)) return 'lluvia';
-  if (h.prob >= PROB_QUIZAS || h.lluvia >= MM_LLOVIZNA) return 'quizas';
+  // Un código de tormenta con probabilidad baja es una tormenta que no llega.
+  if (TORMENTA.includes(h.codigo) && h.prob >= PROB_QUIZAS) return 'tormenta';
+  if (h.lluvia >= MM_LLUEVE && h.prob >= PROB_LLUEVE) return 'lluvia';
+  if (h.prob >= PROB_QUIZAS || h.lluvia >= MM_LLUEVE) return 'quizas';
   return null;
 }
 
