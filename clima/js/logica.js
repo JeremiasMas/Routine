@@ -576,10 +576,12 @@ export function plan(horas, horario, ahora, pasos = null) {
   };
 }
 
-const TEXTO_PARAGUAS = { no: '', quizas: ' · ¿paraguas?', si: ' · paraguas', capucha: ' · capucha' };
+// Paraguas en emoji, que ahorra renglón: 🌂 por las dudas, ☔ va a llover. Con
+// ráfagas no hay emoji que diga "capucha", así que va escrito.
+const TEXTO_PARAGUAS = { no: '', quizas: ' 🌂', si: ' ☔', capucha: ' · capucha' };
 
 /**
- * Las dos líneas del widget: qué ponerte y cuándo caminar. Sin emojis ni
+ * Las líneas del widget: qué ponerte, un aviso y cuándo caminar. Sin
  * temperaturas, que ya están en el reloj del teléfono: sólo lo que cambia lo
  * que hacés. Kotlin arma exactamente las mismas: el test de paridad compara
  * los dos con los mismos casos.
@@ -593,9 +595,13 @@ export function lineasWidget(p) {
 export const AVISO_SALIDA = 60;
 
 const RANGO_PARAGUAS = { no: 0, quizas: 1, si: 2, capucha: 3 };
-const PALABRA_PARAGUAS = { no: '', quizas: '¿paraguas?', si: 'paraguas', capucha: 'capucha' };
+const EMOJI_LLUVIA = { no: '', quizas: '🌦️', si: '🌧️', capucha: '🌧️' };
+const ABRIGO = '🧥';
 
-/** "Campera liviana · paraguas" para un tramo de horas. */
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** "Campera liviana ☔" para un tramo de horas. */
+
 function prenda(hs) {
   return `${ropaPara(Math.min(...hs.map(sensacion))).corto}${TEXTO_PARAGUAS[paraguas(hs).nivel]}`;
 }
@@ -605,8 +611,9 @@ function prenda(hs) {
  * y queda vacía cuando no hay ninguna salida cerca:
  *
  * - Día de oficina, antes de llegar: lo de la ida. Si a la vuelta (o al
- *   almuerzo) hace falta algo que a la ida no, lo avisa en una segunda línea:
- *   "Para la vuelta: campera y paraguas".
+ *   almuerzo) llueve, el paraguas va igual arriba (lo llevás desde casa) y la
+ *   segunda línea dice cuándo; si a la vuelta hace más frío, también:
+ *   "Manga larga ☔" / "🌧️ al almuerzo · 🧥 a la vuelta".
  * - En la oficina, nada; desde AVISO_SALIDA minutos antes de salir y hasta
  *   llegar a casa, lo de la vuelta. Ya en casa, nada.
  * - Home office: lo de tu próxima caminata; sin caminata, nada.
@@ -634,25 +641,31 @@ export function vestir(horas, horario, ahora, caminata) {
       const base = ida.some(pendiente) ? ida.filter(pendiente) : ida;
       if (!base.length) return nada;
       const ropaIda = ropaPara(Math.min(...base.map(sensacion)));
-      const lluviaIda = RANGO_PARAGUAS[paraguas(base).nivel];
-      const titulo = prenda(base);
-      // Lo que la ida no cubre: más abrigo o lluvia a la vuelta o al almuerzo.
-      const vueltaPide = [];
-      let lluviaVuelta = 0;
-      if (vuelta.length) {
-        const ropaVuelta = ropaPara(Math.min(...vuelta.map(sensacion)));
-        if (ropaVuelta.hasta < ropaIda.hasta) vueltaPide.push(ropaVuelta.corto.toLowerCase());
-        const nivel = paraguas(vuelta).nivel;
-        lluviaVuelta = RANGO_PARAGUAS[nivel];
-        if (lluviaVuelta > lluviaIda) vueltaPide.push(PALABRA_PARAGUAS[nivel]);
+      const nivelIda = paraguas(base).nivel;
+      // El paraguas se decide al salir de casa: va arriba si hace falta en
+      // cualquier momento del día, y abajo, corto, cuándo llueve.
+      const conNivel = (hs) => (hs.length ? { hs, nivel: paraguas(hs).nivel } : null);
+      const alm = h.almuerzo ? conNivel(tramo(horas, fecha, minutos(h.almuerzo.desde), minutos(h.almuerzo.hasta))) : null;
+      const vue = conNivel(vuelta);
+      const peor = [alm, vue].reduce((n, t) => (t && RANGO_PARAGUAS[t.nivel] > RANGO_PARAGUAS[n] ? t.nivel : n), nivelIda);
+      // Abajo, lo justo: "🌧️ al almuerzo", "🧥🌧️ a la vuelta".
+      const llueve = (t) => RANGO_PARAGUAS[peor] > RANGO_PARAGUAS[nivelIda] && t?.nivel === peor;
+      const enVuelta = [];
+      if (vue) {
+        const ropaVuelta = ropaPara(Math.min(...vue.hs.map(sensacion)));
+        if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.push(ABRIGO);
       }
-      const partes = [];
-      if (vueltaPide.length) partes.push(`Para la vuelta: ${vueltaPide.join(' y ')}`);
-      if (h.almuerzo) {
-        const nivel = paraguas(tramo(horas, fecha, minutos(h.almuerzo.desde), minutos(h.almuerzo.hasta))).nivel;
-        if (RANGO_PARAGUAS[nivel] > Math.max(lluviaIda, lluviaVuelta)) partes.push(`Al almuerzo: ${PALABRA_PARAGUAS[nivel]}`);
+      let aviso;
+      if (llueve(alm) && llueve(vue) && !enVuelta.length) {
+        aviso = `${EMOJI_LLUVIA[peor]} al almuerzo y a la vuelta`;
+      } else {
+        if (llueve(vue)) enVuelta.push(EMOJI_LLUVIA[peor]);
+        const partes = [];
+        if (llueve(alm)) partes.push(`${EMOJI_LLUVIA[peor]} al almuerzo`);
+        if (enVuelta.length) partes.push(`${enVuelta.join('')} a la vuelta`);
+        aviso = partes.join(' · ');
       }
-      return { titulo, aviso: partes.join(' · ') };
+      return { titulo: `${ropaIda.corto}${TEXTO_PARAGUAS[peor]}`, aviso };
     }
     if (min >= salida - AVISO_SALIDA && min < salida + h.viaje && vuelta.length) {
       const base = vuelta.some(pendiente) ? vuelta.filter(pendiente) : vuelta;
@@ -679,8 +692,6 @@ export function vestir(horas, horario, ahora, caminata) {
   const hs = tramo(horas, fecha, inicio, inicio + 4 * 60);
   return hs.length ? { titulo: prenda(hs), aviso: '' } : nada;
 }
-
-const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
 /** La segunda línea del widget: la caminata, en lo que entra en un renglón. */
 export function lineaCaminata(c) {

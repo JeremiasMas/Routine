@@ -30,7 +30,7 @@ export const CASOS = [
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 8 * 60 },
     horas: dia('2026-10-13', (h) => (h >= 17 ? { prob: 80, lluvia: 2 } : {})),
-    widget: { titulo: 'Manga larga', aviso: 'Para la vuelta: paraguas', caminar: 'Hoy mejor no caminar: lluvia' },
+    widget: { titulo: 'Manga larga ☔', aviso: '🌧️ a la vuelta', caminar: 'Hoy mejor no caminar: lluvia' },
   },
   {
     nombre: 'sudestada: el paraguas no sirve',
@@ -57,7 +57,7 @@ export const CASOS = [
       ...dia('2026-10-13', () => ({})),
       ...dia('2026-10-14', (h) => ({ temp: h < 12 ? 5 : 11, prob: h === 8 ? 30 : 0 })),
     ],
-    widget: { titulo: 'Campera · ¿paraguas?', aviso: '', caminar: 'Mañana caminá 19–20 h' },
+    widget: { titulo: 'Campera 🌂', aviso: '', caminar: 'Mañana caminá 19–20 h' },
   },
   {
     nombre: 'ya en casa después de la oficina: no dice qué ponerte',

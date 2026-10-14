@@ -192,7 +192,7 @@ test('la línea de la caminata entra en un renglón', () => {
   ];
   for (const [c, texto] of casos) {
     assert.equal(lineaCaminata(c), texto);
-    // Sin emojis: el widget es texto blanco, como la fecha y la agenda.
+    // La caminata va escrita: los emojis son sólo para el paraguas y el abrigo.
     assert.doesNotMatch(texto, /\p{Extended_Pictographic}/u, `"${texto}" lleva un emoji`);
     assert.ok([...texto].length <= 40, `"${texto}" no entra en el widget`);
   }
@@ -208,18 +208,41 @@ test('a la mañana de oficina avisa si a la vuelta hace falta abrigo o paraguas'
   // Mañana despejada y templada; a la vuelta refresca fuerte y llueve.
   const horas = dia(MIERCOLES, (h) => (h >= 18 ? { temp: 6, prob: 80, lluvia: 1 } : { temp: 21 }));
   const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
-  assert.equal(w.titulo, 'Remera');
-  assert.equal(w.aviso, 'Para la vuelta: campera y paraguas');
+  // El paraguas se decide al salir de casa: va arriba aunque a la ida no llueva.
+  assert.equal(w.titulo, 'Remera ☔');
+  assert.equal(w.aviso, '🧥🌧️ a la vuelta');
   // Si la vuelta está igual o mejor que la ida, no hay aviso.
   const parejo = dia(MIERCOLES, () => ({ temp: 21 }));
   assert.equal(wid(parejo, HORARIO_DEFAULT, MIERCOLES, 7 * 60).aviso, '');
 });
 
-test('si sólo llueve al almuerzo, lo avisa aparte', () => {
+test('si llueve al almuerzo, el paraguas va arriba y abajo dice cuándo', () => {
   const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : {}));
   const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
-  assert.equal(w.titulo, 'Manga larga');
-  assert.equal(w.aviso, 'Al almuerzo: paraguas');
+  assert.equal(w.titulo, 'Manga larga ☔');
+  assert.equal(w.aviso, '🌧️ al almuerzo');
+  // Lo de la captura: al almuerzo llueve seguro y a la vuelta quizás. Manda
+  // lo peor; el "quizás" de la vuelta ya está cubierto con el paraguas.
+  const ambas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : h === 18 ? { prob: 30 } : {}));
+  const w2 = wid(ambas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w2.titulo, 'Manga larga ☔');
+  assert.equal(w2.aviso, '🌧️ al almuerzo');
+  // Igual de feo en los dos.
+  const dos = dia(MIERCOLES, (h) => (h === 13 || h === 18 ? { prob: 30 } : {}));
+  assert.equal(wid(dos, HORARIO_DEFAULT, MIERCOLES, 7 * 60).aviso, '🌦️ al almuerzo y a la vuelta');
+  // Si ya llueve a la ida, lo ves al salir: no hace falta decir cuándo.
+  const siempre = dia(MIERCOLES, () => ({ prob: 80, lluvia: 1 }));
+  const w3 = wid(siempre, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w3.titulo, 'Manga larga ☔');
+  assert.equal(w3.aviso, '');
+});
+
+test('el aviso de la mañana entra en un renglón', () => {
+  // Lo más largo que puede armar: abrigo y lluvia en los dos tramos.
+  const peor = dia(MIERCOLES, (h) => (h === 13 ? { prob: 30 } : h >= 18 ? { temp: 8, prob: 30 } : { temp: 30 }));
+  const w = wid(peor, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w.aviso, '🌦️ al almuerzo · 🧥🌦️ a la vuelta');
+  assert.ok([...w.aviso].length <= 40);
 });
 
 test('en la oficina no dice qué ponerte hasta una hora antes de salir', () => {
@@ -260,8 +283,11 @@ test('el widget son líneas cortas: qué ponerte, un aviso si hace falta, cuánd
   const w = lineasWidget(plan(horas, LV, { fecha: MARTES, minutos: 7 * 60 }));
   assert.deepEqual(Object.keys(w), ['titulo', 'aviso', 'caminar']);
   assert.equal(w.aviso, '');
-  assert.equal(w.titulo, 'Manga larga · ¿paraguas?');
-  for (const t of Object.values(w)) assert.doesNotMatch(t, /\p{Extended_Pictographic}/u);
+  assert.equal(w.titulo, 'Manga larga 🌂');
+  // Los únicos emojis: paraguas, lluvia y abrigo, que ahorran palabras.
+  for (const t of Object.values(w)) {
+    assert.doesNotMatch(t.replace(/[🌂☔🌦🌧🧥]\uFE0F?/gu, ''), /\p{Extended_Pictographic}/u);
+  }
 });
 
 test('los pasos por minuto son los mismos que en Rutina', async () => {

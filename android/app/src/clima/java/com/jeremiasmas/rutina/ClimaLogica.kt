@@ -422,18 +422,23 @@ object ClimaLogica {
     else -> 0
   }
 
-  private fun palabraParaguas(nivel: String) = when (nivel) {
-    "quizas" -> "¿paraguas?"
-    "si" -> "paraguas"
-    "capucha" -> "capucha"
+  // Paraguas en emoji, que ahorra renglón: 🌂 por las dudas, ☔ va a llover.
+  // Con ráfagas no hay emoji que diga "capucha", así que va escrito.
+  private fun textoParaguas(nivel: String) = when (nivel) {
+    "quizas" -> " 🌂"
+    "si" -> " ☔"
+    "capucha" -> " · capucha"
     else -> ""
   }
 
-  /** "Campera liviana · paraguas" para un tramo de horas. */
-  private fun prenda(hs: List<Hora>): String {
-    val palabra = palabraParaguas(paraguas(hs))
-    return ropaPara(hs.minOf { sensacion(it) }).corto + if (palabra.isEmpty()) "" else " · $palabra"
+  private fun emojiLluvia(nivel: String) = when (nivel) {
+    "quizas" -> "🌦️"
+    "si", "capucha" -> "🌧️"
+    else -> ""
   }
+
+  /** "Campera liviana ☔" para un tramo de horas. */
+  private fun prenda(hs: List<Hora>) = ropaPara(hs.minOf { sensacion(it) }).corto + textoParaguas(paraguas(hs))
 
   /**
    * Qué ponerte, sólo cuando estás por salir; como vestir en la web.
@@ -457,25 +462,31 @@ object ClimaLogica {
         val base = if (ida.any(pendiente)) ida.filter(pendiente) else ida
         if (base.isEmpty()) return nada
         val ropaIda = ropaPara(base.minOf { sensacion(it) })
-        val lluviaIda = rangoParaguas(paraguas(base))
-        val titulo = prenda(base)
-        // Lo que la ida no cubre: más abrigo o lluvia a la vuelta o al almuerzo.
-        val vueltaPide = ArrayList<String>()
-        var lluviaVuelta = 0
-        if (vuelta.isNotEmpty()) {
-          val ropaVuelta = ropaPara(vuelta.minOf { sensacion(it) })
-          if (ropaVuelta.hasta < ropaIda.hasta) vueltaPide.add(ropaVuelta.corto.lowercase())
-          val nivel = paraguas(vuelta)
-          lluviaVuelta = rangoParaguas(nivel)
-          if (lluviaVuelta > lluviaIda) vueltaPide.add(palabraParaguas(nivel))
+        val nivelIda = paraguas(base)
+        // El paraguas se decide al salir de casa: va arriba si hace falta en
+        // cualquier momento del día, y abajo, corto, cuándo llueve.
+        val alm = h.almuerzo?.let { tramo(horas, fecha, it.first, it.second) }?.takeIf { it.isNotEmpty() }
+        val vue = vuelta.takeIf { it.isNotEmpty() }
+        val nivelAlm = alm?.let { paraguas(it) }
+        val nivelVue = vue?.let { paraguas(it) }
+        val peor = listOfNotNull(nivelAlm, nivelVue).fold(nivelIda) { n, x -> if (rangoParaguas(x) > rangoParaguas(n)) x else n }
+        // Abajo, lo justo: "🌧️ al almuerzo", "🧥🌧️ a la vuelta".
+        val llueve = { nivel: String? -> rangoParaguas(peor) > rangoParaguas(nivelIda) && nivel == peor }
+        val enVuelta = ArrayList<String>()
+        if (vue != null) {
+          val ropaVuelta = ropaPara(vue.minOf { sensacion(it) })
+          if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.add("🧥")
         }
-        val partes = ArrayList<String>()
-        if (vueltaPide.isNotEmpty()) partes.add("Para la vuelta: ${vueltaPide.joinToString(" y ")}")
-        h.almuerzo?.let { alm ->
-          val nivel = paraguas(tramo(horas, fecha, alm.first, alm.second))
-          if (rangoParaguas(nivel) > max(lluviaIda, lluviaVuelta)) partes.add("Al almuerzo: ${palabraParaguas(nivel)}")
+        val aviso = if (llueve(nivelAlm) && llueve(nivelVue) && enVuelta.isEmpty()) {
+          "${emojiLluvia(peor)} al almuerzo y a la vuelta"
+        } else {
+          if (llueve(nivelVue)) enVuelta.add(emojiLluvia(peor))
+          val partes = ArrayList<String>()
+          if (llueve(nivelAlm)) partes.add("${emojiLluvia(peor)} al almuerzo")
+          if (enVuelta.isNotEmpty()) partes.add("${enVuelta.joinToString("")} a la vuelta")
+          partes.joinToString(" · ")
         }
-        return titulo to partes.joinToString(" · ")
+        return ropaIda.corto + textoParaguas(peor) to aviso
       }
       if (min >= h.salida - AVISO_SALIDA && min < h.salida + h.viaje && vuelta.isNotEmpty()) {
         val base = if (vuelta.any(pendiente)) vuelta.filter(pendiente) else vuelta
