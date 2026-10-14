@@ -208,18 +208,42 @@ test('a la mañana de oficina avisa si a la vuelta hace falta abrigo o paraguas'
   // Mañana despejada y templada; a la vuelta refresca fuerte y llueve.
   const horas = dia(MIERCOLES, (h) => (h >= 18 ? { temp: 6, prob: 80, lluvia: 1 } : { temp: 21 }));
   const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
-  assert.equal(w.titulo, 'Remera');
-  assert.equal(w.aviso, 'Para la vuelta: campera y paraguas');
+  // El paraguas se decide al salir de casa: va arriba aunque a la ida no llueva.
+  assert.equal(w.titulo, 'Remera · paraguas');
+  assert.equal(w.aviso, 'Campera y lluvia a la vuelta');
   // Si la vuelta está igual o mejor que la ida, no hay aviso.
   const parejo = dia(MIERCOLES, () => ({ temp: 21 }));
   assert.equal(wid(parejo, HORARIO_DEFAULT, MIERCOLES, 7 * 60).aviso, '');
 });
 
-test('si sólo llueve al almuerzo, lo avisa aparte', () => {
+test('si llueve al almuerzo, el paraguas va arriba y abajo dice cuándo', () => {
   const horas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : {}));
   const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
-  assert.equal(w.titulo, 'Manga larga');
-  assert.equal(w.aviso, 'Al almuerzo: paraguas');
+  assert.equal(w.titulo, 'Manga larga · paraguas');
+  assert.equal(w.aviso, 'Lluvia al almuerzo');
+  // Lo de la captura: al almuerzo llueve seguro y a la vuelta quizás. Manda
+  // lo peor; el "quizás" de la vuelta ya está cubierto con el paraguas.
+  const ambas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : h === 18 ? { prob: 30 } : {}));
+  const w2 = wid(ambas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w2.titulo, 'Manga larga · paraguas');
+  assert.equal(w2.aviso, 'Lluvia al almuerzo');
+  // Igual de feo en los dos.
+  const dos = dia(MIERCOLES, (h) => (h === 13 || h === 18 ? { prob: 30 } : {}));
+  assert.equal(wid(dos, HORARIO_DEFAULT, MIERCOLES, 7 * 60).aviso, '¿Lluvia? al almuerzo y a la vuelta');
+  // Si ya llueve a la ida, lo ves al salir: no hace falta decir cuándo.
+  const siempre = dia(MIERCOLES, () => ({ prob: 80, lluvia: 1 }));
+  const w3 = wid(siempre, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w3.titulo, 'Manga larga · paraguas');
+  assert.equal(w3.aviso, '');
+});
+
+test('el aviso de la mañana entra en dos renglones', () => {
+  // Lo más largo que puede armar: abrigo y lluvia en los dos tramos. Es raro
+  // (30° a la ida y 8° a la vuelta); el widget le da dos renglones a esa línea.
+  const peor = dia(MIERCOLES, (h) => (h === 13 ? { prob: 30 } : h >= 18 ? { temp: 8, prob: 30 } : { temp: 30 }));
+  const w = wid(peor, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w.aviso, '¿Lluvia? al almuerzo · campera liviana y ¿lluvia? a la vuelta');
+  assert.ok([...w.aviso].length <= 2 * 40);
 });
 
 test('en la oficina no dice qué ponerte hasta una hora antes de salir', () => {

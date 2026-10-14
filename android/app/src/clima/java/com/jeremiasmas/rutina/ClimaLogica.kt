@@ -429,6 +429,18 @@ object ClimaLogica {
     else -> ""
   }
 
+  private fun palabraLluvia(nivel: String) = when (nivel) {
+    "quizas" -> "¿lluvia?"
+    "si", "capucha" -> "lluvia"
+    else -> ""
+  }
+
+  /** La primera letra en mayúscula, aunque empiece con "¿". */
+  private fun mayuscula(t: String): String {
+    val i = t.indexOfFirst { it.isLetter() }
+    return if (i < 0) t else t.substring(0, i) + t[i].uppercase() + t.substring(i + 1)
+  }
+
   /** "Campera liviana · paraguas" para un tramo de horas. */
   private fun prenda(hs: List<Hora>): String {
     val palabra = palabraParaguas(paraguas(hs))
@@ -457,25 +469,32 @@ object ClimaLogica {
         val base = if (ida.any(pendiente)) ida.filter(pendiente) else ida
         if (base.isEmpty()) return nada
         val ropaIda = ropaPara(base.minOf { sensacion(it) })
-        val lluviaIda = rangoParaguas(paraguas(base))
-        val titulo = prenda(base)
-        // Lo que la ida no cubre: más abrigo o lluvia a la vuelta o al almuerzo.
-        val vueltaPide = ArrayList<String>()
-        var lluviaVuelta = 0
-        if (vuelta.isNotEmpty()) {
-          val ropaVuelta = ropaPara(vuelta.minOf { sensacion(it) })
-          if (ropaVuelta.hasta < ropaIda.hasta) vueltaPide.add(ropaVuelta.corto.lowercase())
-          val nivel = paraguas(vuelta)
-          lluviaVuelta = rangoParaguas(nivel)
-          if (lluviaVuelta > lluviaIda) vueltaPide.add(palabraParaguas(nivel))
+        val nivelIda = paraguas(base)
+        // El paraguas se decide al salir de casa: va arriba si hace falta en
+        // cualquier momento del día, y abajo, corto, cuándo llueve.
+        val alm = h.almuerzo?.let { tramo(horas, fecha, it.first, it.second) }?.takeIf { it.isNotEmpty() }
+        val vue = vuelta.takeIf { it.isNotEmpty() }
+        val nivelAlm = alm?.let { paraguas(it) }
+        val nivelVue = vue?.let { paraguas(it) }
+        val peor = listOfNotNull(nivelAlm, nivelVue).fold(nivelIda) { n, x -> if (rangoParaguas(x) > rangoParaguas(n)) x else n }
+        // Abajo, lo justo: "Lluvia al almuerzo", "Campera y lluvia a la vuelta".
+        val llueve = { nivel: String? -> rangoParaguas(peor) > rangoParaguas(nivelIda) && nivel == peor }
+        val enVuelta = ArrayList<String>()
+        if (vue != null) {
+          val ropaVuelta = ropaPara(vue.minOf { sensacion(it) })
+          if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.add(ropaVuelta.corto.lowercase())
         }
-        val partes = ArrayList<String>()
-        if (vueltaPide.isNotEmpty()) partes.add("Para la vuelta: ${vueltaPide.joinToString(" y ")}")
-        h.almuerzo?.let { alm ->
-          val nivel = paraguas(tramo(horas, fecha, alm.first, alm.second))
-          if (rangoParaguas(nivel) > max(lluviaIda, lluviaVuelta)) partes.add("Al almuerzo: ${palabraParaguas(nivel)}")
+        val aviso = if (llueve(nivelAlm) && llueve(nivelVue) && enVuelta.isEmpty()) {
+          "${palabraLluvia(peor)} al almuerzo y a la vuelta"
+        } else {
+          if (llueve(nivelVue)) enVuelta.add(palabraLluvia(peor))
+          val partes = ArrayList<String>()
+          if (llueve(nivelAlm)) partes.add("${palabraLluvia(peor)} al almuerzo")
+          if (enVuelta.isNotEmpty()) partes.add("${enVuelta.joinToString(" y ")} a la vuelta")
+          partes.joinToString(" · ")
         }
-        return titulo to partes.joinToString(" · ")
+        val palabra = palabraParaguas(peor)
+        return ropaIda.corto + (if (palabra.isEmpty()) "" else " · $palabra") to mayuscula(aviso)
       }
       if (min >= h.salida - AVISO_SALIDA && min < h.salida + h.viaje && vuelta.isNotEmpty()) {
         val base = if (vuelta.any(pendiente)) vuelta.filter(pendiente) else vuelta

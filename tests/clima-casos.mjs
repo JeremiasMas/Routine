@@ -30,7 +30,7 @@ export const CASOS = [
     horario: HORARIO,
     ahora: { fecha: '2026-10-13', minutos: 8 * 60 },
     horas: dia('2026-10-13', (h) => (h >= 17 ? { prob: 80, lluvia: 2 } : {})),
-    widget: { titulo: 'Manga larga', aviso: 'Para la vuelta: paraguas', caminar: 'Hoy mejor no caminar: lluvia' },
+    widget: { titulo: 'Manga larga · paraguas', aviso: 'Lluvia a la vuelta', caminar: 'Hoy mejor no caminar: lluvia' },
   },
   {
     nombre: 'sudestada: el paraguas no sirve',

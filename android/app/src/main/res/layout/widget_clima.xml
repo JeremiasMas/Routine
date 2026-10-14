@@ -5,7 +5,7 @@
      centrado, en el mismo blanco que el reloj y la fecha, y con el halo oscuro
      de TextoDeWidget para que se lea sobre cualquier fondo de pantalla. Texto
      sin emojis: qué ponerte (sólo cuando estás por salir), un aviso para la
-     vuelta si hace falta, y cuándo caminar. Lo que está vacío no se ve. -->
+     vuelta o el almuerzo si hace falta, y cuándo caminar. Lo que está vacío no se ve. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/clima_raiz"
     android:layout_width="match_parent"
@@ -30,8 +30,9 @@
       android:maxLines="1"
       android:ellipsize="end" />
 
-  <!-- Sólo a la mañana de un día de oficina, y sólo si la vuelta pide algo
-       que la ida no: "Para la vuelta: campera y paraguas". -->
+  <!-- Sólo a la mañana de un día de oficina, y sólo si el almuerzo o la
+       vuelta piden algo que la ida no: "Lluvia al almuerzo". Casi siempre es
+       un renglón; el caso raro de abrigo y lluvia en los dos tramos usa dos. -->
   <TextView
       style="@style/TextoDeWidget"
       android:id="@+id/clima_aviso"
@@ -43,7 +44,7 @@
       android:textColor="@color/widget_texto"
       android:textSize="14sp"
       android:fontFamily="sans-serif-medium"
-      android:maxLines="1"
+      android:maxLines="2"
       android:ellipsize="end" />
 
   <TextView
