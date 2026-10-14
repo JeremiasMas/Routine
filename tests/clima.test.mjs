@@ -237,6 +237,23 @@ test('si llueve al almuerzo, el paraguas va arriba y abajo dice cuándo', () => 
   assert.equal(w3.aviso, '');
 });
 
+test('si el aviso ya dice que llueve al almuerzo, la caminata no lo repite', () => {
+  // Lo de la captura: a la noche, el plan de mañana. Arriba "🌧️ al almuerzo";
+  // abajo sólo cuándo caminar, sin volver a decir por qué.
+  const horas = [
+    ...dia(MARTES, () => ({})),
+    ...dia(MIERCOLES, (h) => (h === 13 || h === 14 ? { prob: 80, lluvia: 1 } : {})),
+  ];
+  const w = wid(horas, HORARIO_DEFAULT, MARTES, 23 * 60 + 53, 10400);
+  assert.equal(w.titulo, 'Manga larga ☔');
+  assert.equal(w.aviso, '🌧️ al almuerzo');
+  assert.match(w.caminar, /^Mañana caminá \d+(:\d+)?–\d+(:\d+)? h$/);
+  // Ya en la oficina no hay aviso, así que ahí sí dice el motivo.
+  const enLaOficina = wid(horas, HORARIO_DEFAULT, MIERCOLES, 10 * 60, 2000);
+  assert.equal(enLaOficina.aviso, '');
+  assert.match(enLaOficina.caminar, /^Lluvia al almuerzo, caminá/);
+});
+
 test('el aviso de la mañana entra en un renglón', () => {
   // Lo más largo que puede armar: abrigo y lluvia en los dos tramos.
   const peor = dia(MIERCOLES, (h) => (h === 13 ? { prob: 30 } : h >= 18 ? { temp: 8, prob: 30 } : { temp: 30 }));

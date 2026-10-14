@@ -342,8 +342,11 @@ object ClimaLogica {
     return if (m != 0) "$h:${m.toString().padStart(2, '0')}" else "$h"
   }
 
-  /** La tercera línea, igual que lineaCaminata en la web. */
-  fun lineaCaminata(c: Caminata?, etiqueta: String): String {
+  /**
+   * La tercera línea, igual que lineaCaminata en la web. Con lluviaAlmuerzo
+   * el aviso ya dice "🌧️ al almuerzo" y no se repite el motivo.
+   */
+  fun lineaCaminata(c: Caminata?, etiqueta: String, lluviaAlmuerzo: Boolean = false): String {
     if (c == null) return ""
     // Con la meta cumplida no hay nada que decir: el widget queda en una línea.
     if (c.tipo == "cumplida") return ""
@@ -357,6 +360,8 @@ object ClimaLogica {
         val cuando = if (c.almuerzo) "al almuerzo" else "a las ${hora(c.inicio)}"
         if (c.ok) {
           if (otra != null) "$camina ${rato(otra)}, mejor que $cuando" else "$camina $tuyo$falta"
+        } else if (lluviaAlmuerzo && c.almuerzo && (c.motivo == "lluvia" || c.motivo == "tormenta")) {
+          if (otra != null) "$camina ${rato(otra)}" else "$etiqueta no hay otro rato para caminar"
         } else {
           val previo = if (etiqueta == "Mañana") "Mañana: " else ""
           val motivo = c.motivo.orEmpty().let { if (previo.isEmpty()) it.replaceFirstChar { ch -> ch.uppercase() } else it }
@@ -411,8 +416,8 @@ object ClimaLogica {
       fechaCaminata = sumarDias(fechaHoy, 1)
       c = planCaminata(horas, h, fechaCaminata, 0, null)
     }
-    val (titulo, aviso) = vestir(horas, h, fechaHoy, minutosAhora, c, fechaCaminata)
-    return Lineas(titulo, aviso, lineaCaminata(c, etiquetaCaminata))
+    val v = vestir(horas, h, fechaHoy, minutosAhora, c, fechaCaminata)
+    return Lineas(v.titulo, v.aviso, lineaCaminata(c, etiquetaCaminata, v.lluviaAlmuerzo))
   }
 
   private fun rangoParaguas(nivel: String) = when (nivel) {
@@ -440,15 +445,17 @@ object ClimaLogica {
   /** "Campera liviana ☔" para un tramo de horas. */
   private fun prenda(hs: List<Hora>) = ropaPara(hs.minOf { sensacion(it) }).corto + textoParaguas(paraguas(hs))
 
+  data class Vestir(val titulo: String, val aviso: String, val lluviaAlmuerzo: Boolean = false)
+
   /**
    * Qué ponerte, sólo cuando estás por salir; como vestir en la web.
-   * Devuelve (titulo, aviso), vacíos cuando no hay ninguna salida cerca.
+   * Título y aviso vacíos cuando no hay ninguna salida cerca.
    */
   fun vestir(
     horas: List<Hora>, h: Horario, fechaHoy: String, minutosAhora: Int,
     caminata: Caminata?, fechaCaminata: String,
-  ): Pair<String, String> {
-    val nada = "" to ""
+  ): Vestir {
+    val nada = Vestir("", "")
     val manana = minutosAhora >= HORA_DE_MANANA * 60
     val fecha = if (manana) sumarDias(fechaHoy, 1) else fechaHoy
     val min = if (manana) -1 else minutosAhora
@@ -486,11 +493,13 @@ object ClimaLogica {
           if (enVuelta.isNotEmpty()) partes.add("${enVuelta.joinToString("")} a la vuelta")
           partes.joinToString(" · ")
         }
-        return ropaIda.corto + textoParaguas(peor) to aviso
+        // Si el aviso ya dice que llueve al almuerzo, la caminata no lo repite.
+        val lluviaAlmuerzo = llueve(nivelAlm) && fechaCaminata == fecha
+        return Vestir(ropaIda.corto + textoParaguas(peor), aviso, lluviaAlmuerzo)
       }
       if (min >= h.salida - AVISO_SALIDA && min < h.salida + h.viaje && vuelta.isNotEmpty()) {
         val base = if (vuelta.any(pendiente)) vuelta.filter(pendiente) else vuelta
-        return prenda(base) to ""
+        return Vestir(prenda(base), "")
       }
       return nada
     }
@@ -506,11 +515,11 @@ object ClimaLogica {
       }
       if (rato == null) return nada
       val hs = tramo(horas, fecha, rato.first, rato.second).filter(pendiente)
-      return if (hs.isEmpty()) nada else prenda(hs) to ""
+      return if (hs.isEmpty()) nada else Vestir(prenda(hs), "")
     }
 
     val inicio = if (manana) 10 * 60 else minutosAhora
     val hs = tramo(horas, fecha, inicio, inicio + 4 * 60)
-    return if (hs.isEmpty()) nada else prenda(hs) to ""
+    return if (hs.isEmpty()) nada else Vestir(prenda(hs), "")
   }
 }

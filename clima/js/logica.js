@@ -588,7 +588,7 @@ const TEXTO_PARAGUAS = { no: '', quizas: ' 🌂', si: ' ☔', capucha: ' · capu
  */
 export function lineasWidget(p) {
   if (!p) return { titulo: 'Sin pronóstico', aviso: '', caminar: 'Abrí la app con conexión' };
-  return { titulo: p.vestir.titulo, aviso: p.vestir.aviso, caminar: lineaCaminata(p.caminata) };
+  return { titulo: p.vestir.titulo, aviso: p.vestir.aviso, caminar: lineaCaminata(p.caminata, p.vestir.lluviaAlmuerzo) };
 }
 
 /** Cuánto antes de salir de la oficina empieza a decirte cómo volver. */
@@ -665,7 +665,9 @@ export function vestir(horas, horario, ahora, caminata) {
         if (enVuelta.length) partes.push(`${enVuelta.join('')} a la vuelta`);
         aviso = partes.join(' · ');
       }
-      return { titulo: `${ropaIda.corto}${TEXTO_PARAGUAS[peor]}`, aviso };
+      // Si el aviso ya dice que llueve al almuerzo, la caminata no lo repite.
+      const lluviaAlmuerzo = llueve(alm) && caminata?.fecha === fecha;
+      return { titulo: `${ropaIda.corto}${TEXTO_PARAGUAS[peor]}`, aviso, lluviaAlmuerzo };
     }
     if (min >= salida - AVISO_SALIDA && min < salida + h.viaje && vuelta.length) {
       const base = vuelta.some(pendiente) ? vuelta.filter(pendiente) : vuelta;
@@ -693,8 +695,12 @@ export function vestir(horas, horario, ahora, caminata) {
   return hs.length ? { titulo: prenda(hs), aviso: '' } : nada;
 }
 
-/** La segunda línea del widget: la caminata, en lo que entra en un renglón. */
-export function lineaCaminata(c) {
+/**
+ * La última línea del widget: la caminata, en lo que entra en un renglón.
+ * Con lluviaAlmuerzo el aviso de arriba ya dice "🌧️ al almuerzo", así que
+ * no repite el motivo: "Mañana caminá 7–8 h".
+ */
+export function lineaCaminata(c, lluviaAlmuerzo = false) {
   if (!c) return '';
   // Con la meta cumplida no hay nada que decir: el widget queda en una línea.
   if (c.cumplida) return '';
@@ -705,6 +711,9 @@ export function lineaCaminata(c) {
     const tuyo = c.almuerzo ? `${hora(c.inicio)}–${hora(c.fin)} h` : `${hora(c.inicio)} h`;
     const cuando = c.almuerzo ? 'al almuerzo' : `a las ${hora(c.inicio)}`;
     if (c.ok) return c.otra ? `${camina} ${rato(c.otra)}, mejor que ${cuando}` : `${camina} ${tuyo}${falta}`;
+    if (lluviaAlmuerzo && c.almuerzo && (c.motivo === 'lluvia' || c.motivo === 'tormenta')) {
+      return c.otra ? `${camina} ${rato(c.otra)}` : `${c.etiqueta} no hay otro rato para caminar`;
+    }
     const previo = c.etiqueta === 'Mañana' ? 'Mañana: ' : '';
     const motivo = previo ? c.motivo : mayuscula(c.motivo);
     return c.otra
