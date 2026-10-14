@@ -62,8 +62,8 @@ export const CAMINATA_MIN = -3;
 export const CAMINATA_MAX = 27;
 export const CAMINATA_RAFAGAS = 60;
 export const CAMINATA_UV = 8;
-/** La caminata se busca entre estas horas. */
-export const CAMINATA_DESDE = 7;
+/** La caminata se busca entre estas horas: nunca a la mañana. */
+export const CAMINATA_DESDE = 12;
 export const CAMINATA_HASTA = 22;
 /** Desde esta hora, el plan que se muestra es el de mañana. */
 export const HORA_DE_MANANA = 20;

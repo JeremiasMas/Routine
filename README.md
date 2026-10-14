@@ -525,19 +525,19 @@ paraguas mira además el almuerzo, porque a esa hora también salís. Desde las
 
 - **El almuerzo** es tu caminata de los días de trabajo: la app revisa si el
   clima acompaña de 13 a 14:30 y, si no, te propone otro rato fuera del
-  horario de trabajo. Los días de oficina eso es antes de las 8 o después de
-  las 19; en home office, antes de las 9 o desde las 18, porque no hay
-  colectivo. Nunca te propone caminar en horas de escritorio.
+  horario de trabajo: los días de oficina, después de las 19; en home office,
+  desde las 18, porque no hay colectivo. Nunca te propone caminar en horas de
+  escritorio, ni a la mañana: ninguna propuesta empieza antes de las 12.
 - **Tus horarios de lunes a viernes** (hasta tres, opcionales): la app revisa el próximo.
   Si llueve, hace calor, sopla fuerte o pega mucho el sol, te propone el mejor
   otro rato del día. Si está bien pero hay un horario claramente más cómodo,
-  también te lo dice ("19 h ok, mejor 7–8 h").
+  también te lo dice ("19 h ok, mejor 20–21 h").
 - **Fines de semana** (o si no cargaste horarios): te da el horario óptimo,
   buscando lo más cerca de 15° de sensación, con poca chance de lluvia y sin
   ráfagas. El fin de semana además **busca sol para la vitamina D**: índice
   UV entre 3 y 6, que es cuando la piel la fabrica sin quemarse (con 15 a 20
   minutos con brazos y cara alcanza). En primavera eso suele ser a media
-  mañana o a media tarde, nunca al mediodía. El widget marca esos ratos con
+  tarde, nunca al mediodía. El widget marca esos ratos con
   "al sol", y si viene nublado la app lo dice.
 - **Cuánto te falta:** con los pasos de hoy y tu meta (10.000 por defecto) te
   dice cuántos minutos te faltan, a 100 pasos por minuto, el mismo número que

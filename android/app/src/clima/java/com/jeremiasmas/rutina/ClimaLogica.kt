@@ -38,7 +38,7 @@ object ClimaLogica {
   const val CAMINATA_MAX = 27.0
   const val CAMINATA_RAFAGAS = 60.0
   const val CAMINATA_UV = 8.0
-  const val CAMINATA_DESDE = 7
+  const val CAMINATA_DESDE = 12
   const val CAMINATA_HASTA = 22
   const val HORA_DE_MANANA = 20
 

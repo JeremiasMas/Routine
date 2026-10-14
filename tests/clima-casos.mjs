@@ -88,7 +88,7 @@ export const CASOS = [
     ahora: { fecha: '2026-10-18', minutos: 8 * 60 },
     pasos: 800,
     horas: dia('2026-10-18', (h) => ({ temp: 10 + h * 0.6, uv: h >= 12 && h <= 15 ? 9 : 2 })),
-    widget: { titulo: 'Manga larga', aviso: '', caminar: 'Caminá 8–10 h · faltan 92 min' },
+    widget: { titulo: 'Manga larga', aviso: '', caminar: 'Caminá 16–18 h · faltan 92 min' },
   },
   {
     nombre: 'a la noche, si faltan pasos, todavía es hoy',
