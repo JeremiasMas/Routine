@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   sensacion, sensacionPortena, ropaPara, paraguas, planCaminata, plan, lineasWidget, lineaCaminata,
-  normalizarHorario, minutos, diaDeSemana, sumarDias, HORARIO_DEFAULT,
+  normalizarHorario, minutos, lluviaEn, diaDeSemana, sumarDias, HORARIO_DEFAULT,
 } from '../clima/js/logica.js';
-import { horasDe, ahoraEnBA, traer, URL_PRONOSTICO } from '../clima/js/pronostico.js';
+import { horasDe, ahoraEnBA, traer, URL_PRONOSTICO, URL_MODELOS, LUGAR } from '../clima/js/pronostico.js';
 import { CASOS, dia } from './clima-casos.mjs';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -489,6 +489,38 @@ test('la URL pide lo que la lógica usa, en hora de Buenos Aires', () => {
   assert.match(URL_PRONOSTICO, /wind_speed_unit=kmh/);
 });
 
+test('el pronóstico es el de Belgrano, y la lluvia se consulta a tres modelos', () => {
+  assert.equal(LUGAR.nombre, 'Belgrano');
+  assert.ok(URL_PRONOSTICO.includes('latitude=-34.5627&longitude=-58.4566'));
+  assert.equal(URL_MODELOS, `${URL_PRONOSTICO}&models=best_match,ecmwf_ifs025,gfs_seamless,icon_seamless`);
+});
+
+test('la lluvia es la del modelo del medio, y sin ninguno que moje no hay aviso', () => {
+  const horas = horasDe({ hourly: {
+    time: ['2026-10-13T08:00', '2026-10-13T09:00', '2026-10-13T10:00', '2026-10-13T11:00'],
+    temperature_2m_best_match: [12, 12, 12, 12],
+    precipitation_probability_best_match: [60, 60, 60, 60],
+    precipitation_best_match: [1.2, 1.2, 0, 0.5],
+    // 8: uno solo moja. 9: dos mojan. 10: ninguno. 11: un solo modelo contestó.
+    precipitation_ecmwf_ifs025: [0, 0.8, 0, null],
+    precipitation_gfs_seamless: [2.0, 0.4, 0, null],
+    precipitation_icon_seamless: [0, 0, 0, 0],
+  } });
+  assert.deepEqual(horas.map((h) => [h.prob, h.lluvia]), [[60, 0], [60, 0.4], [24, 0], [60, 0.5]]);
+  assert.deepEqual(horas.map(lluviaEn), ['quizas', 'lluvia', null, 'lluvia']);
+});
+
+test('si la consulta con modelos falla, usa la de siempre', async () => {
+  const pedidas = [];
+  const json = { hourly: { time: ['2026-10-13T08:00'], temperature_2m: [12] } };
+  const r = await traer({
+    fetch: async (url) => { pedidas.push(url); return url === URL_MODELOS ? { ok: false, status: 400 } : { ok: true, json: async () => json }; },
+    almacen: null,
+  });
+  assert.deepEqual(pedidas, [URL_MODELOS, URL_PRONOSTICO]);
+  assert.deepEqual(r.json, json);
+});
+
 test('horasDe descarta lo que no sirve', () => {
   const horas = horasDe({ hourly: {
     time: ['2026-10-13T08:00', 'roto', '2026-10-13T09:00'],
@@ -548,6 +580,8 @@ test('el widget baja el mismo pronóstico que la web', () => {
   assert.ok(bloque, 'no encontré URL_PRONOSTICO en Clima.kt');
   const url = [...bloque.matchAll(/"([^"]*)"/g)].map((m) => m[1]).join('');
   assert.equal(url, URL_PRONOSTICO);
+  const modelos = /const val URL_MODELOS = URL_PRONOSTICO \+ "([^"]*)"/.exec(kt)?.[1];
+  assert.equal(URL_PRONOSTICO + modelos, URL_MODELOS);
 });
 
 // ---------------------------------------------------------------------------

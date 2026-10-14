@@ -552,8 +552,11 @@ paraguas mira además el almuerzo, porque a esa hora también salís. Desde las
 - Si de noche todavía te faltan pasos y queda un rato bueno, la caminata sigue
   siendo la de hoy.
 
-El pronóstico es de [Open-Meteo](https://open-meteo.com) (sin clave ni cuenta)
-y queda guardado para abrir sin conexión.
+El pronóstico es de [Open-Meteo](https://open-meteo.com) (sin clave ni cuenta),
+para Belgrano, y queda guardado para abrir sin conexión. La lluvia se decide
+por consenso de tres modelos (europeo, estadounidense y alemán): cuenta el del
+medio, y si ninguno moja, la probabilidad sola no avisa. Un modelo solo suele
+avisar lluvia que no llega. Si esa consulta falla, usa el pronóstico de siempre.
 
 ### El widget
 

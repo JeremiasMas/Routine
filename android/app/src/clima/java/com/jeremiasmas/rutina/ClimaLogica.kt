@@ -145,6 +145,22 @@ object ClimaLogica {
 
   fun ropaPara(s: Double): Ropa = ROPA.firstOrNull { s < it.hasta } ?: ROPA.last()
 
+  /** Los modelos que se consultan para decidir si llueve. */
+  val MODELOS_LLUVIA = listOf("ecmwf_ifs025", "gfs_seamless", "icon_seamless")
+
+  /**
+   * La lluvia de una hora según varios modelos, como consenso en la web:
+   * cuenta el del medio, y si ninguno moja, la probabilidad sola no avisa.
+   * Devuelve (prob, lluvia).
+   */
+  fun consenso(prob: Double, lluvia: Double, mm: List<Double?>): Pair<Double, Double> {
+    val vale = mm.filterNotNull().filter { it.isFinite() }.sorted()
+    if (vale.size < 2) return prob to lluvia
+    val medio = if (vale.size % 2 == 1) vale[vale.size / 2] else (vale[vale.size / 2 - 1] + vale[vale.size / 2]) / 2
+    val seco = vale.all { it < MM_LLOVIZNA }
+    return (if (seco) min(prob, PROB_QUIZAS - 1.0) else prob) to medio
+  }
+
   /** "tormenta", "lluvia", "quizas" o null. */
   fun lluviaEn(h: Hora): String? = when {
     h.codigo in TORMENTA -> "tormenta"
