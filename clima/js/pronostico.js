@@ -1,14 +1,20 @@
 /**
- * El pronóstico de Open-Meteo para Buenos Aires.
+ * El pronóstico de Open-Meteo para Belgrano.
  *
  * Open-Meteo no pide clave ni cuenta, y deja pedirlo desde el navegador. Las
  * horas vienen en hora de Buenos Aires ("2026-10-13T08:00", sin huso), así que
  * se comparan como texto y no hace falta convertir nada.
  *
- * El widget de Android pide exactamente esta misma URL (Clima.kt).
+ * Para la lluvia pide además lo que dicen tres modelos (URL_MODELOS) y se
+ * queda con el del medio: un modelo solo avisa lluvia que no llega. Si esa
+ * consulta falla, usa la de siempre.
+ *
+ * El widget de Android pide exactamente estas mismas URL (Clima.kt).
  */
 
-export const LUGAR = { nombre: 'Buenos Aires', lat: -34.6037, lon: -58.3816 };
+import { consenso, MODELOS_LLUVIA } from './logica.js';
+
+export const LUGAR = { nombre: 'Belgrano', lat: -34.5627, lon: -58.4566 };
 export const ZONA = 'America/Argentina/Buenos_Aires';
 
 const CAMPOS = [
@@ -22,29 +28,36 @@ export const URL_PRONOSTICO = 'https://api.open-meteo.com/v1/forecast'
   + `&hourly=${CAMPOS.join(',')}`
   + '&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=4&wind_speed_unit=kmh';
 
+/** La misma, con cada modelo aparte: los campos vienen con sufijo ("_best_match"). */
+export const URL_MODELOS = `${URL_PRONOSTICO}&models=best_match,${MODELOS_LLUVIA.join(',')}`;
+
 const num = (v, def = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : def);
 
 /** La respuesta cruda de Open-Meteo → una lista de horas fáciles de mirar. */
 export function horasDe(json) {
   const h = json?.hourly;
   if (!h || !Array.isArray(h.time)) return [];
+  // Con varios modelos, lo de siempre viene como "temperature_2m_best_match".
+  const campo = (nombre, i) => (h[nombre] ?? h[`${nombre}_best_match`])?.[i];
   const salida = [];
   h.time.forEach((t, i) => {
-    const temp = h.temperature_2m?.[i];
+    const temp = campo('temperature_2m', i);
     if (typeof temp !== 'number' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t)) return;
+    const { prob, lluvia } = consenso(num(campo('precipitation_probability', i)), num(campo('precipitation', i)),
+      MODELOS_LLUVIA.map((m) => h[`precipitation_${m}`]?.[i]));
     salida.push({
       t,
       fecha: t.slice(0, 10),
       hora: Number(t.slice(11, 13)),
       temp,
-      hum: num(h.relative_humidity_2m?.[i], 60),
-      aparente: num(h.apparent_temperature?.[i], temp),
-      prob: num(h.precipitation_probability?.[i]),
-      lluvia: num(h.precipitation?.[i]),
-      codigo: num(h.weather_code?.[i]),
-      viento: num(h.wind_speed_10m?.[i]),
-      rafagas: num(h.wind_gusts_10m?.[i]),
-      uv: num(h.uv_index?.[i]),
+      hum: num(campo('relative_humidity_2m', i), 60),
+      aparente: num(campo('apparent_temperature', i), temp),
+      prob,
+      lluvia,
+      codigo: num(campo('weather_code', i)),
+      viento: num(campo('wind_speed_10m', i)),
+      rafagas: num(campo('wind_gusts_10m', i)),
+      uv: num(campo('uv_index', i)),
     });
   });
   return salida;
@@ -88,13 +101,22 @@ export function guardado(almacen = globalThis.localStorage) {
   }
 }
 
-/** Baja el pronóstico y lo guarda. Si falla, devuelve el último que había. */
+/** Baja una URL; falla si no vino un pronóstico que sirva. */
+async function bajar(f, url) {
+  const res = await f(url);
+  if (!res.ok) throw new Error(`Open-Meteo respondió ${res.status}`);
+  const json = await res.json();
+  if (!horasDe(json).length) throw new Error('El pronóstico vino vacío');
+  return json;
+}
+
+/**
+ * Baja el pronóstico (con los modelos y, si eso falla, el de siempre) y lo
+ * guarda. Si no hay ninguno, devuelve el último que había.
+ */
 export async function traer({ fetch: f = globalThis.fetch, almacen = globalThis.localStorage } = {}) {
   try {
-    const res = await f(URL_PRONOSTICO);
-    if (!res.ok) throw new Error(`Open-Meteo respondió ${res.status}`);
-    const json = await res.json();
-    if (!horasDe(json).length) throw new Error('El pronóstico vino vacío');
+    const json = await bajar(f, URL_MODELOS).catch(() => bajar(f, URL_PRONOSTICO));
     const registro = { json, bajado: Date.now() };
     try { almacen?.setItem(CLAVE, JSON.stringify(registro)); } catch { /* sin lugar: no importa */ }
     return { ...registro, fresco: true };

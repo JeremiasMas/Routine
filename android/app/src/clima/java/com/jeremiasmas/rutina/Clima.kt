@@ -17,13 +17,16 @@ import java.time.ZoneId
  */
 object Clima {
 
-  /** La misma URL que clima/js/pronostico.js. */
+  /** Las mismas URL que clima/js/pronostico.js: Belgrano. */
   const val URL_PRONOSTICO = "https://api.open-meteo.com/v1/forecast" +
-    "?latitude=-34.6037&longitude=-58.3816" +
+    "?latitude=-34.5627&longitude=-58.4566" +
     "&hourly=temperature_2m,relative_humidity_2m,apparent_temperature," +
     "precipitation_probability,precipitation,weather_code," +
     "wind_speed_10m,wind_gusts_10m,uv_index" +
     "&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=4&wind_speed_unit=kmh"
+
+  /** La misma, con cada modelo aparte para la lluvia; si falla, va la de arriba. */
+  const val URL_MODELOS = URL_PRONOSTICO + "&models=best_match,ecmwf_ifs025,gfs_seamless,icon_seamless"
 
   val ZONA: ZoneId = ZoneId.of("America/Argentina/Buenos_Aires")
 
@@ -116,11 +119,14 @@ object Clima {
     return try {
       val h = JSONObject(json).getJSONObject("hourly")
       val tiempos = h.getJSONArray("time")
-      val temps = h.getJSONArray("temperature_2m")
-      fun num(campo: String, i: Int, def: Double): Double {
-        val arr = h.optJSONArray(campo) ?: return def
-        return if (arr.isNull(i)) def else arr.optDouble(i, def).takeIf { !it.isNaN() } ?: def
+      // Con varios modelos, lo de siempre viene como "temperature_2m_best_match".
+      fun arreglo(campo: String) = h.optJSONArray(campo) ?: h.optJSONArray("${campo}_best_match")
+      val temps = arreglo("temperature_2m") ?: return emptyList()
+      fun numONull(campo: String, i: Int): Double? {
+        val arr = arreglo(campo) ?: return null
+        return if (arr.isNull(i)) null else arr.optDouble(i).takeIf { !it.isNaN() }
       }
+      fun num(campo: String, i: Int, def: Double) = numONull(campo, i) ?: def
       val salida = ArrayList<ClimaLogica.Hora>()
       for (i in 0 until tiempos.length()) {
         val t = tiempos.optString(i)
@@ -128,6 +134,10 @@ object Clima {
         val temp = temps.optDouble(i)
         val hora = t.substring(11, 13).toIntOrNull() ?: continue
         if (temp.isNaN()) continue
+        val (prob, lluvia) = ClimaLogica.consenso(
+          num("precipitation_probability", i, 0.0), num("precipitation", i, 0.0),
+          ClimaLogica.MODELOS_LLUVIA.map { numONull("precipitation_$it", i) },
+        )
         salida.add(
           ClimaLogica.Hora(
             fecha = t.substring(0, 10),
@@ -135,8 +145,8 @@ object Clima {
             temp = temp,
             hum = num("relative_humidity_2m", i, 60.0),
             aparente = num("apparent_temperature", i, temp),
-            prob = num("precipitation_probability", i, 0.0),
-            lluvia = num("precipitation", i, 0.0),
+            prob = prob,
+            lluvia = lluvia,
             codigo = num("weather_code", i, 0.0).toInt(),
             viento = num("wind_speed_10m", i, 0.0),
             rafagas = num("wind_gusts_10m", i, 0.0),
@@ -164,22 +174,27 @@ object Clima {
     val bajado = prefs(c).getLong(CLAVE_BAJADO, 0L)
     // El reloj puede ir para atrás: un "bajado" en el futuro no frena para siempre.
     if (bajado in (ahora - CADA_CUANTO_MS + 1)..ahora) return false
+    val json = bajar(URL_MODELOS) ?: bajar(URL_PRONOSTICO) ?: return false
+    prefs(c).edit().putString(CLAVE_PRONOSTICO, json).putLong(CLAVE_BAJADO, ahora).apply()
+    return true
+  }
+
+  /** Baja una URL; null si falla o no trae un pronóstico que sirva. */
+  private fun bajar(url: String): String? {
     val json = try {
-      val con = URL(URL_PRONOSTICO).openConnection() as HttpURLConnection
+      val con = URL(url).openConnection() as HttpURLConnection
       con.connectTimeout = 8_000
       con.readTimeout = 8_000
       try {
-        if (con.responseCode != 200) return false
+        if (con.responseCode != 200) return null
         con.inputStream.bufferedReader().use { it.readText() }
       } finally {
         con.disconnect()
       }
     } catch (e: Exception) {
-      return false
+      return null
     }
-    if (horas(json).isEmpty()) return false
-    prefs(c).edit().putString(CLAVE_PRONOSTICO, json).putLong(CLAVE_BAJADO, ahora).apply()
-    return true
+    return json.takeIf { horas(it).isNotEmpty() }
   }
 
   /**

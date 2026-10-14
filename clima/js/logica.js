@@ -233,6 +233,23 @@ export function ropaPara(s) {
   return ROPA.find((r) => s < r.hasta) ?? ROPA[ROPA.length - 1];
 }
 
+/** Los modelos que se consultan para decidir si llueve. */
+export const MODELOS_LLUVIA = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless'];
+
+/**
+ * La lluvia de una hora según varios modelos (europeo, estadounidense y
+ * alemán), para no avisar lluvia que no llega. Cuenta lo que dice el del
+ * medio, y si ninguno moja, la probabilidad sola no alcanza para avisar.
+ * Con menos de dos modelos queda lo que dijo el pronóstico de siempre.
+ */
+export function consenso(prob, lluvia, mm) {
+  const vale = mm.filter((x) => typeof x === 'number' && Number.isFinite(x)).sort((a, b) => a - b);
+  if (vale.length < 2) return { prob, lluvia };
+  const medio = vale.length % 2 ? vale[(vale.length - 1) / 2] : (vale[vale.length / 2 - 1] + vale[vale.length / 2]) / 2;
+  const seco = vale.every((x) => x < MM_LLOVIZNA);
+  return { prob: seco ? Math.min(prob, PROB_QUIZAS - 1) : prob, lluvia: medio };
+}
+
 /** 'tormenta', 'lluvia', 'quizas' o null. */
 export function lluviaEn(h) {
   if (TORMENTA.includes(h.codigo)) return 'tormenta';
