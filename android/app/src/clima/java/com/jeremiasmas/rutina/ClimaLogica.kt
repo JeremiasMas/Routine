@@ -29,7 +29,7 @@ object ClimaLogica {
   const val TEMP_CALOR = 22.0
 
   const val PROB_LLUEVE = 50.0
-  const val PROB_QUIZAS = 25.0
+  const val PROB_QUIZAS = 40.0
   const val MM_LLUEVE = 0.3
   const val MM_LLOVIZNA = 0.1
   const val RAFAGAS_PARAGUAS = 55.0
@@ -163,9 +163,10 @@ object ClimaLogica {
 
   /** "tormenta", "lluvia", "quizas" o null. */
   fun lluviaEn(h: Hora): String? = when {
-    h.codigo in TORMENTA -> "tormenta"
-    h.lluvia >= MM_LLUEVE || (h.prob >= PROB_LLUEVE && h.lluvia >= MM_LLOVIZNA) -> "lluvia"
-    h.prob >= PROB_QUIZAS || h.lluvia >= MM_LLOVIZNA -> "quizas"
+    // Un código de tormenta con probabilidad baja es una tormenta que no llega.
+    h.codigo in TORMENTA && h.prob >= PROB_QUIZAS -> "tormenta"
+    h.lluvia >= MM_LLUEVE && h.prob >= PROB_LLUEVE -> "lluvia"
+    h.prob >= PROB_QUIZAS || h.lluvia >= MM_LLUEVE -> "quizas"
     else -> null
   }
 

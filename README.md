@@ -495,10 +495,11 @@ Está calibrada para alguien que se crió en **Río Grande**:
 | 19 – 25° | 👕 Remera |
 | 25° o más | 🥵 Lo más liviano |
 
-**Paraguas:** sí con 0,3 mm o más en una hora, o con 50% de probabilidad *y*
-al menos 0,1 mm esperados; "por las dudas" desde 25% o con 0,1 mm. La
-probabilidad sola no alcanza: en un día de chubascos sueltos se infla aunque
-no se espere agua. Lo que ya pasó no cuenta: la lluvia de la ida no te hace
+**Paraguas:** ☔ con 0,3 mm o más en una hora *y* 50% de probabilidad;
+🌂 "por las dudas" con una de las dos, o desde 40%. Los umbrales son altos a
+propósito: en un día de chubascos sueltos la probabilidad se infla aunque no
+llueva, y un 25–30% en Buenos Aires casi nunca moja. Una tormenta en el
+pronóstico cuenta sólo si su probabilidad pasa el 40%. Lo que ya pasó no cuenta: la lluvia de la ida no te hace
 llevar paraguas al mediodía. Con ráfagas de 55 km/h o más, capucha en vez de
 paraguas.
 

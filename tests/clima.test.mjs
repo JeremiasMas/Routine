@@ -49,10 +49,16 @@ test('la ropa va varios grados más abajo que la de un porteño', () => {
 test('paraguas: lluvia sí, llovizna probable chico, sudestada capucha', () => {
   const seco = { prob: 5, lluvia: 0, codigo: 1, rafagas: 20 };
   assert.equal(paraguas([seco]).nivel, 'no');
-  assert.equal(paraguas([{ ...seco, prob: 30 }]).nivel, 'quizas');
-  assert.equal(paraguas([{ ...seco, prob: 70, lluvia: 0.2 }]).nivel, 'si');
-  assert.equal(paraguas([{ ...seco, lluvia: 1.2 }]).nivel, 'si');
-  assert.equal(paraguas([{ ...seco, codigo: 95 }]).nivel, 'si');
+  // Un 30 % en Buenos Aires casi nunca moja: recién desde el 40 % es "por las dudas".
+  assert.equal(paraguas([{ ...seco, prob: 30 }]).nivel, 'no');
+  assert.equal(paraguas([{ ...seco, prob: 45 }]).nivel, 'quizas');
+  // "Llueve" pide agua medible y probabilidad alta, las dos.
+  assert.equal(paraguas([{ ...seco, prob: 70, lluvia: 0.2 }]).nivel, 'quizas');
+  assert.equal(paraguas([{ ...seco, prob: 70, lluvia: 0.5 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, lluvia: 1.2 }]).nivel, 'quizas');
+  // Tormenta, si es probable; con 5 % es una tormenta que no llega.
+  assert.equal(paraguas([{ ...seco, codigo: 95, prob: 60 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, codigo: 95 }]).nivel, 'no');
   assert.equal(paraguas([{ ...seco, prob: 80, lluvia: 2, rafagas: 70 }]).nivel, 'capucha');
 });
 
@@ -62,8 +68,8 @@ test('una probabilidad alta sin agua esperada no es lluvia, es "por las dudas"',
   // mandarte a caminar a las 19 en vez de al almuerzo.
   const seco = { prob: 5, lluvia: 0, codigo: 1, rafagas: 20 };
   assert.equal(paraguas([{ ...seco, prob: 70 }]).nivel, 'quizas');
-  assert.equal(paraguas([{ ...seco, prob: 10, lluvia: 0.1 }]).nivel, 'quizas');
-  assert.equal(paraguas([{ ...seco, prob: 10, lluvia: 0.3 }]).nivel, 'si');
+  assert.equal(paraguas([{ ...seco, prob: 10, lluvia: 0.1 }]).nivel, 'no');
+  assert.equal(paraguas([{ ...seco, prob: 10, lluvia: 0.3 }]).nivel, 'quizas');
 });
 
 test('la lluvia que ya pasó no cuenta para el paraguas', () => {
@@ -222,12 +228,12 @@ test('si llueve al almuerzo, el paraguas va arriba y abajo dice cuándo', () => 
   assert.equal(w.aviso, '🌧️ al almuerzo');
   // Lo de la captura: al almuerzo llueve seguro y a la vuelta quizás. Manda
   // lo peor; el "quizás" de la vuelta ya está cubierto con el paraguas.
-  const ambas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : h === 18 ? { prob: 30 } : {}));
+  const ambas = dia(MIERCOLES, (h) => (h === 13 ? { prob: 80, lluvia: 1 } : h === 18 ? { prob: 45 } : {}));
   const w2 = wid(ambas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
   assert.equal(w2.titulo, 'Manga larga ☔');
   assert.equal(w2.aviso, '🌧️ al almuerzo');
   // Igual de feo en los dos.
-  const dos = dia(MIERCOLES, (h) => (h === 13 || h === 18 ? { prob: 30 } : {}));
+  const dos = dia(MIERCOLES, (h) => (h === 13 || h === 18 ? { prob: 45 } : {}));
   assert.equal(wid(dos, HORARIO_DEFAULT, MIERCOLES, 7 * 60).aviso, '🌦️ al almuerzo y a la vuelta');
   // Si ya llueve a la ida, lo ves al salir: no hace falta decir cuándo.
   const siempre = dia(MIERCOLES, () => ({ prob: 80, lluvia: 1 }));
@@ -253,9 +259,17 @@ test('si el aviso ya dice que llueve al almuerzo, la caminata no lo repite', () 
   assert.match(enLaOficina.caminar, /^Lluvia al almuerzo, caminá/);
 });
 
+test('un día de chubascos sueltos poco probables no pide paraguas', () => {
+  // Lo del 14/10: entre 8 % y 17 % todo el día, algún modelo con 0,2 mm. No llovió.
+  const horas = dia(MIERCOLES, (h) => ({ prob: [8, 11, 10, 17, 17, 14, 16, 16, 17, 17][h - 8] ?? 10, lluvia: h === 14 ? 0.2 : 0 }));
+  const w = wid(horas, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
+  assert.equal(w.titulo, 'Manga larga');
+  assert.equal(w.aviso, '');
+});
+
 test('el aviso de la mañana entra en un renglón', () => {
   // Lo más largo que puede armar: abrigo y lluvia en los dos tramos.
-  const peor = dia(MIERCOLES, (h) => (h === 13 ? { prob: 30 } : h >= 18 ? { temp: 8, prob: 30 } : { temp: 30 }));
+  const peor = dia(MIERCOLES, (h) => (h === 13 ? { prob: 45 } : h >= 18 ? { temp: 8, prob: 45 } : { temp: 30 }));
   const w = wid(peor, HORARIO_DEFAULT, MIERCOLES, 7 * 60);
   assert.equal(w.aviso, '🌦️ al almuerzo · 🧥🌦️ a la vuelta');
   assert.ok([...w.aviso].length <= 40);
@@ -295,7 +309,7 @@ test('con la meta de pasos cumplida, el widget no dice nada de caminar', () => {
 });
 
 test('el widget son líneas cortas: qué ponerte, un aviso si hace falta, cuándo caminar', () => {
-  const horas = dia(MARTES, (h) => (h === 8 ? { prob: 30 } : {}));
+  const horas = dia(MARTES, (h) => (h === 8 ? { prob: 45 } : {}));
   const w = lineasWidget(plan(horas, LV, { fecha: MARTES, minutos: 7 * 60 }));
   assert.deepEqual(Object.keys(w), ['titulo', 'aviso', 'caminar']);
   assert.equal(w.aviso, '');
@@ -506,7 +520,7 @@ test('la lluvia es la del modelo del medio, y sin ninguno que moje no hay aviso'
     precipitation_gfs_seamless: [2.0, 0.4, 0, null],
     precipitation_icon_seamless: [0, 0, 0, 0],
   } });
-  assert.deepEqual(horas.map((h) => [h.prob, h.lluvia]), [[60, 0], [60, 0.4], [24, 0], [60, 0.5]]);
+  assert.deepEqual(horas.map((h) => [h.prob, h.lluvia]), [[60, 0], [60, 0.4], [39, 0], [60, 0.5]]);
   assert.deepEqual(horas.map(lluviaEn), ['quizas', 'lluvia', null, 'lluvia']);
 });
 
