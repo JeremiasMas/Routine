@@ -422,30 +422,23 @@ object ClimaLogica {
     else -> 0
   }
 
-  private fun palabraParaguas(nivel: String) = when (nivel) {
-    "quizas" -> "¿paraguas?"
-    "si" -> "paraguas"
-    "capucha" -> "capucha"
+  // Paraguas en emoji, que ahorra renglón: 🌂 por las dudas, ☔ va a llover.
+  // Con ráfagas no hay emoji que diga "capucha", así que va escrito.
+  private fun textoParaguas(nivel: String) = when (nivel) {
+    "quizas" -> " 🌂"
+    "si" -> " ☔"
+    "capucha" -> " · capucha"
     else -> ""
   }
 
-  private fun palabraLluvia(nivel: String) = when (nivel) {
-    "quizas" -> "¿lluvia?"
-    "si", "capucha" -> "lluvia"
+  private fun emojiLluvia(nivel: String) = when (nivel) {
+    "quizas" -> "🌦️"
+    "si", "capucha" -> "🌧️"
     else -> ""
   }
 
-  /** La primera letra en mayúscula, aunque empiece con "¿". */
-  private fun mayuscula(t: String): String {
-    val i = t.indexOfFirst { it.isLetter() }
-    return if (i < 0) t else t.substring(0, i) + t[i].uppercase() + t.substring(i + 1)
-  }
-
-  /** "Campera liviana · paraguas" para un tramo de horas. */
-  private fun prenda(hs: List<Hora>): String {
-    val palabra = palabraParaguas(paraguas(hs))
-    return ropaPara(hs.minOf { sensacion(it) }).corto + if (palabra.isEmpty()) "" else " · $palabra"
-  }
+  /** "Campera liviana ☔" para un tramo de horas. */
+  private fun prenda(hs: List<Hora>) = ropaPara(hs.minOf { sensacion(it) }).corto + textoParaguas(paraguas(hs))
 
   /**
    * Qué ponerte, sólo cuando estás por salir; como vestir en la web.
@@ -477,24 +470,23 @@ object ClimaLogica {
         val nivelAlm = alm?.let { paraguas(it) }
         val nivelVue = vue?.let { paraguas(it) }
         val peor = listOfNotNull(nivelAlm, nivelVue).fold(nivelIda) { n, x -> if (rangoParaguas(x) > rangoParaguas(n)) x else n }
-        // Abajo, lo justo: "Lluvia al almuerzo", "Campera y lluvia a la vuelta".
+        // Abajo, lo justo: "🌧️ al almuerzo", "🧥🌧️ a la vuelta".
         val llueve = { nivel: String? -> rangoParaguas(peor) > rangoParaguas(nivelIda) && nivel == peor }
         val enVuelta = ArrayList<String>()
         if (vue != null) {
           val ropaVuelta = ropaPara(vue.minOf { sensacion(it) })
-          if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.add(ropaVuelta.corto.lowercase())
+          if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.add("🧥")
         }
         val aviso = if (llueve(nivelAlm) && llueve(nivelVue) && enVuelta.isEmpty()) {
-          "${palabraLluvia(peor)} al almuerzo y a la vuelta"
+          "${emojiLluvia(peor)} al almuerzo y a la vuelta"
         } else {
-          if (llueve(nivelVue)) enVuelta.add(palabraLluvia(peor))
+          if (llueve(nivelVue)) enVuelta.add(emojiLluvia(peor))
           val partes = ArrayList<String>()
-          if (llueve(nivelAlm)) partes.add("${palabraLluvia(peor)} al almuerzo")
-          if (enVuelta.isNotEmpty()) partes.add("${enVuelta.joinToString(" y ")} a la vuelta")
+          if (llueve(nivelAlm)) partes.add("${emojiLluvia(peor)} al almuerzo")
+          if (enVuelta.isNotEmpty()) partes.add("${enVuelta.joinToString("")} a la vuelta")
           partes.joinToString(" · ")
         }
-        val palabra = palabraParaguas(peor)
-        return ropaIda.corto + (if (palabra.isEmpty()) "" else " · $palabra") to mayuscula(aviso)
+        return ropaIda.corto + textoParaguas(peor) to aviso
       }
       if (min >= h.salida - AVISO_SALIDA && min < h.salida + h.viaje && vuelta.isNotEmpty()) {
         val base = if (vuelta.any(pendiente)) vuelta.filter(pendiente) else vuelta

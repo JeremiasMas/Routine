@@ -442,16 +442,18 @@ En `clima/` vive una tercera app, con un widget de texto corto: **qué
 ponerte, si llevar paraguas y cuándo conviene salir a caminar** en Buenos
 Aires.
 
-    Remera · paraguas
-    Campera y lluvia a la vuelta
+    Remera ☔
+    🧥🌧️ a la vuelta
     Caminá 13–14:30 h · faltan 40 min
 
-Sin emojis ni temperaturas: la temperatura ya la da el reloj del teléfono, y
-el widget sólo dice lo que cambia lo que hacés. Lo que no aplica no se ve:
+Sin temperaturas, que ya da el reloj del teléfono: el widget sólo dice lo que
+cambia lo que hacés. La ropa va escrita; el paraguas y la lluvia, en emoji
+para ahorrar renglón: 🌂 por las dudas, ☔ va a llover, 🌧️/🌦️ cuándo llueve
+(seguro/quizás) y 🧥 abrigo para la vuelta. Lo que no aplica no se ve:
 
 | Cuándo | Qué ponerte |
 |---|---|
-| Día de oficina, antes de llegar | Lo de la ida, con el paraguas si llueve en cualquier momento del día (lo llevás desde casa). Abajo, corto, cuándo llueve o si a la vuelta hace falta más abrigo: "Lluvia al almuerzo", "Campera a la vuelta" |
+| Día de oficina, antes de llegar | Lo de la ida, con el paraguas si llueve en cualquier momento del día (lo llevás desde casa). Abajo, corto, cuándo llueve o si a la vuelta hace falta más abrigo: "🌧️ al almuerzo", "🧥 a la vuelta" |
 | En la oficina | Nada, hasta una hora antes de salir |
 | De una hora antes de salir hasta llegar a casa | Lo de la vuelta |
 | Ya en casa | Nada; desde las 20, lo de mañana |

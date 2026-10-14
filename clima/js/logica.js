@@ -576,10 +576,12 @@ export function plan(horas, horario, ahora, pasos = null) {
   };
 }
 
-const TEXTO_PARAGUAS = { no: '', quizas: ' · ¿paraguas?', si: ' · paraguas', capucha: ' · capucha' };
+// Paraguas en emoji, que ahorra renglón: 🌂 por las dudas, ☔ va a llover. Con
+// ráfagas no hay emoji que diga "capucha", así que va escrito.
+const TEXTO_PARAGUAS = { no: '', quizas: ' 🌂', si: ' ☔', capucha: ' · capucha' };
 
 /**
- * Las dos líneas del widget: qué ponerte y cuándo caminar. Sin emojis ni
+ * Las líneas del widget: qué ponerte, un aviso y cuándo caminar. Sin
  * temperaturas, que ya están en el reloj del teléfono: sólo lo que cambia lo
  * que hacés. Kotlin arma exactamente las mismas: el test de paridad compara
  * los dos con los mismos casos.
@@ -593,11 +595,12 @@ export function lineasWidget(p) {
 export const AVISO_SALIDA = 60;
 
 const RANGO_PARAGUAS = { no: 0, quizas: 1, si: 2, capucha: 3 };
-const PALABRA_LLUVIA = { no: '', quizas: '¿lluvia?', si: 'lluvia', capucha: 'lluvia' };
+const EMOJI_LLUVIA = { no: '', quizas: '🌦️', si: '🌧️', capucha: '🌧️' };
+const ABRIGO = '🧥';
 
-/** "Campera liviana · paraguas" para un tramo de horas. */
-/** La primera letra en mayúscula, aunque empiece con "¿". */
-const mayuscula = (t) => t.replace(/\p{L}/u, (c) => c.toUpperCase());
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** "Campera liviana ☔" para un tramo de horas. */
 
 function prenda(hs) {
   return `${ropaPara(Math.min(...hs.map(sensacion))).corto}${TEXTO_PARAGUAS[paraguas(hs).nivel]}`;
@@ -610,7 +613,7 @@ function prenda(hs) {
  * - Día de oficina, antes de llegar: lo de la ida. Si a la vuelta (o al
  *   almuerzo) llueve, el paraguas va igual arriba (lo llevás desde casa) y la
  *   segunda línea dice cuándo; si a la vuelta hace más frío, también:
- *   "Manga larga · paraguas" / "Lluvia al almuerzo · campera a la vuelta".
+ *   "Manga larga ☔" / "🌧️ al almuerzo · 🧥 a la vuelta".
  * - En la oficina, nada; desde AVISO_SALIDA minutos antes de salir y hasta
  *   llegar a casa, lo de la vuelta. Ya en casa, nada.
  * - Home office: lo de tu próxima caminata; sin caminata, nada.
@@ -645,24 +648,24 @@ export function vestir(horas, horario, ahora, caminata) {
       const alm = h.almuerzo ? conNivel(tramo(horas, fecha, minutos(h.almuerzo.desde), minutos(h.almuerzo.hasta))) : null;
       const vue = conNivel(vuelta);
       const peor = [alm, vue].reduce((n, t) => (t && RANGO_PARAGUAS[t.nivel] > RANGO_PARAGUAS[n] ? t.nivel : n), nivelIda);
-      // Abajo, lo justo: "Lluvia al almuerzo", "Campera y lluvia a la vuelta".
+      // Abajo, lo justo: "🌧️ al almuerzo", "🧥🌧️ a la vuelta".
       const llueve = (t) => RANGO_PARAGUAS[peor] > RANGO_PARAGUAS[nivelIda] && t?.nivel === peor;
       const enVuelta = [];
       if (vue) {
         const ropaVuelta = ropaPara(Math.min(...vue.hs.map(sensacion)));
-        if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.push(ropaVuelta.corto.toLowerCase());
+        if (ropaVuelta.hasta < ropaIda.hasta) enVuelta.push(ABRIGO);
       }
       let aviso;
       if (llueve(alm) && llueve(vue) && !enVuelta.length) {
-        aviso = `${PALABRA_LLUVIA[peor]} al almuerzo y a la vuelta`;
+        aviso = `${EMOJI_LLUVIA[peor]} al almuerzo y a la vuelta`;
       } else {
-        if (llueve(vue)) enVuelta.push(PALABRA_LLUVIA[peor]);
+        if (llueve(vue)) enVuelta.push(EMOJI_LLUVIA[peor]);
         const partes = [];
-        if (llueve(alm)) partes.push(`${PALABRA_LLUVIA[peor]} al almuerzo`);
-        if (enVuelta.length) partes.push(`${enVuelta.join(' y ')} a la vuelta`);
+        if (llueve(alm)) partes.push(`${EMOJI_LLUVIA[peor]} al almuerzo`);
+        if (enVuelta.length) partes.push(`${enVuelta.join('')} a la vuelta`);
         aviso = partes.join(' · ');
       }
-      return { titulo: `${ropaIda.corto}${TEXTO_PARAGUAS[peor]}`, aviso: mayuscula(aviso) };
+      return { titulo: `${ropaIda.corto}${TEXTO_PARAGUAS[peor]}`, aviso };
     }
     if (min >= salida - AVISO_SALIDA && min < salida + h.viaje && vuelta.length) {
       const base = vuelta.some(pendiente) ? vuelta.filter(pendiente) : vuelta;
