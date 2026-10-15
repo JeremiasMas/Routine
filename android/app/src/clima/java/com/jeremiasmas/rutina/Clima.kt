@@ -8,11 +8,11 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Lo que el widget del clima necesita y no puede sacar de la web: el horario
- * de oficina que elegiste y el último pronóstico.
+ * Lo que las notificaciones del clima necesitan y no pueden sacar de la web:
+ * el horario de oficina que elegiste y el último pronóstico.
  *
- * La web los manda cada vez que la abrís (MainActivity.guardarClima). Además el
- * widget baja el pronóstico por su cuenta cada tanto, así sigue al día aunque
+ * La web los manda cada vez que la abrís (MainActivity.guardarClima). Además,
+ * antes de cada aviso se baja el pronóstico de nuevo, así sigue al día aunque
  * no abras la app en una semana.
  */
 object Clima {
@@ -31,12 +31,12 @@ object Clima {
   val ZONA: ZoneId = ZoneId.of("America/Argentina/Buenos_Aires")
 
   /**
-   * Cada cuánto, como mucho, se baja el pronóstico. El widget se despierta
-   * cada media hora: entre medio redibuja con el que ya tiene, que trae las
-   * próximas 96 horas.
+   * Cada cuánto, como mucho, se baja el pronóstico: entre medio se usa el que
+   * ya hay, que trae las próximas 96 horas.
    */
   private const val CADA_CUANTO_MS = 60 * 60 * 1000L
 
+  // El nombre viene de cuando era un widget: cambiarlo perdería lo guardado.
   private const val PREFS = "clima_widget"
   private const val CLAVE_HORARIO = "horario"
   private const val CLAVE_PRONOSTICO = "pronostico"
@@ -198,7 +198,7 @@ object Clima {
   }
 
   /**
-   * Los pasos de hoy, leídos de Health Connect por el widget. Una lectura que
+   * Los pasos de hoy, leídos de Health Connect antes de cada aviso. Una lectura que
    * falla (sin permiso, sin respuesta) no pisa la anterior: devuelve null y
    * queda lo que había.
    */
@@ -215,17 +215,5 @@ object Clima {
     val fecha = p.getString(CLAVE_PASOS_FECHA, null) ?: return null
     if (fecha != LocalDateTime.now(ZONA).toLocalDate().toString()) return null
     return p.getLong(CLAVE_PASOS, 0L)
-  }
-
-  /** Las tres líneas para este momento, con lo que haya guardado. */
-  fun lineas(c: Context): ClimaLogica.Lineas {
-    val ahora = LocalDateTime.now(ZONA)
-    return ClimaLogica.lineas(
-      horasGuardadas(c),
-      horario(c),
-      ahora.toLocalDate().toString(),
-      ahora.hour * 60 + ahora.minute,
-      pasosDeHoy(c),
-    )
   }
 }

@@ -117,6 +117,21 @@ class MainActivity : AppCompatActivity() {
     )
   }
 
+  /** Si ya se pidió el permiso para el clima en esta apertura de la app. */
+  private var climaPidioPermiso = false
+
+  /**
+   * El clima avisa por notificaciones: sin el permiso no sirve. Se pide una
+   * vez por apertura; si lo negaste dos veces, Android ya ni muestra el cartel.
+   */
+  private fun pedirNotificacionesDelClima() {
+    if (BuildConfig.FLAVOR != "clima" || climaPidioPermiso || Recordatorio.permisoDado(this) ||
+      Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+    ) return
+    climaPidioPermiso = true
+    pedirNotificaciones.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+  }
+
   /** Guarda y programa un recordatorio; si hace falta el permiso, lo pide. */
   private fun configurarRecordatorio(tipo: Recordatorio.Tipo, config: Recordatorio.Config) {
     Recordatorio.guardar(this, tipo, config)
@@ -508,10 +523,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * El horario de oficina y el último pronóstico, para el widget del clima.
+     * El horario de oficina y el último pronóstico, para las notificaciones
+     * del clima. La primera vez pide el permiso de notificaciones.
      *
-     * Va por un broadcast porque el widget sólo existe en el APK del clima: en
-     * Rutina y Ataraxia nadie lo escucha y no pasa nada.
+     * Va por un broadcast porque quien lo escucha sólo existe en el APK del
+     * clima: en Rutina y Ataraxia nadie lo escucha y no pasa nada.
      */
     @JavascriptInterface
     fun guardarClima(horario: String, pronostico: String) {
@@ -521,6 +537,7 @@ class MainActivity : AppCompatActivity() {
           .putExtra("horario", horario)
           .putExtra("pronostico", pronostico)
       )
+      runOnUiThread { pedirNotificacionesDelClima() }
     }
 
     /** La web terminó de aplicar la cola del widget: ya se puede vaciar. */
@@ -573,7 +590,7 @@ class MainActivity : AppCompatActivity() {
   companion object {
     /** Con qué pantalla abrir, cuando venís de tocar una misión del widget. */
     const val EXTRA_RUTA = "ruta"
-    /** La escucha WidgetClima, que sólo está en el APK del clima. */
+    /** La escucha NotificacionesClimaReceptor, que sólo está en el APK del clima. */
     const val ACCION_CLIMA = "com.jeremiasmas.rutina.CLIMA"
     const val WEB = "https://jeremiasmas.github.io/Routine/"
     // Las tres piezas de WEB, separadas porque el respaldo local tiene que

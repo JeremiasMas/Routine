@@ -515,7 +515,7 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   assert.match(ci, /apk\/ataraxia\/debug\/app-ataraxia-debug\.apk ataraxia\.apk/);
 });
 
-test('la app del clima abre clima/ y sólo trae su widget', () => {
+test('la app del clima abre clima/ y avisa por notificaciones, sin widgets', () => {
   const gradle = leer('android/app/build.gradle.kts');
   const clima = /create\("clima"\)\s*\{([\s\S]*?)\n    \}/.exec(gradle)?.[1];
   assert.ok(clima, 'falta el sabor clima');
@@ -529,18 +529,30 @@ test('la app del clima abre clima/ y sólo trae su widget', () => {
     assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${m[1]}" tools:node="remove"`),
       `el widget ${m[1]} aparecería en Clima`);
   }
-  // El del clima, en cambio, sólo existe acá: en Rutina no tiene que aparecer.
-  assert.match(manifiesto, /android:name="com\.jeremiasmas\.rutina\.WidgetClima"/);
-  assert.doesNotMatch(leer(MANIFEST), /WidgetClima/, 'el widget del clima aparecería en Rutina');
+  assert.doesNotMatch(manifiesto, /appwidget/, 'el clima ya no tiene widget');
   assert.match(leer('android/app/src/clima/res/values/strings.xml'), /name="app_name">Clima</);
 
-  // La web avisa por un broadcast que el widget tiene que escuchar.
+  // Las notificaciones: el permiso, y volver a programarlas al reiniciar.
+  assert.match(manifiesto, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(manifiesto, /android\.permission\.RECEIVE_BOOT_COMPLETED/);
+  const receptor = /<receiver\s[\s\S]*?NotificacionesClimaReceptor[\s\S]*?<\/receiver>/.exec(manifiesto)?.[0];
+  assert.ok(receptor, 'falta el receptor de las notificaciones del clima');
+  assert.match(fuentesKotlin, /class NotificacionesClimaReceptor : BroadcastReceiver\(\)/);
+  for (const accion of ['android.intent.action.BOOT_COMPLETED', 'android.intent.action.MY_PACKAGE_REPLACED']) {
+    assert.ok(receptor.includes(`<action android:name="${accion}" />`), `el receptor no filtra ${accion}`);
+  }
+  // Su propia alarma tiene que llegarle.
+  const alarma = /const val ACCION_AVISO = "([^"]+)"/.exec(fuentesKotlin)?.[1];
+  assert.ok(alarma && receptor.includes(`<action android:name="${alarma}" />`), 'la alarma del clima no le llega al receptor');
+
+  // La web avisa por un broadcast que el receptor tiene que escuchar.
   const accion = /const val ACCION_CLIMA = "([^"]+)"/.exec(leer(MAIN))?.[1];
   assert.ok(accion, 'falta ACCION_CLIMA en MainActivity');
-  assert.ok(manifiesto.includes(`<action android:name="${accion}" />`),
-    `WidgetClima no filtra ${accion}: el horario que elegís nunca le llegaría`);
+  assert.ok(receptor.includes(`<action android:name="${accion}" />`),
+    `el receptor no filtra ${accion}: el horario que elegís nunca le llegaría`);
   // Y que el broadcast quede adentro de la app.
   assert.match(cuerpoDe(leer(MAIN), 'fun guardarClima('), /setPackage\(packageName\)/);
+  assert.doesNotMatch(fuentesKotlin, /WidgetClima/);
 
   const ci = leer('.github/workflows/android.yml');
   assert.match(ci, /apk\/clima\/debug\/app-clima-debug\.apk clima\.apk/);

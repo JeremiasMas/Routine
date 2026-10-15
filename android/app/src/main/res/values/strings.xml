@@ -42,9 +42,4 @@
   <string name="widget_xp">%1$d XP</string>
   <string name="widget_falta">Falta: %1$s</string>
   <string name="widget_todo_hecho">Todo hecho ⭐</string>
-
-  <!-- El widget del clima, que sólo aparece en el APK del clima. -->
-  <string name="clima_widget_nombre">Clima</string>
-  <string name="clima_widget_desc">Qué ponerte, paraguas y cuándo caminar.</string>
-  <string name="clima_cargando">Bajando el pronóstico…</string>
 </resources>

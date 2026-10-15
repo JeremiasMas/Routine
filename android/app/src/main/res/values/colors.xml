@@ -14,8 +14,4 @@
   <color name="widget_acento_fondo">#2a0d10</color>
   <color name="widget_ok">#3ddc97</color>
   <color name="widget_pendiente">#f59e0b</color>
-
-  <!-- El texto secundario del widget del clima: el mismo blanco, un poco
-       apagado, como la línea de la agenda debajo del reloj de Samsung. -->
-  <color name="clima_texto_suave">#D9F4EEF0</color>
 </resources>
