@@ -1,24 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- La app del clima: el mismo WebView abriendo clima/, con su propio widget.
-     Los widgets de Rutina se sacan: mostrarían un día que acá no existe. Los
-     permisos de pasos quedan: con ellos sabe cuánto te falta caminar. -->
+<!-- La app del clima: el mismo WebView abriendo clima/, con sus notificaciones
+     de qué ponerte y cuándo caminar. Los widgets de Rutina se sacan:
+     mostrarían un día que acá no existe. Los permisos de pasos quedan: con
+     ellos sabe cuánto te falta caminar. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+  <!-- Las notificaciones, y volver a programarlas cuando el teléfono se reinicia. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
   <application>
-    <!-- Qué ponerte, paraguas y cuándo caminar. Escucha además lo que la web
-         le manda: el horario de oficina y el último pronóstico. -->
+    <!-- Escucha lo que la web le manda (el horario y el último pronóstico), su
+         propia alarma, y el reinicio del teléfono. -->
     <receiver
-        android:name="com.jeremiasmas.rutina.WidgetClima"
-        android:label="@string/clima_widget_nombre"
+        android:name="com.jeremiasmas.rutina.NotificacionesClimaReceptor"
         android:exported="false">
       <intent-filter>
-        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
         <action android:name="com.jeremiasmas.rutina.CLIMA" />
+        <action android:name="com.jeremiasmas.rutina.CLIMA_AVISO" />
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
       </intent-filter>
-      <meta-data
-          android:name="android.appwidget.provider"
-          android:resource="@xml/widget_clima_info" />
     </receiver>
 
     <receiver android:name="com.jeremiasmas.rutina.WidgetRutina" tools:node="remove" />

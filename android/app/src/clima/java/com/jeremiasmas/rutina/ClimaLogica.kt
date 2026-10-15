@@ -460,7 +460,7 @@ object ClimaLogica {
   }
 
   /** "Campera liviana ☔" para un tramo de horas. */
-  private fun prenda(hs: List<Hora>) = ropaPara(hs.minOf { sensacion(it) }).corto + textoParaguas(paraguas(hs))
+  fun prenda(hs: List<Hora>) = ropaPara(hs.minOf { sensacion(it) }).corto + textoParaguas(paraguas(hs))
 
   data class Vestir(val titulo: String, val aviso: String, val lluviaAlmuerzo: Boolean = false)
 

@@ -247,7 +247,7 @@ function filaOcupado(o = { nombre: '', dias: [], desde: '', hasta: '' }) {
     </div>`;
 }
 
-/** Lee lo que hay en pantalla, lo guarda y se lo pasa al widget. */
+/** Lee lo que hay en pantalla, lo guarda y se lo pasa a las notificaciones. */
 function guardarAjustes() {
   horario = normalizarHorario({
     dias: [...document.querySelectorAll('.dia-oficina:checked')].map((i) => Number(i.value)),
@@ -307,7 +307,7 @@ function pintarAjustes() {
     <p class="suave">Lo fijo de cada semana. Ahí la app nunca te propone caminar.</p>
     <div id="ocupados">${horario.ocupados.map(filaOcupado).join('')}</div>
     <button type="button" class="boton boton-suave" id="agregar-ocupado">Agregar</button>
-    ${enApp() ? '' : `<p class="suave">¿Querés el widget en la pantalla de inicio? <a href="${DESCARGA_APK}">Bajá la app para Android</a>.</p>`}`;
+    ${enApp() ? '' : `<p class="suave">¿Querés que te avise en el celular qué ponerte? <a href="${DESCARGA_APK}">Bajá la app para Android</a>.</p>`}`;
 
   $('#ajustes').addEventListener('change', (e) => {
     // Un día es de oficina o de home office: marcar uno desmarca el otro.
@@ -349,8 +349,8 @@ document.addEventListener('click', (e) => {
 
 escucharPasos(() => ahoraEnBA().fecha, (datos) => {
   Object.assign(hc, datos);
-  // Lo que se ve en la app y lo que dibuja el widget tienen que coincidir: el
-  // widget vuelve a leer los pasos cuando recibe esto.
+  // Lo que se ve en la app y lo que dicen las notificaciones tienen que
+  // coincidir: con esto se reprograman con los pasos de ahora.
   sincronizar(horario, null);
   pintar();
 });

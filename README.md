@@ -449,16 +449,16 @@ a Sísifo feliz. La paleta es toda en azules.
 
 ## Clima: qué ponerte hoy 🧥
 
-En `clima/` vive una tercera app, con un widget de texto corto: **qué
-ponerte, si llevar paraguas y cuándo conviene salir a caminar** en Buenos
-Aires.
+En `clima/` vive una tercera app, que te avisa con notificaciones cortas
+**qué ponerte, si llevar paraguas y cuándo conviene salir a caminar** en
+Buenos Aires. Arriba de todo, la app muestra lo mismo en tres líneas:
 
     Remera ☔
     🧥🌧️ a la vuelta
     Caminá 13–14:30 h · faltan 40 min
 
-Sin temperaturas, que ya da el reloj del teléfono: el widget sólo dice lo que
-cambia lo que hacés. La ropa va escrita; el paraguas y la lluvia, en emoji
+Sin temperaturas, que ya da el reloj del teléfono: sólo lo que cambia lo que
+hacés. La ropa va escrita; el paraguas y la lluvia, en emoji
 para ahorrar renglón: 🌂 por las dudas, ☔ va a llover, 🌧️/🌦️ cuándo llueve
 (seguro/quizás) y 🧥 abrigo para la vuelta. Lo que no aplica no se ve:
 
@@ -559,19 +559,29 @@ por consenso de tres modelos (europeo, estadounidense y alemán): cuenta el del
 medio, y si ninguno moja, la probabilidad sola no avisa. Un modelo solo suele
 avisar lluvia que no llega. Si esa consulta falla, usa el pronóstico de siempre.
 
-### El widget
+### Las notificaciones
 
 Sale en un APK propio, `clima.apk`, del mismo release que los otros:
 
     https://github.com/JeremiasMas/Routine/releases/download/apk/clima.apk
 
-El widget se calcula solo con la app cerrada: cada media hora se redibuja con la
-hora de ahora, lee los pasos de hoy de Health Connect y, si pasó una hora, baja
-un pronóstico nuevo. La lógica está en
-Kotlin (`ClimaLogica.kt`) y repite la de `clima/js/logica.js`. Un test compara
-las constantes y los niveles de ropa de los dos archivos. Si tocás un umbral,
-tocalo en los dos. Lo único que el widget no sabe por su cuenta es tu horario:
-se lo pasa la web cada vez que la abrís.
+En vez de widget, avisa con notificaciones, siempre con qué ponerte (y ☔/🌂
+si hace falta paraguas):
+
+| Cuándo | Título | Texto |
+|---|---|---|
+| Día de oficina, 7:30 (media hora antes de salir) | Lo de la ida: "Remera ☔" | Lo que pide la vuelta o el almuerzo ("🧥🌧️ a la vuelta"), o "Para ir a la oficina" |
+| Día de oficina, 17 (una hora antes de salir) | Lo de la vuelta | "Para volver a casa" |
+| 15 minutos antes de caminar, si te faltan pasos | "Caminá 13–14:30 h · faltan 40 min" | Qué ponerte para ese rato |
+
+La primera vez que abrís la app pide el permiso de notificaciones. Funciona con
+la app cerrada: una alarma por vez (`NotificacionesClima.kt`) que, al sonar,
+lee los pasos de hoy de Health Connect, baja un pronóstico nuevo si pasó una
+hora, muestra lo que toca y programa la próxima. Qué dice cada una y cuándo lo
+decide `Avisos.kt`, con la lógica de `ClimaLogica.kt`, que repite la de
+`clima/js/logica.js`. Un test compara las constantes y los niveles de ropa de
+los dos archivos. Si tocás un umbral, tocalo en los dos. Lo único que la app
+no sabe por su cuenta es tu horario: se lo pasa la web cada vez que la abrís.
 
 ## Cómo funciona la XP
 
