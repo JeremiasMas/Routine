@@ -116,6 +116,9 @@ test('cada rutina se mide contra SUS series planificadas', () => {
   // Completar la rutina corta y la larga valen lo mismo.
   const sesion = (template) => ({
     templateId: template.id,
+    // La meta viaja en el registro, como la guarda la app: si no, el día se
+    // juzgaría con la rutina del momento en que se lo mire.
+    meta: plannedSets(template),
     exercises: template.exercises.map((ex) => ({
       name: ex.name,
       sets: Array.from({ length: ex.sets || DEFAULT_SETS }, () => ({ weight: 40, reps: 12 })),
@@ -133,6 +136,7 @@ test('media rutina da media XP', () => {
   const mitad = Math.floor(t.exercises.length / 2);
   const entry = {
     templateId: t.id,
+    meta: plannedSets(t),
     exercises: t.exercises.slice(0, mitad).map((ex) => ({
       name: ex.name, sets: Array.from({ length: 3 }, () => ({ weight: 30, reps: 12 })),
     })),

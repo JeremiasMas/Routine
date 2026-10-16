@@ -8,7 +8,7 @@ import { previewXp, completedSets, goalFor } from '../derive.js';
 import { gymVolume, estimatedOneRepMax } from '../xp.js';
 import {
   GYM_TEMPLATES, templateById, templateForDay,
-  DEFAULT_SETS, esMancuerna, perfilDeEjercicio, RANGOS_REPS,
+  DEFAULT_SETS, esMancuerna, perfilDeEjercicio, RANGOS_REPS, plannedSets,
 } from '../config.js';
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
 import { colorDe } from '../theme.js';
@@ -181,7 +181,10 @@ function gymForm(activity, dateKey, onSaved) {
   const list = el('div', {});
   const summary = el('div', { class: 'row' });
   const ctrl = footer(activity, dateKey,
-    () => ({ templateId, exercises: clean(exercises) }),
+    // La meta viaja con la sesión. Si no, el día se vuelve a juzgar con la
+    // rutina de cuando lo mires, y cambiar la rutina deja incompletos días
+    // que se habían cumplido.
+    () => ({ templateId, meta: plannedSets(templateById(templateId)), exercises: clean(exercises) }),
     () => completedSets(clean(exercises)),
     onSaved, existing,
     () => ({ templateId }));

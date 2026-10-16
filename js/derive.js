@@ -1,7 +1,7 @@
 // Deriva TODO el estado de juego (XP, niveles, rachas, récords, logros)
 // a partir del historial crudo. Es una función pura: mismo historial,
 // mismo resultado. Así nunca se desincroniza nada.
-import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets, esMancuerna } from './config.js';
+import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets, esMancuerna, DEFAULT_SETS } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier, esSerieFiable, REPS_CALIBRACION,
@@ -65,10 +65,32 @@ export function entryVolume(entry) {
 /**
  * Meta de un registro concreto. Casi siempre es la meta de la actividad, pero
  * una sesión de gimnasio con plantilla se mide contra SU rutina: completar el
- * día de pecho (27 series) vale lo mismo que el de hombros (42).
+ * día de pecho vale lo mismo que el de hombros, que tiene más series.
+ *
+ * Y se mide contra la rutina que regía ESE día, no la de hoy. Antes la meta
+ * salía de buscar la plantilla en el config actual, así que cambiar la rutina
+ * volvía a juzgar todo el pasado: subir el viernes de 30 a 35 series convirtió
+ * en incompletas dos sesiones que en su momento se habían cumplido enteras, y
+ * les bajó la XP. Es el mismo principio que weeklyTargetFor —el pasado se
+ * juzga con la meta de entonces—, sólo que acá la meta viaja en el registro.
  */
 export function goalFor(activity, entry) {
-  if (activity.kind === 'gym' && entry?.templateId) {
+  if (activity.kind !== 'gym') return Number(activity.goal) || 1;
+
+  // La meta que la app pidió el día que guardaste la sesión.
+  const guardada = Number(entry?.meta) || 0;
+  if (guardada > 0) return guardada;
+
+  // Sesiones de antes de que la meta se guardara. Hasta octubre de 2026 todo
+  // ejercicio planeaba DEFAULT_SETS series, así que la meta de ese día era su
+  // cantidad de ejercicios por tres: reconstruirla es más fiel que medirla
+  // con una rutina que cuando entrenaste todavía no existía.
+  const ejercicios = entry?.exercises?.length || 0;
+  if (ejercicios > 0) return ejercicios * DEFAULT_SETS;
+
+  // Sin registro todavía: lo que la rutina de hoy planea. Es el caso de la
+  // precarga y del widget, que preguntan la meta antes de la primera serie.
+  if (entry?.templateId) {
     const planned = plannedSets(templateById(entry.templateId));
     if (planned > 0) return planned;
   }
