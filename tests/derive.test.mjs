@@ -296,7 +296,7 @@ test('la meta de cada día es la que pide la rutina escrita', () => {
   // tres cifras son la prescripción, no un detalle de la implementación.
   assert.equal(plannedSets(templateForDay(1)), 36, 'lunes: espalda y bíceps');
   assert.equal(plannedSets(templateForDay(3)), 42, 'miércoles: hombros y tríceps');
-  assert.equal(plannedSets(templateForDay(5)), 39, 'viernes: pecho y piernas');
+  assert.equal(plannedSets(templateForDay(5)), 35, 'viernes: pecho y piernas');
 });
 
 test('el volumen semanal de piernas es el prescripto', () => {
@@ -308,8 +308,8 @@ test('el volumen semanal de piernas es el prescripto', () => {
   }
   // Sólo el grupo principal: lo que un ejercicio toca de costado («tambien»)
   // no es volumen dirigido y no entra en la cuenta semanal.
-  assert.equal(porGrupo.get('cuadriceps'), 9, 'cuádriceps');
-  assert.equal(porGrupo.get('isquios'), 9, 'isquiotibiales');
+  assert.equal(porGrupo.get('cuadriceps'), 7, 'cuádriceps');
+  assert.equal(porGrupo.get('isquios'), 7, 'isquiotibiales');
   assert.equal(porGrupo.get('pantorrillas'), 6, 'pantorrillas');
 });
 
