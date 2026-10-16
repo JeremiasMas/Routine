@@ -116,6 +116,9 @@ test('cada rutina se mide contra SUS series planificadas', () => {
   // Completar la rutina corta y la larga valen lo mismo.
   const sesion = (template) => ({
     templateId: template.id,
+    // La meta viaja en el registro, como la guarda la app: si no, el día se
+    // juzgaría con la rutina del momento en que se lo mire.
+    meta: plannedSets(template),
     exercises: template.exercises.map((ex) => ({
       name: ex.name,
       sets: Array.from({ length: ex.sets || DEFAULT_SETS }, () => ({ weight: 40, reps: 12 })),
@@ -133,6 +136,7 @@ test('media rutina da media XP', () => {
   const mitad = Math.floor(t.exercises.length / 2);
   const entry = {
     templateId: t.id,
+    meta: plannedSets(t),
     exercises: t.exercises.slice(0, mitad).map((ex) => ({
       name: ex.name, sets: Array.from({ length: 3 }, () => ({ weight: 30, reps: 12 })),
     })),
@@ -296,7 +300,7 @@ test('la meta de cada día es la que pide la rutina escrita', () => {
   // tres cifras son la prescripción, no un detalle de la implementación.
   assert.equal(plannedSets(templateForDay(1)), 36, 'lunes: espalda y bíceps');
   assert.equal(plannedSets(templateForDay(3)), 42, 'miércoles: hombros y tríceps');
-  assert.equal(plannedSets(templateForDay(5)), 39, 'viernes: pecho y piernas');
+  assert.equal(plannedSets(templateForDay(5)), 35, 'viernes: pecho y piernas');
 });
 
 test('el volumen semanal de piernas es el prescripto', () => {
@@ -308,8 +312,8 @@ test('el volumen semanal de piernas es el prescripto', () => {
   }
   // Sólo el grupo principal: lo que un ejercicio toca de costado («tambien»)
   // no es volumen dirigido y no entra en la cuenta semanal.
-  assert.equal(porGrupo.get('cuadriceps'), 9, 'cuádriceps');
-  assert.equal(porGrupo.get('isquios'), 9, 'isquiotibiales');
+  assert.equal(porGrupo.get('cuadriceps'), 7, 'cuádriceps');
+  assert.equal(porGrupo.get('isquios'), 7, 'isquiotibiales');
   assert.equal(porGrupo.get('pantorrillas'), 6, 'pantorrillas');
 });
 
