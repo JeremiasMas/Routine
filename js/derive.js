@@ -8,7 +8,7 @@ import {
 } from './xp.js';
 import { liftDeEjercicio, usaPesoCorporal, strengthProfile, nivelGeneral } from './strength.js';
 import { hazanas } from './hazanas.js';
-import { bodySummary, bodyFatBand } from './body.js';
+import { bodySummary, bodyFatBand, waterGoalMl } from './body.js';
 import { descomponerProgreso } from './analisis.js';
 import { esLibre, tramos } from './pausas.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
@@ -63,6 +63,20 @@ export function entryVolume(entry) {
 }
 
 /**
+ * El primer peso que figura en el historial, o 0 si nunca te mediste.
+ *
+ * Sirve para no juzgar con un peso del futuro los días anteriores a la
+ * primera medición: ahí no hay dato, y el más viejo es el más parecido.
+ */
+function primerPesoRegistrado(data) {
+  for (const date of Object.keys(data?.entries || {}).sort()) {
+    const w = Number(data.entries[date]?.cuerpo?.weight) || 0;
+    if (w > 0) return w;
+  }
+  return 0;
+}
+
+/**
  * Meta de un registro concreto. Casi siempre es la meta de la actividad, pero
  * una sesión de gimnasio con plantilla se mide contra SU rutina: completar el
  * día de pecho vale lo mismo que el de hombros, que tiene más series.
@@ -74,7 +88,12 @@ export function entryVolume(entry) {
  * les bajó la XP. Es el mismo principio que weeklyTargetFor —el pasado se
  * juzga con la meta de entonces—, sólo que acá la meta viaja en el registro.
  */
-export function goalFor(activity, entry) {
+export function goalFor(activity, entry, { pesoCorporal = 0 } = {}) {
+  // La meta del agua sale del peso, así que depende de CUÁNDO: el peso que
+  // tenías ese día, no el último. Sin esto, pesarte una vez volvía incompletos
+  // todos los días anteriores, que en su momento se habían cumplido con la
+  // meta de entonces. Subir de peso no puede reescribir el pasado.
+  if (activity.autoGoal === 'water' && pesoCorporal > 0) return waterGoalMl(pesoCorporal);
   if (activity.kind !== 'gym') return Number(activity.goal) || 1;
 
   // La meta que la app pidió el día que guardaste la sesión.
@@ -266,7 +285,11 @@ export function derive(data, today = todayKey()) {
 
   // Peso corporal vigente en cada fecha: lo necesitan los ejercicios que se
   // hacen con el propio cuerpo (dominadas, fondos) para calcular la carga real.
-  let pesoCorporal = Number(data.settings?.weight) || 0;
+  // El peso de arranque es el PRIMERO que te mediste, no el último: antes de
+  // tu primera medición no se sabe cuánto pesabas, y lo más cercano a la
+  // verdad es el dato más viejo que hay. Con el último, los días anteriores a
+  // esa primera medición quedaban juzgados con un peso del futuro.
+  let pesoCorporal = primerPesoRegistrado(data) || Number(data.settings?.weight) || 0;
   // El peso vigente en cada día del recorrido, para poder preguntar después
   // cuánto pesabas cuando hiciste tal marca.
   const pesoPorFecha = new Map();
@@ -297,7 +320,7 @@ export function derive(data, today = todayKey()) {
       const st = byActivity.get(a.id);
       const raw = dayEntries[a.id];
       const value = entryValue(a, raw);
-      const goal = goalFor(a, raw);
+      const goal = goalFor(a, raw, { pesoCorporal });
       const met = value >= goal;
       const agendado = isScheduled(a, date);
       const scheduled = agendado && !libreDe(a.id);
