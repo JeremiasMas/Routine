@@ -246,6 +246,20 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------- Navegación ---------- */
+/* Android pinta un recuadro celeste al tocar cualquier cosa, con esquinas
+   rectas y más grande que el elemento: sobre la píldora de la barra quedaba un
+   cuadrado que se le salía de la forma. Se apaga el de fábrica, y el foco se
+   marca con un contorno que sí sigue el borde redondeado. */
+a, button, input, select, textarea, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .tabbar {
   position: fixed;
   left: 50%;

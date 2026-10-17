@@ -2,7 +2,7 @@
 import { el, formatValue, formatNumber, relativeDay, uid, keyToDate } from '../utils.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { chip, stat } from './components.js';
-import { getEntry, setEntry, getState, getData } from '../state.js';
+import { setEntry, getState, getData, guardarBorrador, borrarBorrador, entradaOBorrador } from '../state.js';
 import { bodySummary, bodyDelta, waterGoalMl } from '../body.js';
 import { previewXp, completedSets, goalFor } from '../derive.js';
 import { gymVolume, estimatedOneRepMax } from '../xp.js';
@@ -13,13 +13,26 @@ import {
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
 import { colorDe } from '../theme.js';
 
+/** Cada cuánto se anota lo cargado, por si el sistema mata la app sin avisar. */
+const AUTOGUARDADO_MS = 15000;
+
+/**
+ * Lo que hay que soltar cuando se cierra el registrador abierto: el reloj del
+ * autoguardado y sus listeners. Hay un solo panel a la vez, así que alcanza
+ * con recordar el último.
+ */
+let soltarActual = null;
+
 /** Abre el registrador correcto para la actividad. */
 export function openLogger(activity, dateKey, onSaved) {
   const title = `${activity.icon} ${activity.name} · ${relativeDay(dateKey)}`;
-  if (activity.kind === 'gym') return openSheet(title, gymForm(activity, dateKey, onSaved));
-  if (activity.kind === 'body') return openSheet(title, bodyForm(activity, dateKey, onSaved));
-  if (activity.kind === 'multi') return openSheet(title, multiForm(activity, dateKey, onSaved));
-  return openSheet(title, numberForm(activity, dateKey, onSaved));
+  const contenido = activity.kind === 'gym' ? gymForm(activity, dateKey, onSaved)
+    : activity.kind === 'body' ? bodyForm(activity, dateKey, onSaved)
+    : activity.kind === 'multi' ? multiForm(activity, dateKey, onSaved)
+    : numberForm(activity, dateKey, onSaved);
+  return openSheet(title, contenido, {
+    onClose: () => { const soltar = soltarActual; soltarActual = null; soltar?.(); },
+  });
 }
 
 function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getContext = () => null) {
@@ -30,6 +43,7 @@ function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getC
         // Se guarda una copia antes de borrar: es lo único que hace posible
         // devolverlo tal cual estaba, con su fecha de modificación y todo.
         const copia = structuredClone(existing);
+        borrarBorrador();
         setEntry(dateKey, activity.id, null);
         onSaved?.(null, 0, { activity, dateKey, entry: copia });
       } }, 'Borrar')
@@ -38,9 +52,35 @@ function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getC
   save.addEventListener('click', () => {
     const payload = getPayload();
     if (!payload) return;
+    borrarBorrador();
     const events = setEntry(dateKey, activity.id, payload);
     onSaved?.(events, getValue());
   });
+
+  /**
+   * Guarda lo cargado hasta ahora como borrador, sin tocar los registros.
+   *
+   * Sólo cuando hay algo de verdad: un formulario abierto y vacío no deja
+   * rastro, así que abrirlo y cerrarlo no hace aparecer nada la próxima vez.
+   */
+  const anotarBorrador = () => {
+    if (!(getValue() > 0)) return;
+    const payload = getPayload();
+    if (payload) guardarBorrador(dateKey, activity.id, payload);
+  };
+  // visibilitychange es el que importa en Android: se dispara al mandar la app
+  // al fondo, que es justo el momento antes de que el sistema la mate. El
+  // intervalo es la red por si el sistema no llega ni a avisar.
+  const alOcultarse = () => { if (document.visibilityState === 'hidden') anotarBorrador(); };
+  document.addEventListener('visibilitychange', alOcultarse);
+  window.addEventListener('pagehide', anotarBorrador);
+  const reloj = setInterval(anotarBorrador, AUTOGUARDADO_MS);
+  const soltar = () => {
+    clearInterval(reloj);
+    document.removeEventListener('visibilitychange', alOcultarse);
+    window.removeEventListener('pagehide', anotarBorrador);
+  };
+  soltarActual = soltar;
 
   const update = () => {
     const value = getValue();
@@ -63,12 +103,13 @@ function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getC
   return {
     node: el('div', { class: 'logger' }, preview, el('div', { class: 'btn-row' }, save, remove), verMas),
     update,
+    soltar,
   };
 }
 
 /** ---------- Actividades numéricas (min, pasos, XP de Duolingo, posts) ---------- */
 function numberForm(activity, dateKey, onSaved) {
-  const existing = getEntry(dateKey, activity.id);
+  const existing = entradaOBorrador(dateKey, activity.id);
   const step = Number(activity.step) || 1;
   const input = el('input', {
     type: 'number', inputmode: 'decimal', min: '0', step: String(step),
@@ -111,7 +152,7 @@ function numberForm(activity, dateKey, onSaved) {
 
 /** ---------- Sesión de gimnasio: rutina del día con series ---------- */
 function gymForm(activity, dateKey, onSaved) {
-  const existing = getEntry(dateKey, activity.id);
+  const existing = entradaOBorrador(dateKey, activity.id);
   const gymState = getState().byActivity.get(activity.id);
   const records = gymState?.records || new Map();
   // En los de peso corporal el récord se mide con el cuerpo adentro, así que
@@ -399,7 +440,7 @@ export function unidadesParaLaMeta(activity) {
 }
 
 function multiForm(activity, dateKey, onSaved) {
-  const existing = getEntry(dateKey, activity.id);
+  const existing = entradaOBorrador(dateKey, activity.id);
   const cantidades = {};
   for (const fuente of activity.sources) {
     cantidades[fuente.id] = Number(existing?.sources?.[fuente.id]) || 0;
@@ -490,7 +531,7 @@ function etiquetaDePeso(ex, refresh) {
 
 /** ---------- Composición corporal: peso y circunferencias ---------- */
 function bodyForm(activity, dateKey, onSaved) {
-  const existing = getEntry(dateKey, activity.id);
+  const existing = entradaOBorrador(dateKey, activity.id);
   const state = getState();
   const perfil = getData().settings;
   const formula = perfil.bodyFormula || '3';

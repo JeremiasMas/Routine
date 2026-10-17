@@ -2,6 +2,10 @@
 import { el } from '../utils.js';
 
 let lastFocus = null;
+// La limpieza del panel abierto. Vive acá porque closeSheet() cierra desde
+// afuera —después de guardar, o al irse a otra pantalla— y si no, el onClose
+// de ese panel no corría nunca: lo que hubiera dejado andando, quedaba andando.
+let limpiarActual = null;
 
 export function openSheet(title, content, { onClose } = {}) {
   const overlay = document.getElementById('overlay');
@@ -22,11 +26,15 @@ export function openSheet(title, content, { onClose } = {}) {
     if (e.key === 'Escape') close();
     if (e.key === 'Tab') trap(e, sheet);
   }
+  limpiarActual?.();
+  limpiarActual = onClose || null;
+
   function close() {
     document.removeEventListener('keydown', onKey);
     overlay.hidden = true;
     overlay.innerHTML = '';
     lastFocus?.focus?.({ preventScroll: true });
+    limpiarActual = null;
     onClose?.();
   }
   return { close };
@@ -35,6 +43,9 @@ export function openSheet(title, content, { onClose } = {}) {
 export function closeSheet() {
   document.getElementById('overlay').hidden = true;
   document.getElementById('overlay').innerHTML = '';
+  const limpiar = limpiarActual;
+  limpiarActual = null;
+  limpiar?.();
 }
 
 function trap(e, root) {
