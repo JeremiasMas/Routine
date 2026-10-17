@@ -175,6 +175,63 @@ export function setEntry(dateKey, activityId, entry) {
   });
 }
 
+/**
+ * Lo que estás cargando ahora mismo y todavía no guardaste.
+ *
+ * Android mata la app en segundo plano cuando tardás en volver, y con ella se
+ * iba todo: cuarenta minutos de gimnasio anotados serie por serie
+ * desaparecían por atender un mensaje.
+ *
+ * Vive en su propia clave y NO pasa por mutate, a propósito. Escribir el
+ * borrador en los registros habría sido más corto, pero mutate marca los
+ * logros como desbloqueados al escribir: para cuando tocaras Guardar ya no
+ * quedaría nada que festejar, y en esta app eso es la mitad del asunto.
+ *
+ * Hay uno solo a la vez. Guardar otro pisa el anterior, que es lo correcto:
+ * un borrador viejo de una actividad que ya cerraste no tiene que resucitar.
+ */
+const BORRADOR_KEY = 'routine-rpg-borrador';
+
+export function guardarBorrador(dateKey, activityId, payload) {
+  try {
+    localStorage.setItem(BORRADOR_KEY, JSON.stringify({
+      fecha: dateKey, actividad: activityId, payload, ts: new Date().toISOString(),
+    }));
+  } catch (err) {
+    // Sin espacio o en modo privado: el borrador es una red, no el dato.
+    console.warn('No se pudo guardar el borrador.', err);
+  }
+}
+
+/** El borrador de ESTE día y ESTA actividad, o null. */
+export function leerBorrador(dateKey, activityId) {
+  try {
+    const crudo = localStorage.getItem(BORRADOR_KEY);
+    if (!crudo) return null;
+    const b = JSON.parse(crudo);
+    if (b?.fecha !== dateKey || b?.actividad !== activityId) return null;
+    return b.payload || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+export function borrarBorrador() {
+  try {
+    localStorage.removeItem(BORRADOR_KEY);
+  } catch (err) {
+    // Nada que hacer: si no se puede borrar, tampoco se pudo guardar.
+  }
+}
+
+/**
+ * Lo que el formulario tiene que mostrar al abrirse: el borrador si quedó uno
+ * a medio cargar, y si no, lo que ya estaba guardado.
+ */
+export function entradaOBorrador(dateKey, activityId) {
+  return leerBorrador(dateKey, activityId) || getEntry(dateKey, activityId);
+}
+
 export function getEntry(dateKey, activityId) {
   return getData().entries?.[dateKey]?.[activityId] || null;
 }
