@@ -45,6 +45,71 @@ export function massSplit(weightKg, bodyFatPct) {
   return { fat, lean: Math.round((w - fat) * 10) / 10 };
 }
 
+/**
+ * Índice de masa libre de grasa: masa magra por metro de estatura al cuadrado.
+ *
+ * Es la respuesta a "¿qué tan musculoso estoy?", y hace falta porque los kilos
+ * de magro solos no se pueden leer: 52 kg a 1,60 m y a 1,85 m son dos cuerpos
+ * completamente distintos. El FFMI divide por la estatura y los vuelve
+ * comparables, igual que el IMC pero mirando sólo lo que no es grasa.
+ */
+export function ffmi(leanKg, heightCm) {
+  const l = Number(leanKg) || 0;
+  const h = (Number(heightCm) || 0) / 100;
+  if (l <= 0 || h <= 0) return null;
+  return Math.round((l / (h * h)) * 10) / 10;
+}
+
+/**
+ * Rangos de FFMI. Acá la escalera sube —más músculo, banda más alta—, al
+ * revés que la de grasa, así que cada banda aplica desde su `min`.
+ *
+ * El techo está en el límite natural conocido: por encima de 25 (22 en
+ * mujeres) la literatura prácticamente no encuentra casos sin ayuda
+ * farmacológica, así que la última banda no es una meta, es un aviso de que
+ * el número probablemente esté mal medido.
+ */
+export const FFMI_BANDS = {
+  m: [
+    { min: 0, name: 'Punto de partida', color: '#94a3b8' },
+    { min: 17, name: 'Promedio', color: '#4ade80' },
+    { min: 19, name: 'Entrenado', color: '#38bdf8' },
+    { min: 21, name: 'Musculoso', color: '#a78bfa' },
+    { min: 23, name: 'Muy musculoso', color: '#fbbf24' },
+    { min: 25, name: 'Fuera de rango natural', color: '#fb7185' },
+  ],
+  f: [
+    { min: 0, name: 'Punto de partida', color: '#94a3b8' },
+    { min: 14, name: 'Promedio', color: '#4ade80' },
+    { min: 16, name: 'Entrenada', color: '#38bdf8' },
+    { min: 18, name: 'Musculosa', color: '#a78bfa' },
+    { min: 20, name: 'Muy musculosa', color: '#fbbf24' },
+    { min: 22, name: 'Fuera de rango natural', color: '#fb7185' },
+  ],
+};
+
+/**
+ * Ubica un FFMI en su banda, con cuánto falta para la siguiente.
+ * @returns {{index:number, name:string, color:string, next:?object, pct:number,
+ *            falta:?number}|null}
+ */
+export function ffmiBand(valor, sexo = 'm') {
+  const bandas = FFMI_BANDS[sexo === 'f' ? 'f' : 'm'];
+  if (!(valor > 0)) return null;
+
+  // La banda más alta cuyo piso ya alcanzaste.
+  let index = 0;
+  for (let i = 0; i < bandas.length; i += 1) if (valor >= bandas[i].min) index = i;
+
+  const actual = bandas[index];
+  const siguiente = bandas[index + 1] || null;
+  const piso = actual.min;
+  const techo = siguiente ? siguiente.min : piso + 2;
+  const pct = techo > piso ? Math.min(1, Math.max(0, (valor - piso) / (techo - piso))) : 1;
+  const falta = siguiente ? Math.round((siguiente.min - valor) * 10) / 10 : null;
+  return { index, name: actual.name, color: actual.color, next: siguiente, pct, falta };
+}
+
 /** Mililitros de agua por día: 35 ml por kilo, redondeado a 50. */
 export const ML_PER_KG = 35;
 export function waterGoalMl(weightKg) {
@@ -70,6 +135,7 @@ export function bodySummary(entry, profile = {}) {
     fatPct,
     bmi: bmi(weight, height),
     mass: massSplit(weight, fatPct),
+    ffmi: ffmi(massSplit(weight, fatPct)?.lean, height),
     waterGoal: waterGoalMl(weight),
   };
 }

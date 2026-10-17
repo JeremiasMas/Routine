@@ -10,7 +10,7 @@ import { EQUIV_MANCUERNA } from '../strength.js';
 import { PASOS_POR_MINUTO, minutosDeCaminata } from '../config.js';
 import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
-import { bodySummary, bodyDelta } from '../body.js';
+import { bodySummary, bodyDelta, ffmiBand } from '../body.js';
 import { getData } from '../state.js';
 
 export function render({ params, navigate, celebrate }) {
@@ -480,6 +480,7 @@ function bodySection(st) {
     stat(ultima.fatPct != null ? `${formatNumber(ultima.fatPct)}%` : '—', 'Grasa corporal'),
     stat(`${formatNumber(ultima.weight)} kg`, 'Peso'),
     stat(ultima.mass ? `${formatNumber(ultima.mass.lean)} kg` : '—', 'Masa magra'),
+    stat(ultima.ffmi != null ? formatNumber(ultima.ffmi) : '—', 'FFMI'),
     stat(ultima.bmi != null ? formatNumber(ultima.bmi) : '—', 'IMC')));
 
   if (delta) {
@@ -505,6 +506,30 @@ function bodySection(st) {
     }
   }
 
+  // Los kilos de magro no se pueden leer solos: hace falta la referencia que
+  // dice si son muchos o pocos para esta estatura.
+  const banda = ffmiBand(ultima.ffmi, perfil.sexo);
+  if (banda) {
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Qué tan musculoso' }),
+      el('small', { text: banda.name })));
+    root.append(el('div', { class: 'card' },
+      el('div', {},
+        xpBar(banda.pct, {
+          left: `FFMI ${formatNumber(ultima.ffmi)}`,
+          right: banda.next ? `${banda.next.name} desde ${banda.next.min}` : 'Último escalón',
+        })),
+      el('p', { class: 'hint', style: 'margin-top:10px' },
+        banda.next
+          ? `Sos ${banda.name.toLowerCase()} para tu estatura. Te faltan ${formatNumber(banda.falta)} puntos de FFMI para ${banda.next.name}, que a ${formatNumber(ultima.height)} cm son unos ${formatNumber(Math.round(banda.falta * (ultima.height / 100) ** 2 * 10) / 10)} kg de músculo.`
+          : 'Por encima de este número casi no hay casos sin ayuda farmacológica, así que lo más probable es que alguna medida esté mal tomada.')));
+    if (mediciones.filter((m) => m.ffmi != null).length > 1) {
+      root.append(el('div', { class: 'card' },
+        lineChart(mediciones.map((m) => ({ label: shortDate(m.date), value: m.ffmi })),
+          { color: 'var(--accent-2)' })));
+    }
+  }
+
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Grasa corporal' })));
   root.append(el('div', { class: 'card' },
     lineChart(mediciones.map((m) => ({ label: shortDate(m.date), value: m.fatPct })),
@@ -525,6 +550,7 @@ function bodySection(st) {
       el('div', { class: 'row__sub', text: `${formatNumber(m.weight)} kg` }))))));
 
   root.append(el('p', { class: 'hint', style: 'margin-top:14px' },
-    'El porcentaje sale del método de circunferencias de la Marina de EE.UU. Tiene un margen de error de ±3 puntos, así que lo que importa es la tendencia, no el número exacto de una medición suelta.'));
+    'El porcentaje sale del método de circunferencias de la Marina de EE.UU. Tiene un margen de error de ±3 puntos, así que lo que importa es la tendencia, no el número exacto de una medición suelta. ' +
+    'La masa magra y el FFMI se calculan a partir de ese porcentaje, así que arrastran el mismo margen: sirven para ver si subís o bajás, no como medición.'));
   return root;
 }
