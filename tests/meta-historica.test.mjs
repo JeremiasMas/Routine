@@ -108,3 +108,48 @@ test('el registrador guarda la meta junto con la sesión', () => {
   assert.match(guardado[0], /meta:\s*plannedSets\(/,
     'la sesión que se guarda tiene que llevar su meta calculada de la plantilla');
 });
+
+test('agregar un ejercicio a la rutina no vuelve incompletos los días viejos', () => {
+  // La condición explícita del pedido: sumar cuádriceps al lunes e isquios al
+  // miércoles no puede mover un solo día ya registrado. El día viejo se mide
+  // contra SU cantidad de ejercicios, así que la plantilla puede crecer todo
+  // lo que quiera sin tocarlo.
+  const sesionDe = (template) => ({
+    templateId: template.id,
+    exercises: template.exercises.slice(0, template.exercises.length - 1).map((ex) => ({
+      name: ex.name,
+      sets: Array.from({ length: DEFAULT_SETS }, () => ({ weight: 40, reps: 10 })),
+    })),
+  });
+  const entries = {};
+  const dias = ['2026-09-21', '2026-09-23', '2026-09-25'];
+  GYM_TEMPLATES.forEach((t, i) => { entries[dias[i]] = { gym: sesionDe(t) }; });
+
+  const st = derive({ activities: [gym], entries, unlocked: {} }, '2026-10-19')
+    .byActivity.get('gym');
+  for (const d of dias) {
+    const dia = st.byDate.get(d);
+    assert.equal(dia.met, true, `${d} quedó incompleto al crecer la rutina`);
+    assert.equal(dia.xp, 100, `${d} perdió XP`);
+  }
+});
+
+test('una sesión con meta guardada tampoco se mueve al crecer la rutina', () => {
+  // El otro camino: las sesiones registradas desde que la meta viaja en el
+  // registro se miden contra ese número y nada más.
+  const t = GYM_TEMPLATES[0];
+  const entry = {
+    templateId: t.id,
+    meta: 36,                                  // la rutina de aquel día
+    exercises: Array.from({ length: 12 }, (_, i) => ({
+      name: `Ej${i}`,
+      sets: Array.from({ length: DEFAULT_SETS }, () => ({ weight: 40, reps: 10 })),
+    })),
+  };
+  const st = derive({ activities: [gym], entries: { '2026-10-05': { gym: entry } }, unlocked: {} },
+    '2026-10-19').byActivity.get('gym');
+  const dia = st.byDate.get('2026-10-05');
+  assert.notEqual(plannedSets(t), 36, 'la rutina de hoy ya pide otra cosa');
+  assert.equal(dia.goal, 36, 'pero el día se mide con la suya');
+  assert.equal(dia.met, true);
+});

@@ -112,8 +112,8 @@ test('la meta del gimnasio es la del día, aun sin ninguna serie cargada', () =>
     const s = derive({ activities: acts(['gym']), entries: {}, unlocked: {} }, fecha);
     return resumenDelDia(s, { fecha }).misiones.find((m) => m.id === 'gym').meta;
   };
-  assert.equal(metaDe('2026-09-21'), 36, 'lunes');
-  assert.equal(metaDe('2026-09-23'), 42, 'miércoles');
+  assert.equal(metaDe('2026-09-21'), 39, 'lunes');
+  assert.equal(metaDe('2026-09-23'), 45, 'miércoles');
   assert.equal(metaDe('2026-09-25'), 35, 'viernes');
 });
 
