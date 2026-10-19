@@ -298,8 +298,8 @@ test('la meta de cada día es la que pide la rutina escrita', () => {
   // cuenta desde la misma plantilla, así que si alguien le saca un `sets` al
   // sillón de cuádriceps los dos lados bajan juntos y nadie se entera. Estas
   // tres cifras son la prescripción, no un detalle de la implementación.
-  assert.equal(plannedSets(templateForDay(1)), 36, 'lunes: espalda y bíceps');
-  assert.equal(plannedSets(templateForDay(3)), 42, 'miércoles: hombros y tríceps');
+  assert.equal(plannedSets(templateForDay(1)), 39, 'lunes: espalda, bíceps y cuádriceps');
+  assert.equal(plannedSets(templateForDay(3)), 45, 'miércoles: hombros, tríceps e isquios');
   assert.equal(plannedSets(templateForDay(5)), 35, 'viernes: pecho y piernas');
 });
 
@@ -312,8 +312,10 @@ test('el volumen semanal de piernas es el prescripto', () => {
   }
   // Sólo el grupo principal: lo que un ejercicio toca de costado («tambien»)
   // no es volumen dirigido y no entra en la cuenta semanal.
-  assert.equal(porGrupo.get('cuadriceps'), 7, 'cuádriceps');
-  assert.equal(porGrupo.get('isquios'), 7, 'isquiotibiales');
+  // Cuádriceps e isquios se reparten entre dos días: el límite no es el
+  // volumen de la semana sino cuánto aguanta una sesión.
+  assert.equal(porGrupo.get('cuadriceps'), 10, 'cuádriceps');
+  assert.equal(porGrupo.get('isquios'), 10, 'isquiotibiales');
   assert.equal(porGrupo.get('pantorrillas'), 6, 'pantorrillas');
 });
 

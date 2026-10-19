@@ -295,6 +295,12 @@ export const GYM_TEMPLATES = [
       { name: 'Standing cable crunch', grupo: 'core', rango: 'medio' },
       { name: 'Elevaciones de piernas en paralelas', bw: true, grupo: 'core', rango: 'liviano' },
       { name: 'Weighted crunch', grupo: 'core', rango: 'liviano' },
+      // Las piernas repartidas: el límite no es el volumen de la semana sino
+      // cuánto aguanta una sesión, así que el cuádriceps suma acá en vez de
+      // amontonarse todo el viernes. Es una máquina de una sola articulación,
+      // elegida a propósito: cansa el músculo y no al cuerpo, que el martes
+      // hay muay thai.
+      { name: 'Sillón de cuádriceps', grupo: 'cuadriceps', rango: 'medio' },
       { name: 'Russian twist', grupo: 'core', rango: 'liviano' },
     ],
   },
@@ -318,6 +324,9 @@ export const GYM_TEMPLATES = [
       { name: 'Dumbbell standing pronation wrist', db: true, grupo: 'antebrazos', rango: 'liviano', salto: 1 },
       { name: 'Dumbbell over bench palms up curl', db: true, grupo: 'biceps', tambien: ['antebrazos'], rango: 'medio' },
       { name: 'Dumbbell standing wrist curl', db: true, grupo: 'antebrazos', rango: 'liviano', salto: 1 },
+      // Lo mismo para los isquios. Van lejos del fallo: el jueves hay muay
+      // thai y el isquiotibial es el que se desgarra pateando.
+      { name: 'Camilla de isquiotibiales', grupo: 'isquios', rango: 'medio' },
     ],
   },
   {
