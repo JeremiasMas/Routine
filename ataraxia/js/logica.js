@@ -80,6 +80,8 @@ export function estadoInicial() {
       comidas: ['desayuno', 'almuerzo', 'merienda', 'cena'],
       // A la noche, si el semáforo quedó a medias, la app lo recuerda.
       recordatorioComidas: { activo: true, hora: '21:30' },
+      // La creatina: un tick por día y un recordatorio a la mañana.
+      creatina: { activo: true, hora: '09:00' },
       postura: { dias: [0, 1, 2, 3, 4, 5, 6] },
       // Miércoles y sábado, de 45 minutos a una hora.
       ejercicio: { dias: [3, 6], minimo: 45, maximo: 60 },
@@ -124,6 +126,10 @@ export function normalizar(crudo) {
           ? c.recordatorioComidas.activo : base.config.recordatorioComidas.activo,
         hora: /^([01]\d|2[0-3]):[0-5]\d$/.test(c.recordatorioComidas?.hora)
           ? c.recordatorioComidas.hora : base.config.recordatorioComidas.hora,
+      },
+      creatina: {
+        activo: typeof c.creatina?.activo === 'boolean' ? c.creatina.activo : base.config.creatina.activo,
+        hora: /^([01]\d|2[0-3]):[0-5]\d$/.test(c.creatina?.hora) ? c.creatina.hora : base.config.creatina.hora,
       },
       postura: { dias: diasPostura },
       ejercicio: normalizarEjercicio(c.ejercicio, base.config.ejercicio),
@@ -436,6 +442,20 @@ export function practicaDelDia(estado, clave) {
 }
 
 /**
+ * La creatina: un tick por día. No da XP —es un suplemento, no un logro—
+ * ni entra en el día pleno; sólo lleva la cuenta para no olvidarla.
+ */
+export function creatinaDelDia(estado, clave) {
+  return estado.dias[clave]?.creatina === true;
+}
+
+/** ¿Hay que recordarle la creatina? Desde la hora elegida, si no la marcó. */
+export function tocaCreatina(estado, clave, hora) {
+  const r = estado.config.creatina;
+  return r.activo && hora >= r.hora && !creatinaDelDia(estado, clave);
+}
+
+/**
  * Todo lo de un día: qué tocaba, qué se cumplió y cuánta XP dio.
  * "Pleno" es cumplir todo lo que tocaba ese día.
  */
@@ -571,6 +591,7 @@ export function derivar(estado, hoy = claveDe()) {
     comidas: { toca: (k) => dia(k).toca.comidas, cumple: (k) => dia(k).ok.comidas },
     postura: { toca: (k) => dia(k).toca.postura, cumple: (k) => dia(k).ok.postura },
     practica: { toca: () => true, cumple: (k) => dia(k).practica },
+    creatina: { toca: () => true, cumple: (k) => creatinaDelDia(estado, k) },
     plenos: { toca: () => true, cumple: (k) => dia(k).pleno },
     sinRojo: {
       toca: (k) => dia(k).toca.comidas,

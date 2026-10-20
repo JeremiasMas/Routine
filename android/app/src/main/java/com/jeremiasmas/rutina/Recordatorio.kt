@@ -61,6 +61,13 @@ object Recordatorio {
       "Recordatorio del semáforo",
       "🚦 ¿Cómo comiste hoy?", "Anotá el semáforo de comidas antes de dormir.",
       -1, 21, 30,
+    ),
+    // Diario, a la mañana. Si ya marcó que la tomó, no suena.
+    CREATINA(
+      "creatina", "recordatorio_creatina", 2, 1003, "recordatorio_creatina",
+      "Recordatorio de creatina",
+      "💊 La creatina de hoy", "¿Ya la tomaste? Marcala en la app.",
+      -1, 9, 0,
     );
 
     companion object {

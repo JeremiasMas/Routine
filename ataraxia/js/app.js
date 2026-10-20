@@ -1,7 +1,7 @@
 // La interfaz: tres pantallas (Hoy, Progreso, Ajustes) y la rutina guiada.
 import {
   claveDe, fechaDe, sumarDias, diaSemana, estadoInicial, normalizar, derivar,
-  metaPasos, comidasActivas, ejercicioDelDia, tocaPesarse, tocaSemaforo, semaforoDelDia, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
+  metaPasos, comidasActivas, ejercicioDelDia, tocaPesarse, tocaSemaforo, semaforoDelDia, tocaCreatina, creatinaDelDia, COMIDAS, COLORES, TIPOS_PASOS, BONUS_PLENO,
   TIPOS_EJERCICIO, MINUTOS_EJERCICIO, sesionesDeLaSemana,
 } from './logica.js';
 import { FILOSOFOS } from './filosofos.js';
@@ -65,10 +65,14 @@ function cambiar(fn) {
   for (const l of nuevos) aviso(`${l.icono} Logro: ${l.nombre}`);
 }
 
-/** Que el teléfono no recuerde el semáforo un día que ya está completo. */
+/**
+ * Que el teléfono no recuerde lo que ese día ya está hecho: el semáforo
+ * completo o la creatina tomada.
+ */
 function avisarSemaforoAlTelefono() {
   const hoy = claveDe();
   marcarRecordatorioHecho('semaforo', hoy, semaforoDelDia(estado, hoy).completo);
+  marcarRecordatorioHecho('creatina', hoy, creatinaDelDia(estado, hoy));
 }
 
 function horaActual() {
@@ -194,11 +198,17 @@ function pantallaHoy(d) {
       <span>🚦 ¿Cómo comiste hoy? Falta completar el semáforo.</span>
       <button class="btn primario" data-accion="ir-semaforo">Anotar</button>
     </div>` : ''}
+    ${esHoy && tocaCreatina(estado, diaVisto, horaActual()) ? `
+    <div class="recordatorio" role="status">
+      <span>💊 ¿Ya tomaste la creatina de hoy?</span>
+      <button class="btn primario" data-accion="creatina-tomada">Ya la tomé</button>
+    </div>` : ''}
     ${tarjetaPasos(r, d)}
     ${tarjetaComidas(r)}
     ${tarjetaEjercicio(r)}
     ${tarjetaPostura(r)}
     ${tarjetaPractica(r, d)}
+    ${tarjetaCreatina(d)}
     ${tarjetaPeso(r, d)}
   `;
 }
@@ -538,6 +548,24 @@ function seccionPeso(p) {
     </section>`;
 }
 
+/** La creatina: un tick por día. */
+function tarjetaCreatina(d) {
+  const tomada = creatinaDelDia(estado, diaVisto);
+  const n = d.rachas.creatina;
+  return `
+    <section class="tarjeta" aria-labelledby="t-creatina">
+      <header class="tarjeta-cab">
+        <h2 id="t-creatina">💊 Creatina</h2>
+        ${n ? `<span class="pildora">${n === 1 ? '1 día' : `${n} días seguidos`}</span>` : ''}
+      </header>
+      <label class="check tick-grande">
+        <input type="checkbox" data-accion="creatina" ${tomada ? 'checked' : ''}>
+        <span class="check-caja" aria-hidden="true"></span>
+        <span class="check-txt"><b>${tomada ? 'Tomada ✓' : `La tomé ${diaVisto === claveDe() ? 'hoy' : 'este día'}`}</b></span>
+      </label>
+    </section>`;
+}
+
 /** La práctica diaria: un tick y nada más. */
 function tarjetaPractica(r, d) {
   const n = d.rachas.practica;
@@ -545,7 +573,7 @@ function tarjetaPractica(r, d) {
     <section class="tarjeta" aria-labelledby="t-practica">
       <header class="tarjeta-cab">
         <h2 id="t-practica">🌸 Mi práctica</h2>
-        ${n ? `<span class="pildora">${n} ${n === 1 ? 'día' : 'días'} seguidos</span>` : ''}
+        ${n ? `<span class="pildora">${n === 1 ? '1 día' : `${n} días seguidos`}</span>` : ''}
       </header>
       <label class="check tick-grande">
         <input type="checkbox" data-accion="practica" ${r.practica ? 'checked' : ''}>
@@ -747,6 +775,20 @@ function pantallaAjustes() {
     </section>
 
     <section class="tarjeta">
+      <h2>💊 Creatina</h2>
+      <form class="recordatorio-form" data-form="recordatorio-creatina">
+        <label class="interruptor"><span>🔔 Recordarme tomarla</span>
+          <input type="checkbox" name="activo" ${estado.config.creatina.activo ? 'checked' : ''}></label>
+        <div class="metas">
+          <label>Hora<input name="hora" type="time" value="${estado.config.creatina.hora}"></label>
+          <button class="btn primario" type="submit">Guardar</button>
+        </div>
+      </form>
+      <p class="chico">Sólo si ese día todavía no la marcaste.</p>
+      ${estadoEnTelefono('creatina', estado.config.creatina.activo, `a las ${estado.config.creatina.hora} si no la marcaste`)}
+    </section>
+
+    <section class="tarjeta">
       <h2>💪 Ejercicio en casa</h2>
       <p class="chico">Qué días toca. La semana se cumple con tantas sesiones como días marcados, aunque cambies alguno de lugar.</p>
       <div class="semana">${chipsEjercicio}</div>
@@ -825,7 +867,11 @@ document.addEventListener('click', (ev) => {
     campo?.focus({ preventScroll: true });
   } else if (accion === 'recordatorio-permiso') {
     if (valor === 'semaforo') programarRecordatorio(estado.config.recordatorioComidas, true, 'semaforo');
+    else if (valor === 'creatina') programarRecordatorio(estado.config.creatina, true, 'creatina');
     else programarRecordatorio(estado.config.peso.recordatorio, true);
+  } else if (accion === 'creatina-tomada') {
+    cambiar(() => { diaEditable(claveDe()).creatina = true; });
+    aviso('💊 Anotada');
   } else if (accion === 'ir-semaforo') {
     document.getElementById('t-comidas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (accion === 'refrescar-pasos') {
@@ -895,6 +941,11 @@ document.addEventListener('change', (ev) => {
   const { accion, valor } = el.dataset || {};
   if (accion === 'ejercicio') {
     cambiar(() => marcarEjercicio(diaVisto, valor, el.checked));
+  } else if (accion === 'creatina') {
+    cambiar(() => {
+      const dia = diaEditable(diaVisto);
+      if (el.checked) dia.creatina = true; else delete dia.creatina;
+    });
   } else if (accion === 'practica') {
     cambiar(() => {
       const dia = diaEditable(diaVisto);
@@ -955,6 +1006,12 @@ document.addEventListener('submit', (ev) => {
     }
     cambiar(() => { estado.config.peso = { ...estado.config.peso, altura, meta }; });
     aviso('Guardado');
+  } else if (form.dataset.form === 'recordatorio-creatina') {
+    const hora = String(datos.get('hora') || '');
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) { aviso('Elegí una hora.'); return; }
+    cambiar(() => { estado.config.creatina = { activo: datos.get('activo') === 'on', hora }; });
+    programarRecordatorio(estado.config.creatina, true, 'creatina');
+    aviso(estado.config.creatina.activo ? 'Recordatorio guardado' : 'Recordatorio apagado');
   } else if (form.dataset.form === 'recordatorio-comidas') {
     const hora = String(datos.get('hora') || '');
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) { aviso('Elegí una hora.'); return; }
@@ -1177,6 +1234,7 @@ window.addEventListener(EVENTO_RECORDATORIO, () => { if (vista === 'ajustes') di
 // Al abrir, que la notificación del teléfono coincida con lo configurado.
 programarRecordatorio(estado.config.peso.recordatorio);
 programarRecordatorio(estado.config.recordatorioComidas, false, 'semaforo');
+programarRecordatorio(estado.config.creatina, false, 'creatina');
 avisarSemaforoAlTelefono();
 
 dibujar();
