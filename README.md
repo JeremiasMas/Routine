@@ -437,6 +437,10 @@ Rutina. El release `apk` publica los dos archivos:
   la web le avisa al teléfono cada vez que cambia. `Recordatorio.kt` maneja
   ahora varios recordatorios (peso semanal, semáforo diario), cada uno con
   su alarma, su notificación y sus preferencias.
+- **💊 Creatina:** un tick por día, con su racha en la tarjeta. A las 9,
+  si todavía no la marcó, aparece un aviso con un botón "Ya la tomé", y en
+  Android una notificación que no suena si ya la marcó. No da XP: es un
+  suplemento, no un logro.
 - **🌸 Mi práctica:** un tick diario para marcar que hizo su tarea, sin
   más detalle. Suma 100 XP y lleva su racha en la misma tarjeta, pero no
   entra en el día pleno ni en el panel de rachas: es algo personal y no

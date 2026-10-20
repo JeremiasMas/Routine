@@ -15,7 +15,7 @@ import {
 import {
   pasosACargar, mensajeDeEstado, leerOrigenes, hayVariasFuentes, FUENTE, recordatorioAlDia, horaYMinuto,
 } from '../ataraxia/js/nativo.js';
-import { tocaPesarse, tocaSemaforo } from '../ataraxia/js/logica.js';
+import { tocaPesarse, tocaSemaforo, tocaCreatina } from '../ataraxia/js/logica.js';
 
 // 2026-10-05 es lunes; 2026-10-04, domingo.
 const LUNES = '2026-10-05';
@@ -351,6 +351,21 @@ test('un recordatorio diario se compara con el día -1 del teléfono', () => {
   const diario = { activo: true, hora: '21:30' };
   assert.ok(recordatorioAlDia(diario, { activo: true, dia: -1, hora: 21, minuto: 30 }));
   assert.ok(!recordatorioAlDia(diario, { activo: true, dia: 1, hora: 21, minuto: 30 }));
+});
+
+test('la creatina es un tick diario con recordatorio, sin XP', () => {
+  const e = estadoInicial();
+  assert.deepEqual(e.config.creatina, { activo: true, hora: '09:00' });
+  assert.ok(!tocaCreatina(e, LUNES, '08:30'), 'antes de la hora no');
+  assert.ok(tocaCreatina(e, LUNES, '09:00'));
+  const tomada = con({ [LUNES]: { creatina: true } });
+  assert.ok(!tocaCreatina(tomada, LUNES, '12:00'));
+  assert.equal(resumenDia(tomada, LUNES).xp, 0, 'no da XP');
+  const racha = con({ [DOMINGO]: { creatina: true }, [LUNES]: { creatina: true } });
+  assert.equal(derivar(racha, LUNES).rachas.creatina, 2);
+  const n = (r) => normalizar({ config: { creatina: r } }).config.creatina;
+  assert.deepEqual(n({ activo: false, hora: '20:15' }), { activo: false, hora: '20:15' });
+  assert.deepEqual(n({ hora: 'mañana' }), { activo: true, hora: '09:00' });
 });
 
 test('los módulos de Ataraxia parsean y el service worker los cachea todos', () => {

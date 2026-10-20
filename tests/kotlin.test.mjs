@@ -496,7 +496,7 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   // el código, programar uno cancelaría al otro sin que nada falle.
   const kt = leer('android/app/src/main/java/com/jeremiasmas/rutina/Recordatorio.kt');
   const tipos = [...kt.matchAll(/^    (\w+)\(\n      "(\w+)", "(\w+)", (\d+), (\d+),/gm)];
-  assert.deepEqual(tipos.map((t) => t[2]), ['peso', 'semaforo']);
+  assert.deepEqual(tipos.map((t) => t[2]), ['peso', 'semaforo', 'creatina']);
   assert.equal(new Set(tipos.map((t) => t[4])).size, tipos.length, 'dos recordatorios comparten código de alarma');
   assert.equal(new Set(tipos.map((t) => t[5])).size, tipos.length, 'dos recordatorios comparten notificación');
   assert.equal(new Set(tipos.map((t) => t[3])).size, tipos.length, 'dos recordatorios comparten preferencias');
