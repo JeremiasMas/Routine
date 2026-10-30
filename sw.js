@@ -24,6 +24,7 @@ const ASSETS = [
   './js/native.js',
   './js/merge.js',
   './js/pausas.js',
+  './js/descargas.js',
   './js/progresion.js',
   './js/resumen.js',
   './js/csv.js',

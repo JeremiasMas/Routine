@@ -3,7 +3,7 @@ import {
   el, formatValue, formatNumber, relativeDay, todayKey, addDays,
   weekStart, weekLabel, dayName, keyToDate, plural,
 } from '../utils.js';
-import { getState, backupVencido, diasSinBackup, setEntry } from '../state.js';
+import { getState, backupVencido, diasSinBackup, setEntry, marcarDescarga } from '../state.js';
 import { isScheduledWithPauses, goalFor } from '../derive.js';
 import { templateForDay, templateById, minutosDeCaminata } from '../config.js';
 import { ring, chip, xpBar } from '../ui/components.js';
@@ -13,6 +13,7 @@ import { rachasEnRiesgo } from '../analisis.js';
 import { enApp } from '../native.js';
 import { puedeUnToque } from '../resumen.js';
 import { tramos } from '../pausas.js';
+import { tocaDescarga, estancados, esDescarga, CADA_CUANTAS_SEMANAS } from '../descargas.js';
 
 let viewDate = todayKey();
 
@@ -77,6 +78,10 @@ export function render({ navigate, celebrate }) {
   // que la app se las olvidó.
   const avisos = avisoDePausa(state, viewDate);
   if (avisos) root.append(avisos);
+
+  // --- La descarga ---
+  const descarga = avisoDeDescarga(state, viewDate, navigate);
+  if (descarga) root.append(descarga);
 
   // --- Lo que toca hoy ---
   root.append(el('div', { class: 'section-title' },
@@ -223,6 +228,49 @@ function weekStrip(state) {
 export function setViewDate(key) { viewDate = key; }
 export function getViewDate() { return viewDate; }
 
+
+/**
+ * La semana de descarga: la que está en curso, o la que ya conviene hacer.
+ *
+ * Es la pieza que le faltaba a la progresión doble. Esa regla dice qué hacer
+ * de una sesión a la siguiente, pero si uno sólo suma, la fatiga se acumula
+ * más rápido de lo que se nota. Avisar a tiempo es la mitad del valor: nadie
+ * descarga por su cuenta cuando viene subiendo.
+ */
+function avisoDeDescarga(state, fecha, navigate) {
+  const gym = state.byActivity.get('gym');
+  if (!gym) return null;
+
+  if (esDescarga(state.descargas, fecha)) {
+    return el('div', { class: 'card', style: 'margin-bottom:4px;border-color:#a78bfa55' },
+      el('div', { style: 'font-weight:700', text: '🪫 Semana de descarga' }),
+      el('div', { class: 'row__sub' },
+        'Mismos pesos, la mitad de las series, nada al fallo. La meta del gimnasio ya está ajustada.'),
+      el('button', {
+        class: 'chip', style: 'margin-top:8px;min-height:32px;width:auto;padding:0 12px;border-radius:999px',
+        onClick: () => { marcarDescarga(fecha, false); navigate(); },
+      }, 'No estoy descargando'));
+  }
+
+  const semanasConSesion = (gym.history || []).map((h) => h.date);
+  const quietos = estancados(gym.history);
+  const toca = tocaDescarga(semanasConSesion, state.descargas, fecha, { estancados: quietos });
+  if (!toca) return null;
+
+  const porque = toca.motivo === 'estancamiento'
+    ? `${toca.ejercicios.slice(0, 3).join(', ')} no suben hace dos sesiones. Eso no es tu techo: es fatiga acumulada.`
+    : `Van ${toca.semanas} semanas seguidas entrenando. Después de ${CADA_CUANTAS_SEMANAS} conviene bajar una.`;
+
+  return el('div', { class: 'card', style: 'margin-bottom:4px;border-color:#a78bfa55' },
+    el('div', { style: 'font-weight:700', text: '🪫 Te conviene una semana de descarga' }),
+    el('div', { class: 'row__sub', text: porque }),
+    el('div', { class: 'row__sub', style: 'margin-top:4px' },
+      'Mismos pesos, la mitad de las series. No se pierde: es cuando se cobra el trabajo de las semanas anteriores.'),
+    el('button', {
+      class: 'chip', style: 'margin-top:8px;min-height:32px;width:auto;padding:0 12px;border-radius:999px',
+      onClick: () => { marcarDescarga(fecha, true); navigate(); },
+    }, 'Declarar esta semana como descarga'));
+}
 
 /**
  * Lo que este día tiene declarado libre, y por qué. Sin esto una misión

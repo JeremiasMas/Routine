@@ -11,6 +11,7 @@ import { hazanas } from './hazanas.js';
 import { bodySummary, bodyFatBand, waterGoalMl } from './body.js';
 import { descomponerProgreso } from './analisis.js';
 import { esLibre, tramos } from './pausas.js';
+import { esDescarga, metaDeDescarga } from './descargas.js';
 import { todayKey, addDays, daysBetween, weekStart, dayKey, keyToDate } from './utils.js';
 
 const MAX_SHIELDS = 2;      // escudos de racha acumulables
@@ -243,6 +244,7 @@ export function derive(data, today = todayKey()) {
   const span = Math.max(0, daysBetween(start, end));
 
   const pausas = tramos(data.pausas);
+  const descargas = data.descargas;
 
   // ---- Pasada 1: semanas (para actividades con objetivo semanal) ----
   for (const a of activities) {
@@ -320,7 +322,13 @@ export function derive(data, today = todayKey()) {
       const st = byActivity.get(a.id);
       const raw = dayEntries[a.id];
       const value = entryValue(a, raw);
-      const goal = goalFor(a, raw, { pesoCorporal });
+      // En una semana de descarga la meta del gimnasio es la mitad. Sin esto,
+      // una descarga bien hecha aparecía como tres días incompletos y la app
+      // empujaba a hacer series de más, que es lo contrario de descargar.
+      const metaPlena = goalFor(a, raw, { pesoCorporal });
+      const goal = a.kind === 'gym' && esDescarga(descargas, date)
+        ? metaDeDescarga(metaPlena)
+        : metaPlena;
       const met = value >= goal;
       const agendado = isScheduled(a, date);
       const scheduled = agendado && !libreDe(a.id);
@@ -744,6 +752,7 @@ export function derive(data, today = todayKey()) {
   return {
     today,
     pausas,
+    descargas,
     bodyweight: pesoCorporal,
     bodyFat,
     strength,
