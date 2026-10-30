@@ -12,6 +12,7 @@ import {
 } from '../config.js';
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
 import { colorDe } from '../theme.js';
+import { queTocaHoy, ESTADOS, esDescarga } from '../descargas.js';
 
 /** Cada cuánto se anota lo cargado, por si el sistema mata la app sin avisar. */
 const AUTOGUARDADO_MS = 15000;
@@ -158,6 +159,7 @@ function gymForm(activity, dateKey, onSaved) {
   // En los de peso corporal el récord se mide con el cuerpo adentro, así que
   // sin esto no se puede calcular qué hace falta para superarlo.
   const pesoCorporal = Number(getState().bodyweight) || 0;
+  const semanaDeDescarga = esDescarga(getData().descargas, dateKey);
   const lastSets = gymState?.lastSets || new Map();
   const lastByTemplate = gymState?.lastByTemplate || new Map();
 
@@ -299,8 +301,19 @@ function gymForm(activity, dateKey, onSaved) {
           const texto = rec
             ? textoDeRecord(rec, superarRecord(rec, perfil, { pesoCorporal }), perfil)
             : textoDeObjetivo(objetivo, perfil);
+          // De un vistazo, qué le toca a este ejercicio hoy. El texto de abajo
+          // ya lo dice, pero hay que leerlo: el color se ve sin leer, que es
+          // lo que uno necesita entre serie y serie.
+          const toca = queTocaHoy(objetivo, { descarga: semanaDeDescarga });
+          const estado = ESTADOS[toca];
           return el('div', { style: 'flex:1;min-width:0' },
-            el('div', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
+            el('div', { style: 'display:flex;align-items:center;gap:6px;flex-wrap:wrap' },
+              el('span', { style: 'font-weight:600;font-size:.92rem', text: ex.name }),
+              el('span', {
+                class: 'chip',
+                style: `--c:${estado.color};color:${estado.color};border-color:${estado.color}55`,
+                text: estado.nombre,
+              })),
             texto
               ? el('div', { class: 'row__sub', text: texto })
               : el('div', { class: 'row__sub', text: `${DEFAULT_SETS}×${rango.min}-${rango.max}` }));

@@ -4,9 +4,10 @@ import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js
 import { waterGoalMl } from './body.js';
 import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive } from './derive.js';
-import { todayKey, uid, daysBetween } from './utils.js';
+import { todayKey, uid, daysBetween, weekStart } from './utils.js';
 import { fusionar } from './merge.js';
 import { tramos, agregar, quitar } from './pausas.js';
+import { semanas as semanasDeDescarga } from './descargas.js';
 
 const STORAGE_KEY = 'routine-rpg';
 const listeners = new Set();
@@ -22,6 +23,8 @@ function blankData() {
     activities: structuredClone(DEFAULT_ACTIVITIES),
     // Tramos declarados libres: no suman ni rompen rachas.
     pausas: [],
+    // Semanas de descarga: mismos pesos, la mitad de las series.
+    descargas: [],
     // Lo que ya venías haciendo antes de instalar la app.
     entries: buildSeedEntries(),
     carryOver: structuredClone(ACUMULADO_PREVIO),
@@ -39,6 +42,7 @@ function migrate(raw) {
   next.carryOver = raw.carryOver || structuredClone(ACUMULADO_PREVIO);
   next.unlocked = raw.unlocked || {};
   next.pausas = tramos(raw.pausas);
+  next.descargas = semanasDeDescarga(raw.descargas);
   const known = new Map(DEFAULT_ACTIVITIES.map((a) => [a.id, a]));
   next.activities = (raw.activities?.length ? raw.activities : base.activities)
     .map((a) => {
@@ -281,6 +285,22 @@ export function removeActivity(id) {
 }
 
 /** Declara un tramo de días libres. */
+/**
+ * Marca o desmarca la semana de una fecha como descarga.
+ *
+ * Se guarda el lunes de esa semana, no el día: la descarga es de la semana
+ * entera, así que declararla un miércoles tiene que cubrir el lunes que ya
+ * pasó. Pasa por mutate como cualquier cambio de datos, porque cambiar la
+ * meta de los días de esa semana mueve XP, rachas y logros.
+ */
+export function marcarDescarga(fecha, activa = true) {
+  return mutate((d) => {
+    const lunes = weekStart(fecha);
+    const otras = semanasDeDescarga(d.descargas).filter((s) => s !== lunes);
+    d.descargas = activa ? [...otras, lunes].sort() : otras;
+  });
+}
+
 export function agregarPausa(tramo) {
   return mutate((d) => { d.pausas = agregar(d.pausas, tramo); });
 }
