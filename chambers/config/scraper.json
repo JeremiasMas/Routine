@@ -1,0 +1,15 @@
+{
+  "_comentario": "Valores por defecto. Se pisan con opciones de línea de comandos (--pais, --guia, --demora, …) o con otro archivo vía --config.",
+  "userAgent": "RutinaChambersScraper/1.0 (+contacto: PONER-UN-MAIL-DE-CONTACTO)",
+  "demoraMs": 2000,
+  "concurrencia": 1,
+  "reintentos": 4,
+  "profundidad": 2,
+  "maxEdadHoras": 168,
+  "usarSitemap": true,
+  "base": "chambers/datos/chambers.sqlite",
+  "cache": "chambers/datos/cache",
+  "exportar": "chambers/datos/export",
+  "paises": ["argentina"],
+  "guias": ["latin-america", "global"]
+}
