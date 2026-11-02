@@ -35,3 +35,35 @@ test('los archivos base de la app están en la caché', () => {
     assert.ok(sw.includes(`'${archivo}'`), `falta ${archivo} en sw.js`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Caché primero
+// ---------------------------------------------------------------------------
+
+test('el service worker sirve de la caché antes de ir a la red', () => {
+  // Con red primero, cada apertura volvía a bajar la app entera; y con señal
+  // mala los pedidos no fallan, se cuelgan, así que la app quedaba esperando
+  // en vez de abrir con lo que ya tenía.
+  const bloque = sw.slice(sw.indexOf("addEventListener('fetch'"));
+  const responde = bloque.indexOf('respondWith');
+  const primerCaches = bloque.indexOf('caches.match', responde);
+  const primerFetch = bloque.indexOf('fetch(request)', responde);
+  assert.ok(primerCaches > 0 && primerFetch > 0, 'faltan las dos piezas');
+  assert.ok(primerCaches < primerFetch,
+    'caches.match tiene que venir antes que fetch dentro de respondWith');
+  assert.match(bloque, /return hit \|\| red/,
+    'si hay copia se devuelve esa, y la red queda para actualizar');
+});
+
+test('la copia nueva se guarda aunque se sirva la vieja', () => {
+  // Es lo que hace que el canje sea barato: usás la de ayer y la de hoy queda
+  // lista para la próxima apertura.
+  const bloque = sw.slice(sw.indexOf("addEventListener('fetch'"));
+  assert.match(bloque, /c\.put\(request, copy\)/);
+});
+
+test('sin red y sin copia del pedido, la app igual abre', () => {
+  // Cualquier ruta tiene que caer en el índice: es lo que arranca todo.
+  const bloque = sw.slice(sw.indexOf("addEventListener('fetch'"));
+  assert.match(bloque, /catch\(\(\) => hit \|\| caches\.match\('\.\/index\.html'\)\)/);
+});

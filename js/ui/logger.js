@@ -24,6 +24,18 @@ const AUTOGUARDADO_MS = 15000;
  */
 let soltarActual = null;
 
+/**
+ * Agrega algo más a lo que hay que soltar cuando se cierre el registrador.
+ *
+ * El footer ya registra su propia limpieza —el reloj del autoguardado—, y un
+ * formulario puede tener la suya. Encadenarlas evita pasarle otro parámetro al
+ * footer, que ya recibe siete.
+ */
+function tambienAlCerrar(fn) {
+  const antes = soltarActual;
+  soltarActual = () => { antes?.(); fn(); };
+}
+
 /** Abre el registrador correcto para la actividad. */
 export function openLogger(activity, dateKey, onSaved) {
   const title = `${activity.icon} ${activity.name} · ${relativeDay(dateKey)}`;
@@ -159,6 +171,16 @@ function gymForm(activity, dateKey, onSaved) {
   // En los de peso corporal el récord se mide con el cuerpo adentro, así que
   // sin esto no se puede calcular qué hace falta para superarlo.
   const pesoCorporal = Number(getState().bodyweight) || 0;
+  // Una sesión de gimnasio dura tres cuartos de hora, y entre serie y serie el
+  // teléfono se bloquea: volver a desbloquearlo con las manos sudadas, quince
+  // veces, es lo que hace que uno termine anotando todo al final de memoria.
+  // El modo caminata ya pedía esto; el registrador no.
+  let pantalla = null;
+  navigator.wakeLock?.request('screen').then((l) => { pantalla = l; }).catch(() => {
+    // Sin wake lock la pantalla se apaga sola. Es una comodidad, no el dato:
+    // no vale molestar con un error.
+  });
+
   const semanaDeDescarga = esDescarga(getData().descargas, dateKey);
   const lastSets = gymState?.lastSets || new Map();
   const lastByTemplate = gymState?.lastByTemplate || new Map();
@@ -240,6 +262,10 @@ function gymForm(activity, dateKey, onSaved) {
     () => completedSets(clean(exercises)),
     onSaved, existing,
     () => ({ templateId }));
+  tambienAlCerrar(() => {
+    pantalla?.release?.().catch(() => {});
+    pantalla = null;
+  });
 
   function clean(input) {
     return input

@@ -169,3 +169,27 @@ test('la barra de abajo no muestra el recuadro de fábrica de Android', () => {
   assert.match(css, /:focus-visible/,
     'y el foco tiene que seguir marcándose de alguna forma');
 });
+
+test('el registrador mantiene la pantalla encendida durante la sesión', () => {
+  // Una sesión de gimnasio dura tres cuartos de hora, y entre serie y serie
+  // el teléfono se bloquea: desbloquearlo quince veces con las manos sudadas
+  // es lo que hace que uno termine anotando todo al final, de memoria. El
+  // modo caminata ya lo pedía; el registrador no.
+  // Anclado al comienzo de la sentencia: buscar el texto suelto se deja
+  // engañar por un `false &&` adelante, que es justo como se desactiva algo.
+  assert.match(logger, /^\s*navigator\.wakeLock\?\.request\('screen'\)/m,
+    'falta pedir el wake lock');
+  assert.match(logger, /pantalla\?\.release\?\.\(\)/,
+    'y soltarlo: dejarlo tomado mantiene la pantalla viva después de cerrar');
+  assert.match(logger, /tambienAlCerrar\(/,
+    'el release tiene que colgar del cierre del panel, no quedar suelto');
+});
+
+test('la limpieza del formulario se encadena con la del footer', () => {
+  // Si una pisara a la otra, se soltaría el wake lock y quedaría vivo el
+  // reloj del autoguardado, o al revés.
+  const fn = logger.slice(logger.indexOf('function tambienAlCerrar'));
+  const cuerpo = fn.slice(0, fn.indexOf('\n}') + 2);
+  assert.match(cuerpo, /const antes = soltarActual/);
+  assert.match(cuerpo, /antes\?\.\(\)/, 'tiene que correr también la anterior');
+});
