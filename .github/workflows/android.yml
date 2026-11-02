@@ -3,14 +3,25 @@ name: APK de Android
 on:
   push:
     branches: [main]
+    # Todo lo que viaja adentro del APK. Desde que el service worker sirve
+    # caché primero, la app instalada ya no baja lo nuevo sola: si un cambio
+    # de la web no recompila el APK, no llega nunca al teléfono. Esta lista
+    # tiene que coincidir con el `copiarWeb` de android/app/build.gradle.kts,
+    # y hay un test que lo comprueba.
     paths:
       - 'android/**'
-      # La copia offline de Ataraxia viaja adentro del APK.
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'css/**'
+      - 'js/**'
+      - 'icons/**'
       - 'ataraxia/**'
       - 'clima/**'
       - '.github/workflows/android.yml'
   # En un PR sólo se compila, para enterarse antes de mergear si algo no
-  # compila. Publicar queda para main.
+  # compila, y sólo por cambios de Android: el Kotlin no se rompe por tocar un
+  # CSS, y compilar de más alargaría cada PR de la web para nada.
   pull_request:
     paths:
       - 'android/**'
