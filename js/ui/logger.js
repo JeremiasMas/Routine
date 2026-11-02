@@ -12,7 +12,7 @@ import {
 } from '../config.js';
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
 import { colorDe } from '../theme.js';
-import { queTocaHoy, ESTADOS, esDescarga } from '../descargas.js';
+import { queTocaHoy, ESTADOS, esDescarga, objetivoDeDescarga, textoDeDescarga } from '../descargas.js';
 
 /** Cada cuánto se anota lo cargado, por si el sistema mata la app sin avisar. */
 const AUTOGUARDADO_MS = 15000;
@@ -179,7 +179,12 @@ function gymForm(activity, dateKey, onSaved) {
    */
   function objetivoDe(name, count = DEFAULT_SETS) {
     const previas = lastSets.get((name || '').trim().toLowerCase());
-    return objetivoDeHoy(previas, perfilDeEjercicio(name), count);
+    const perfil = perfilDeEjercicio(name);
+    // En una semana de descarga el objetivo es otro: el mismo peso y el piso
+    // del rango. Decirle que suba a 65 kg justo la semana que vino a bajar
+    // sería peor que no decir nada.
+    if (semanaDeDescarga) return objetivoDeDescarga(previas, perfil, count);
+    return objetivoDeHoy(previas, perfil, count);
   }
 
   /**
@@ -194,14 +199,18 @@ function gymForm(activity, dateKey, onSaved) {
     const record = records.get((name || '').trim().toLowerCase());
     const objetivo = objetivoDe(name, count);
     return Array.from({ length: count }, (_, i) => ({
-      weight: record
-        ? record.weight
-        : (objetivo ? objetivo.peso
-          : (previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? '')),
+      // En descarga manda el objetivo de descarga, no el récord: precargar la
+      // marca a superar es justo lo que no hay que hacer esta semana.
+      weight: (semanaDeDescarga && objetivo) ? objetivo.peso
+        : (record ? record.weight
+          : (objetivo ? objetivo.peso
+            : (previas?.[i]?.weight ?? previas?.[previas.length - 1]?.weight ?? ''))),
       reps: '',
       // El número gris dentro del casillero: las repeticiones del récord, que
       // son las que hay que igualar antes de pensar en superarlo.
-      target: record?.reps ?? objetivo?.reps?.[i] ?? previas?.[i]?.reps ?? null,
+      target: semanaDeDescarga
+        ? (objetivo?.reps?.[i] ?? null)
+        : (record?.reps ?? objetivo?.reps?.[i] ?? previas?.[i]?.reps ?? null),
     }));
   }
 
@@ -298,9 +307,11 @@ function gymForm(activity, dateKey, onSaved) {
           // Con récord manda el récord: es lo que está precargado y lo que hay
           // que batir. Sin récord todavía, el plan de hoy sale de la última
           // sesión, que es lo único que hay.
-          const texto = rec
-            ? textoDeRecord(rec, superarRecord(rec, perfil, { pesoCorporal }), perfil)
-            : textoDeObjetivo(objetivo, perfil);
+          const texto = semanaDeDescarga
+            ? textoDeDescarga(objetivo, perfil)
+            : (rec
+              ? textoDeRecord(rec, superarRecord(rec, perfil, { pesoCorporal }), perfil)
+              : textoDeObjetivo(objetivo, perfil));
           // De un vistazo, qué le toca a este ejercicio hoy. El texto de abajo
           // ya lo dice, pero hay que leerlo: el color se ve sin leer, que es
           // lo que uno necesita entre serie y serie.

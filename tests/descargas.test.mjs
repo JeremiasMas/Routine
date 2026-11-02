@@ -4,6 +4,7 @@ import {
   semanas, esDescarga, metaDeDescarga, tocaDescarga, queTocaHoy, estancados,
   ESTADOS, CADA_CUANTAS_SEMANAS,
 } from '../js/descargas.js';
+import { readFileSync } from 'node:fs';
 import { derive } from '../js/derive.js';
 import { DEFAULT_ACTIVITIES, templateForDay, plannedSets } from '../js/config.js';
 
@@ -219,4 +220,86 @@ test('todo estado que devuelve queTocaHoy tiene su entrada en ESTADOS', () => {
   for (const caso of [[{ sube: true }, {}], [{ sube: false }, {}], [null, {}], [null, { descarga: true }]]) {
     assert.ok(ESTADOS[queTocaHoy(...caso)], `sin entrada para ${JSON.stringify(caso)}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Qué levantar en una descarga
+// ---------------------------------------------------------------------------
+
+import { objetivoDeDescarga, textoDeDescarga } from '../js/descargas.js';
+import { objetivoDeHoy } from '../js/progresion.js';
+import { perfilDeEjercicio, RANGOS_REPS, DEFAULT_SETS } from '../js/config.js';
+
+const medio = perfilDeEjercicio('Sillón de cuádriceps');     // rango 8-12
+const pesado = perfilDeEjercicio('Sentadilla con barra');    // rango 5-8
+const venia = (kg, reps, n = 3) => Array.from({ length: n }, () => ({ weight: kg, reps }));
+
+test('en descarga se mantiene el peso y bajan las repeticiones al piso', () => {
+  // El peso se mantiene porque bajarlo hace perder el hábito del movimiento
+  // pesado; las repeticiones bajan para quedar lejos del fallo.
+  const o = objetivoDeDescarga(venia(62.5, 11), medio, 2);
+  assert.equal(o.peso, 62.5, 'el mismo peso de la última vez');
+  assert.deepEqual(o.reps, [8, 8], 'el piso del rango');
+});
+
+test('cada ejercicio baja al piso de SU rango', () => {
+  assert.equal(objetivoDeDescarga(venia(55, 8), pesado, 2).reps[0], RANGOS_REPS.pesado.min);
+  assert.equal(objetivoDeDescarga(venia(62.5, 12), medio, 2).reps[0], RANGOS_REPS.medio.min);
+});
+
+test('una descarga nunca pide MÁS repeticiones de las que venías haciendo', () => {
+  // Si venías en 6 de un rango de 8-12, pedirte 8 sería subirte el trabajo
+  // justo la semana que viniste a bajarlo.
+  const o = objetivoDeDescarga(venia(40, 6), medio, 2);
+  assert.deepEqual(o.reps, [6, 6]);
+});
+
+test('la descarga nunca sube el peso, aunque te lo hayas ganado', () => {
+  // Es el caso que motivó esto: cerrar el rango en todas las series dispara
+  // el salto de peso, y en descarga ese salto tiene que esperar.
+  const cerradas = venia(62.5, 12);
+  assert.equal(objetivoDeHoy(cerradas, medio, 3).sube, true, 'la progresión normal sube');
+  assert.equal(objetivoDeDescarga(cerradas, medio, 3).peso, 62.5, 'la descarga no');
+});
+
+test('sin sesión previa no se inventa un peso', () => {
+  assert.equal(objetivoDeDescarga([], medio, 2), null);
+  assert.equal(objetivoDeDescarga(null, medio, 2), null);
+  assert.equal(objetivoDeDescarga([{ weight: 50, reps: 0 }], medio, 2), null,
+    'una serie sin repeticiones no es una sesión');
+});
+
+test('la cantidad de series la pide quien llama', () => {
+  assert.equal(objetivoDeDescarga(venia(60, 10), medio, 2).reps.length, 2);
+  assert.equal(objetivoDeDescarga(venia(60, 10), medio, 4).reps.length, 4);
+  // Pedir cero series no es un pedido: cae en el valor por defecto, como en
+  // el resto de la app. Lo que importa es que nunca devuelva una lista vacía.
+  assert.equal(objetivoDeDescarga(venia(60, 10), medio, 0).reps.length, DEFAULT_SETS);
+  assert.ok(objetivoDeDescarga(venia(60, 10), medio, -2).reps.length >= 1, 'ni negativa');
+});
+
+test('el texto dice el peso, el plan y que tiene que sobrar', () => {
+  const t = textoDeDescarga(objetivoDeDescarga(venia(62.5, 11), medio, 2), medio);
+  assert.match(t, /62,5 kg/);
+  assert.match(t, /8-8/);
+  assert.match(t, /fallo/, 'lo que hay que entender de una descarga');
+  assert.equal(textoDeDescarga(null, medio), null);
+});
+
+test('en mancuerna el texto aclara que el peso es de una', () => {
+  const db = perfilDeEjercicio('Vuelo lateral con mancuerna vertical');
+  assert.match(textoDeDescarga(objetivoDeDescarga(venia(9, 15), db, 2), db), /c\/u/);
+});
+
+test('el registrador usa el objetivo de descarga, no el récord', () => {
+  // La línea de abajo decía "Lo superás con 65 kg × 11" en plena semana de
+  // descarga: lo contrario de lo que hay que hacer. Se vio al usarla, no al
+  // leer el código.
+  const src = readFileSync('js/ui/logger.js', 'utf8');
+  assert.match(src, /semanaDeDescarga\s*\n?\s*\?\s*textoDeDescarga/,
+    'el texto del ejercicio tiene que cambiar en descarga');
+  assert.match(src, /if \(semanaDeDescarga\) return objetivoDeDescarga/,
+    'y el objetivo también');
+  assert.match(src, /semanaDeDescarga && objetivo\) \? objetivo\.peso/,
+    'la precarga no puede traer el peso del récord en descarga');
 });

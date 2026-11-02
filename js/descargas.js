@@ -17,7 +17,8 @@
  * exactamente lo contrario de una descarga.
  */
 
-import { weekStart, esFechaValida } from './utils.js';
+import { weekStart, esFechaValida, formatNumber } from './utils.js';
+import { RANGOS_REPS, DEFAULT_SETS } from './config.js';
 
 /** Cada cuántas semanas de trabajo conviene una de descarga. */
 export const CADA_CUANTAS_SEMANAS = 5;
@@ -158,4 +159,46 @@ export function estancados(historial, sesiones = 3) {
     if (!mejoro) salida.push(nombre);
   }
   return salida;
+}
+
+/**
+ * Qué levantar en una semana de descarga.
+ *
+ * El mismo peso de la última vez, y las repeticiones en el piso del rango.
+ *
+ * El peso se mantiene porque bajarlo hace perder el hábito del movimiento
+ * pesado y después cuesta volver. Las repeticiones bajan al piso porque es la
+ * forma simple de quedar lejos del fallo: si venías cerrando 12 de un rango
+ * de 8 a 12, hacer 8 te deja cuatro en el bolsillo. Y si ya venías en el piso
+ * o por debajo, se respeta lo que hacías: una descarga no puede pedir MÁS
+ * repeticiones de las que venías haciendo.
+ *
+ * Sin sesión previa no hay nada que recomendar, igual que en progresion.js:
+ * no se inventa un peso que nunca levantaste.
+ *
+ * @returns {?{peso:number, reps:number[], rango:object}}
+ */
+export function objetivoDeDescarga(previas, perfil, series = DEFAULT_SETS) {
+  const hechas = (previas || [])
+    .map((s) => ({ weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 }))
+    .filter((s) => s.reps > 0);
+  if (!hechas.length) return null;
+
+  const rango = RANGOS_REPS[perfil?.rango] || RANGOS_REPS.medio;
+  const peso = hechas[hechas.length - 1].weight;
+  const menosQueHacias = Math.min(...hechas.map((s) => s.reps));
+  const objetivo = Math.min(rango.min, menosQueHacias);
+  const cuantas = Math.max(1, Math.round(Number(series) || DEFAULT_SETS));
+  return { peso, reps: Array.from({ length: cuantas }, () => objetivo), rango };
+}
+
+/** El objetivo de descarga dicho en una línea, como textoDeObjetivo. */
+export function textoDeDescarga(objetivo, perfil) {
+  if (!objetivo) return null;
+  const cada = perfil?.db ? ' c/u' : '';
+  const plan = objetivo.reps.join('-');
+  const peso = objetivo.peso > 0
+    ? `${formatNumber(objetivo.peso)} kg${cada} × ${plan}`
+    : `${plan} repeticiones`;
+  return `Descarga: ${peso}. El mismo peso de siempre y lejos del fallo — tienen que sobrarte repeticiones.`;
 }
