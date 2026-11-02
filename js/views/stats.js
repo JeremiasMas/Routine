@@ -1,8 +1,8 @@
-// Progreso global: mapa de calor, XP por semana y ranking de actividades.
+// Progreso global: resumen, mapa de calor, XP por semana y de dónde sale la XP.
+// La lista de disciplinas la arma seccionAnalisis, que es una sola.
 import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween, plural } from '../utils.js';
 import { getState } from '../state.js';
-import { stat, xpBar, chip, barChart } from '../ui/components.js';
-import { colorDe, colorDeRango } from '../theme.js';
+import { stat, xpBar, barChart } from '../ui/components.js';
 import { seccionAnalisis } from './analisis.js';
 import { resumenSemanal, proyeccionDeRango } from '../analisis.js';
 import { isScheduled } from '../derive.js';
@@ -42,23 +42,9 @@ export function render() {
   });
   root.append(el('div', { class: 'card' }, barChart(weeks, { color: 'var(--accent-2)' })));
 
-  // --- Ranking de actividades ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Tus disciplinas' }), el('small', { text: 'ordenadas por XP' })));
-  const ranked = [...state.byActivity.values()]
-    .filter((st) => st.leveled !== false)
-    .sort((a, b) => b.xp - a.xp);
-  root.append(el('div', { class: 'list' }, ranked.map((st) => el('a', {
-    class: 'row', href: `#/actividad/${st.id}`, style: `--c:${colorDe(st.activity)}`,
-  },
-    el('span', { style: 'font-size:1.3rem', text: st.activity.icon }),
-    el('div', { class: 'row__main' },
-      el('div', { style: 'display:flex;gap:8px;align-items:center' },
-        el('span', { text: st.activity.name }),
-        chip(st.tier.name, 'chip--tier', `--t:${colorDe(st.activity)}`)),
-      el('div', { style: 'margin-top:6px' }, xpBar(st.level.pct)),
-      el('div', { class: 'row__sub', style: 'margin-top:4px', text: `Nivel ${st.level.level} · ${formatNumber(st.xp)} XP · ${formatValue(st.total, st.activity.unit)} en total` })),
-    el('span', { class: 'muted', text: '›' })))));
+  // El ranking de actividades vivía acá abajo y repetía las mismas ocho filas
+  // que "Dónde estás": emoji, nombre y rango, con el gimnasio mostrando dos
+  // nombres del mismo escalón. Ahora es una sola lista, la de arriba.
 
   // --- Desglose de la XP ---
   root.append(el('div', { class: 'section-title' }, el('h2', { text: 'De dónde sale tu XP' })));

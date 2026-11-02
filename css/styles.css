@@ -751,18 +751,45 @@ button:focus-visible,
   border: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
 }
 
-/* --- Análisis por disciplina --- */
+/* ---------------------------------------------------------------------------
+   La lista de disciplinas de Progreso.
+
+   Eran dos secciones con las mismas ocho filas. La fila de acá se queda con lo
+   que tenían las dos: rango y tendencia arriba, barra de nivel y el acumulado
+   abajo. La que tiene algo que analizar es un <details>; la que no, un <a> con
+   la misma pinta y una flecha en vez del cheurón.
+   --------------------------------------------------------------------------- */
 .analisis {
+  display: block;
   background: var(--panel); border: 1px solid var(--line);
   border-left: 3px solid var(--c, var(--accent));
   border-radius: 14px; padding: 12px; margin-bottom: 8px;
+  color: inherit; text-decoration: none;
 }
-.analisis__cab { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.analisis--link { display: flex; align-items: center; gap: 10px; }
+.analisis__cab {
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; list-style: none;
+}
 .analisis__cab::-webkit-details-marker { display: none; }
-.analisis__icono { font-size: 1.2rem; }
+.analisis__icono { font-size: 1.2rem; flex: 0 0 auto; }
+.analisis__main { flex: 1; min-width: 0; }
+.analisis__linea { display: flex; align-items: center; gap: 8px; }
 .analisis__nombre { font-weight: 650; flex: 1; min-width: 0; }
 .analisis__estado { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.analisis__barra { margin: 7px 0 5px; }
+.analisis__flecha { flex: 0 0 auto; color: var(--muted); transition: transform .2s; }
+.analisis[open] > .analisis__cab .analisis__flecha { transform: rotate(180deg); }
 .analisis__cuerpo { margin-top: 10px; }
+/* El link a la pantalla de la actividad, adentro del desplegable: acá no
+   compite con el despliegue por el mismo toque, como pasaba cuando la fila
+   entera hacía las dos cosas en dos secciones distintas. */
+.analisis__ir {
+  display: block; margin-top: 12px; text-align: center;
+  font-size: .82rem; color: var(--muted); text-decoration: none;
+  padding: 9px; border-radius: 10px; border: 1px solid var(--line);
+}
+.analisis__ir:active { background: var(--panel-strong); color: var(--text); }
 .analisis__foco {
   padding: 10px; border-radius: 12px; background: var(--panel-strong);
   border: 1px solid var(--line);
