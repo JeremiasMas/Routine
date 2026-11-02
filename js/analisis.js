@@ -5,7 +5,7 @@
  * consejos genéricos. Cuando no alcanza la información para decir algo, se
  * dice que no alcanza, que es más útil que un consejo falso.
  */
-import { addDays, daysBetween, weekStart } from './utils.js';
+import { addDays, daysBetween, weekStart, formatNumber, formatValue, plural } from './utils.js';
 import { NIVELES } from './strength.js';
 import { GRUPOS, perfilDeEjercicio, PLAYER_TITLES } from './config.js';
 import { xpToNextPlayerLevel, playerTitleFor } from './xp.js';
@@ -627,4 +627,68 @@ export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () 
     // Una semana sin nada no merece un resumen que finja que pasó algo.
     vacia: xp === 0 && porActividad.every((x) => x.total === 0),
   };
+}
+
+
+/* ---------------------------------------------------------------------------
+   La lista de disciplinas: una sola, con lo que antes estaba repartido en dos.
+   --------------------------------------------------------------------------- */
+
+/**
+ * El rango de una disciplina, resuelto a un solo nombre.
+ *
+ * El gimnasio tenía dos, y parecían dos escalas en pelea: "Atleta" arriba de
+ * Progreso y "Intermedio" más abajo. No eran dos medidas: es el MISMO escalón
+ * nombrado dos veces. `derive` calcula el índice con `nivelGeneral(strength)`
+ * y después lo bautiza con el `tierNames` de la actividad, así que
+ * `tier.name` y `strengthOverall.name` salen siempre del mismo `index`.
+ *
+ * Gana `tier.name`, que es la voz que usa la app en todas las disciplinas.
+ * El nombre de la escala de fuerza no se pierde: vive adentro del desplegable,
+ * donde tiene lugar para decir contra qué se compara.
+ */
+export function rangoDe(st) {
+  if (!st?.tier?.name) return null;
+  return {
+    nombre: st.tier.name,
+    // Lo que el desplegable todavía tiene para agregar, si es otra palabra.
+    tambien: st.strengthOverall?.name && st.strengthOverall.name !== st.tier.name
+      ? st.strengthOverall.name
+      : null,
+  };
+}
+
+/**
+ * Las disciplinas que entran en la lista, de más a menos XP.
+ *
+ * El agua queda afuera porque no tiene nivel: un hábito no se rankea.
+ */
+export function ordenarPorXp(estados) {
+  // `filter` ya devuelve una lista nueva, así que el `sort` que viene después
+  // no toca la que nos pasaron. Copiar antes sería copiar dos veces — pero el
+  // orden importa: ordenar primero sí pisaría el original.
+  return (estados || [])
+    .filter((st) => st && st.leveled !== false)
+    .sort((a, b) => (b.xp || 0) - (a.xp || 0));
+}
+
+/**
+ * La línea de abajo: nivel, XP y lo juntado, en el idioma de la disciplina.
+ *
+ * "677 series en total" y no "677 mediciones": la unidad de una actividad no
+ * entra en una oración genérica, y ya nos mordió una vez.
+ */
+export function resumenDeDisciplina(st) {
+  const a = st?.activity;
+  if (!a) return '';
+  const nivel = `Nivel ${formatNumber(st.level?.level ?? 1)}`;
+  const xp = `${formatNumber(st.xp || 0)} XP`;
+  return `${nivel} · ${xp} · ${totalDicho(a, st.total || 0)} en total`;
+}
+
+function totalDicho(a, n) {
+  if (a.kind === 'writing') return plural(n, 'post', 'posts');
+  if (a.kind === 'gym') return plural(n, 'serie', 'series');
+  if (a.kind === 'body') return plural(n, 'medición', 'mediciones');
+  return formatValue(n, a.unit);
 }

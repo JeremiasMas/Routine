@@ -1,9 +1,10 @@
 // Dónde estás en cada disciplina y qué conviene mover.
 import { el, formatValue, formatNumber, shortDate, plural } from '../utils.js';
-import { chip } from '../ui/components.js';
+import { chip, xpBar } from '../ui/components.js';
 import {
   tendencia, constancia, proximosSaltos, mejorInversion,
   estancados, proyeccionGrasa, repartoDeFuentes, balances, volumenPorGrupo,
+  rangoDe, ordenarPorXp, resumenDeDisciplina,
 } from '../analisis.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { bodySummary } from '../body.js';
@@ -12,52 +13,86 @@ import { isScheduled, weeklyTargetWithPauses } from '../derive.js';
 import { esLibre } from '../pausas.js';
 import { juicioDeConstancia } from '../copys.js';
 
-/** La sección entera, para pegar en Progreso. */
+/**
+ * La única lista de disciplinas de Progreso.
+ *
+ * Eran dos secciones con las mismas ocho filas: "Dónde estás" arriba, que se
+ * desplegaba, y "Tus disciplinas" abajo, que linkeaba. Emoji, nombre y rango
+ * repetidos, unos 760 px de página, y el gimnasio mostrando "Atleta" en una y
+ * "Intermedio" en la otra como si fueran dos medidas en desacuerdo.
+ *
+ * Ahora es una sola, ordenada por XP. La que tiene algo que analizar se
+ * despliega; la que no, es un link y se ve igual. El tipo de elemento dice qué
+ * hace cada una, en vez de dos afordancias idénticas peleando por el mismo
+ * toque.
+ */
 export function seccionAnalisis(state) {
-  const cuerpo = el('div', { class: 'list' });
   const libre = (f, id) => esLibre(state.pausas, f, id);
-  let algo = false;
-  for (const st of state.byActivity.values()) {
-    const tarjeta = tarjetaDe(st, state, libre);
-    if (tarjeta) { cuerpo.append(tarjeta); algo = true; }
-  }
-  if (!algo) return null;
+  const filas = ordenarPorXp([...state.byActivity.values()])
+    .map((st) => filaDe(st, state, libre))
+    .filter(Boolean);
+  if (!filas.length) return null;
   return el('div', {},
     el('div', { class: 'section-title' },
-      el('h2', { text: 'Dónde estás' }), el('small', { text: 'y qué mover' })),
-    cuerpo);
+      el('h2', { text: 'Tus disciplinas' }),
+      el('small', { text: 'dónde estás y qué mover' })),
+    el('div', { class: 'list' }, filas));
 }
 
-function tarjetaDe(st, state, libre) {
+/** Una fila: desplegable si hay algo que analizar, link si no. */
+function filaDe(st, state, libre) {
   const a = st.activity;
-  if (st.leveled === false) return null;               // el agua no tiene análisis
-  if (!st.history?.length) return null;
+  if (!a) return null;
 
   // Medirse más seguido no es progreso, así que la composición corporal no
   // lleva línea de tendencia: su movimiento real es la proyección de grasa.
   const t = a.kind === 'body' ? null : tendencia(st.history, state.today);
   const metaSemanal = (act, w) => weeklyTargetWithPauses(act, w, state.pausas);
-  const c = constancia(st, state.today, { libre, tocaba: isScheduled, metaSemanal });
-  const detalle = detalleDe(st, state);
-  if (!t && !c && !detalle) return null;
+  const c = st.history?.length
+    ? constancia(st, state.today, { libre, tocaba: isScheduled, metaSemanal })
+    : null;
+  const detalle = st.history?.length ? detalleDe(st, state) : null;
+  const hayAnalisis = !!(t || c || detalle);
+
+  const cabecera = [
+    el('span', { class: 'analisis__icono', text: a.icon }),
+    el('div', { class: 'analisis__main' },
+      el('div', { class: 'analisis__linea' },
+        el('span', { class: 'analisis__nombre', text: a.name }),
+        el('span', { class: 'analisis__estado' }, estadoCorto(st, t))),
+      el('div', { class: 'analisis__barra' }, xpBar(st.level?.pct || 0)),
+      el('div', { class: 'row__sub', text: resumenDeDisciplina(st) })),
+  ];
+
+  // Sin nada que analizar no hay nada que desplegar: queda el link de siempre,
+  // con la misma pinta. Un desplegable vacío se lee como que la app se colgó.
+  if (!hayAnalisis) {
+    return el('a', {
+      class: 'analisis analisis--link', href: `#/actividad/${st.id}`,
+      style: `--c:${colorDe(a)}`,
+    }, cabecera, el('span', { class: 'muted', text: '›' }));
+  }
 
   return el('details', { class: 'analisis', style: `--c:${colorDe(a)}` },
-    el('summary', { class: 'analisis__cab' },
-      el('span', { class: 'analisis__icono', text: a.icon }),
-      el('span', { class: 'analisis__nombre', text: a.name }),
-      el('span', { class: 'analisis__estado' }, estadoCorto(st, t))),
+    el('summary', { class: 'analisis__cab' }, cabecera,
+      el('span', { class: 'analisis__flecha', text: '⌄' })),
     el('div', { class: 'analisis__cuerpo' },
       dondeEstas(st),
       t ? lineaTendencia(st, t) : null,
       c ? lineaConstancia(st, c) : null,
-      detalle));
+      detalle,
+      // El link que antes era toda la fila de abajo. Acá adentro no compite
+      // con el despliegue por el mismo toque.
+      el('a', { class: 'analisis__ir', href: `#/actividad/${st.id}` },
+        `Ver ${a.name} en detalle ›`)));
 }
 
 /** Lo que se ve sin desplegar: el titular. */
 function estadoCorto(st, t) {
   const flecha = !t ? '' : t.dir === 'sube' ? '↑' : t.dir === 'baja' ? '↓' : '→';
   const clase = !t ? '' : t.dir === 'sube' ? 'chip--ok' : t.dir === 'baja' ? 'chip--warn' : '';
-  const nombre = st.strengthOverall?.name || st.tier?.name || `Nivel ${st.level.level}`;
+  const rango = rangoDe(st);
+  const nombre = rango?.nombre || `Nivel ${st.level?.level ?? 1}`;
   const color = colorDeRango(st.tier, st.tier?.index) || st.tier?.color || 'var(--accent)';
   return el('span', {}, chip(nombre, 'chip--tier', `--t:${color}`),
     !t ? null
@@ -65,34 +100,27 @@ function estadoCorto(st, t) {
         : chip(`${flecha} ${Math.abs(Math.round(t.cambio * 100))}%`, clase));
 }
 
-function dondeEstas(st) {
-  const a = st.activity;
-  const partes = [];
-  if (st.strengthOverall) {
-    const s = st.strengthOverall;
-    partes.push(`Fuerza general: ${s.name}${s.next ? `, camino a ${s.next}` : ''}.`);
-    partes.push(`${plural(s.lifts, 'movimiento medido', 'movimientos medidos')}.`);
-  } else {
-    partes.push(`Nivel ${st.level.level}${st.tier ? ` · ${st.tier.name}` : ''}.`);
-    partes.push(acumulado(st));
-  }
-  return el('p', { class: 'hint', text: partes.join(' ') });
-}
-
 /**
- * Lo juntado hasta hoy, dicho en el idioma de cada disciplina.
+ * Lo que el desplegable agrega sobre la fila, y sólo eso.
  *
- * "1 mediciones acumulados" era el precio de tener una sola frase para todo:
- * la unidad de una actividad no siempre entra en una oración genérica.
+ * Antes abría con "Nivel 11 · Nak Su. 91h 30m acumuladas." — que es palabra
+ * por palabra lo que ahora dice la fila de arriba. Combinar las dos secciones
+ * dejó esa frase repitiendo a dos centímetros de distancia.
+ *
+ * Queda sólo donde suma: el gimnasio, que se mide contra una escala de fuerza
+ * y necesita decir contra qué se compara.
  */
-function acumulado(st) {
-  const a = st.activity;
-  if (a.kind === 'body') return `${plural(st.total, 'medición registrada', 'mediciones registradas')}.`;
-  if (a.kind === 'writing') return `${plural(st.total, 'post publicado', 'posts publicados')}.`;
-  if (a.kind === 'gym') return `${plural(st.total, 'serie hecha', 'series hechas')}.`;
-  // En minutos el formato pasa a horas, y las horas son femeninas.
-  const participio = a.unit === 'min' && st.total >= 60 ? 'acumuladas' : 'acumulados';
-  return `${formatValue(st.total, a.unit)} ${participio}.`;
+function dondeEstas(st) {
+  if (!st.strengthOverall) return null;
+  const s = st.strengthOverall;
+  const partes = [`Fuerza general: ${s.name}${s.next ? `, camino a ${s.next}` : ''}.`];
+  // El chip de arriba dice otra palabra para el mismo escalón: uno es la
+  // escala de fuerza y el otro el nombre que le pone la app. Sin decirlo,
+  // parecen dos medidas que no se ponen de acuerdo.
+  const rango = rangoDe(st);
+  if (rango?.tambien) partes.push(`En la escala de la app, ese mismo escalón es "${rango.nombre}".`);
+  partes.push(`${plural(s.lifts, 'movimiento medido', 'movimientos medidos')}.`);
+  return el('p', { class: 'hint', text: partes.join(' ') });
 }
 
 /** Un valor con su unidad, cuidando la concordancia cuando es uno solo. */
