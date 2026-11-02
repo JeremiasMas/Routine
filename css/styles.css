@@ -308,15 +308,24 @@ button:focus-visible,
 .section-title h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .16em; color: var(--muted); font-weight: 700; }
 .section-title small { color: var(--muted); font-size: .72rem; }
 
-.quests { display: grid; gap: 10px; }
+.quests { display: grid; gap: 7px; }
 
+/* ---------------------------------------------------------------------------
+   La misión, en una fila.
+
+   Era una tarjeta de 128 a 180 px de alto: con seis misiones por día entraban
+   tres y media en pantalla. La fila ocupa menos de la mitad y no pierde nada
+   de lo que se usa: emoji, color de la disciplina, avance, nivel y el registro
+   de un toque. Nombre y meta arriba; barra y datos chicos abajo, en el renglón
+   que de todas formas ya estaba ocupado.
+   --------------------------------------------------------------------------- */
 .quest {
   position: relative;
-  display: flex; gap: 12px; align-items: center;
+  display: flex; gap: 10px; align-items: center;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 12px;
   background: var(--panel);
-  padding: 12px;
+  padding: 9px 10px;
   width: 100%;
   text-align: left;
   overflow: hidden;
@@ -324,37 +333,105 @@ button:focus-visible,
 }
 .quest::before {
   content: "";
-  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--c, var(--accent));
-  opacity: .85;
+  opacity: .9;
 }
 .quest:active { transform: scale(.985); }
-.quest.is-done { background: linear-gradient(120deg, color-mix(in srgb, var(--c) 16%, transparent), var(--panel)); border-color: color-mix(in srgb, var(--c) 40%, var(--line)); }
-.quest__icon { font-size: 1.5rem; width: 34px; text-align: center; flex: 0 0 auto; }
+.quest.is-done { background: linear-gradient(120deg, color-mix(in srgb, var(--c) 13%, transparent), var(--panel)); border-color: color-mix(in srgb, var(--c) 34%, var(--line)); }
+.quest__icon { font-size: 1.15rem; line-height: 1; width: 22px; text-align: center; flex: 0 0 auto; align-self: center; }
 .quest__body { flex: 1; min-width: 0; }
-.quest__head { display: flex; align-items: center; gap: 8px; }
-.quest__name { font-weight: 650; font-size: .95rem; }
-.quest__meta { font-size: .72rem; color: var(--muted); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.quest__head { display: flex; align-items: baseline; gap: 8px; }
+.quest__name { font-weight: 650; font-size: .88rem; }
+.quest__num {
+  margin-left: auto; flex: 0 0 auto;
+  font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.quest__foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.quest__bar {
+  flex: 1 1 auto; min-width: 24px; height: 4px;
+  border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden;
+}
+.quest__bar i { display: block; height: 100%; border-radius: 99px; background: var(--c, var(--accent)); }
+.quest__micro { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.quest__nv {
+  font-size: .6rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+  border: 1px solid var(--line); border-radius: 7px; padding: 2px 5px;
+}
+/* El anillo ya no vive en el tablero, pero sí en la pantalla de la actividad. */
 .quest__ring { flex: 0 0 auto; position: relative; }
 .quest__ringlvl {
   position: absolute; inset: 0; display: grid; place-content: center;
   font-size: .7rem; font-weight: 700;
 }
+.quest__meta { font-size: .72rem; color: var(--muted); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-/* Chips / insignias */
+/* Lo que se te corta hoy, dicho en la fila y no sólo en el cartel de arriba.
+   Un único tratamiento, reservado: si se usara para otra cosa dejaría de
+   querer decir "esto es ahora". */
+.quest--urge {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--danger) 13%, transparent), var(--panel));
+}
+.quest--urge::before { background: var(--danger); opacity: 1; width: 4px; }
+
+/* ---------------------------------------------------------------------------
+   Chips / insignias.
+
+   Un solo tratamiento y tres niveles, porque antes había seis formas para la
+   misma cosa y ninguno de esos colores servía para decidir nada:
+     dato  — lo que llevás (XP, racha, escudos)
+     mudo  — contexto que no pide nada (la rutina del día, el avance semanal)
+     vivo  — lo único que te está pidiendo algo ahora
+   Los de color siguen existiendo donde el color sí significa algo: el escalón
+   de un logro, un aviso en Ajustes.
+   --------------------------------------------------------------------------- */
 .chip {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, .09);
   background: var(--panel-strong);
   font-size: .68rem;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.chip--fire { color: var(--fire); background: color-mix(in srgb, var(--fire) 16%, transparent); }
-.chip--tier { color: var(--t, var(--accent)); background: color-mix(in srgb, var(--t, var(--accent)) 16%, transparent); font-weight: 650; }
-.chip--ok { color: var(--ok); background: rgba(52, 211, 153, .14); }
-.chip--shield { color: var(--shield); background: color-mix(in srgb, var(--shield) 16%, transparent); }
+.chip--dato { background: rgba(255, 255, 255, .07); color: var(--text); font-weight: 600; }
+.chip--mudo { background: transparent; color: var(--muted); }
+.chip--vivo {
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  border-color: color-mix(in srgb, var(--gold) 36%, transparent);
+  color: var(--gold); font-weight: 650;
+}
+.chip--urgente {
+  background: var(--danger); border-color: var(--danger);
+  color: #16060a; font-weight: 700;
+}
+.chip--fire { color: var(--fire); background: color-mix(in srgb, var(--fire) 16%, transparent); border-color: color-mix(in srgb, var(--fire) 30%, transparent); }
+.chip--tier { color: var(--t, var(--accent)); background: color-mix(in srgb, var(--t, var(--accent)) 16%, transparent); border-color: color-mix(in srgb, var(--t, var(--accent)) 32%, transparent); font-weight: 650; }
+.chip--ok { color: var(--ok); background: rgba(52, 211, 153, .14); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.chip--shield { color: var(--shield); background: color-mix(in srgb, var(--shield) 16%, transparent); border-color: color-mix(in srgb, var(--shield) 30%, transparent); }
+
+/* ---------------------------------------------------------------------------
+   Lo plegado: las misiones ya hechas, y la semana que todavía no arrancó.
+   --------------------------------------------------------------------------- */
+.plegado > summary {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px dashed var(--line); border-radius: 12px;
+  padding: 10px; font-size: .76rem; color: var(--muted);
+  cursor: pointer; list-style: none; min-height: var(--tap);
+}
+.plegado > summary::-webkit-details-marker { display: none; }
+.plegado > summary b { color: var(--text); font-weight: 650; }
+.plegado__tilde { color: var(--ok); font-weight: 700; }
+.plegado__iconos { font-size: .9rem; letter-spacing: .06em; }
+.plegado__nota { margin-left: auto; font-variant-numeric: tabular-nums; }
+.plegado__flecha { flex: 0 0 auto; }
+.plegado[open] > summary { border-style: solid; margin-bottom: 7px; }
+.plegado[open] .plegado__flecha { transform: rotate(180deg); }
+.plegado__cuerpo { display: grid; gap: 7px; }
 
 /* Anillo de progreso */
 .ring { display: block; transform: rotate(-90deg); }
@@ -504,7 +581,12 @@ button:focus-visible,
   border: 1px solid var(--line); border-radius: 16px; padding: 12px;
   background: var(--panel);
 }
+.stat-grid--tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stat-grid--tres .stat { padding: 10px 8px; text-align: center; }
+.stat-grid--tres .stat__value { font-size: 1.3rem; }
+.stat-grid--tres .stat__label { font-size: .58rem; letter-spacing: .05em; }
 .stat__value { font-size: 1.45rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.stat__de { font-size: .8rem; color: var(--muted); font-weight: 650; }
 .stat__label { font-size: .7rem; white-space: nowrap; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
 
 .bars { display: flex; align-items: flex-end; gap: 3px; height: 110px; }
@@ -591,7 +673,8 @@ button:focus-visible,
 .back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .82rem; margin-bottom: 12px; min-height: 36px; }
 
 @media (min-width: 560px) {
-  .stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stat-grid--tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -746,13 +829,21 @@ button:focus-visible,
   position: absolute; inset: 0; z-index: 1;
   background: none; border: 0; padding: 0; cursor: pointer;
 }
+/* Relleno = se toca. Antes este botón y el anillo de nivel tenían el mismo
+   diámetro, el mismo borde y el mismo relleno translúcido: uno era un dato que
+   no hacía nada y el otro cumplía la meta de un toque, y no había forma de
+   saber cuál era cuál sin probar. */
 .quest__quick {
   position: relative; z-index: 2; flex: none;
-  width: 40px; height: 40px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 45%, var(--line));
-  background: color-mix(in srgb, var(--c, var(--accent)) 14%, transparent);
-  color: var(--c, var(--accent)); font-size: 1rem; font-weight: 800; cursor: pointer;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--c, var(--accent));
+  background: var(--c, var(--accent));
+  color: #0a0507; font-size: .9rem; font-weight: 800; cursor: pointer;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--c, var(--accent)) 35%, transparent);
 }
+/* Se ve de 34 px y se toca de 44: con las manos sudadas del gimnasio, errarle
+   al botón y abrir la hoja entera es peor que no tener botón. */
+.quest__quick::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; }
 .quest__quick:active { transform: scale(.92); }
 /* El contenido se dibuja por encima de la capa que recibe el toque, pero deja
    pasar los toques: si no, tocar el medio de la tarjeta no abría nada. El

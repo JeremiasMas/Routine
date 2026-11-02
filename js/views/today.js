@@ -6,7 +6,10 @@ import {
 import { getState, backupVencido, diasSinBackup, setEntry, marcarDescarga } from '../state.js';
 import { isScheduledWithPauses, goalFor } from '../derive.js';
 import { templateForDay, templateById, minutosDeCaminata } from '../config.js';
-import { ring, chip, xpBar } from '../ui/components.js';
+import { chip, xpBar, stat } from '../ui/components.js';
+import {
+  microDatos, nivelTexto, resumenDelDia, parValor, partirPorHechas, semanaArrancada,
+} from '../tablero.js';
 import { openLogger } from '../ui/logger.js';
 import { colorDe } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
@@ -43,35 +46,34 @@ export function render({ navigate, celebrate }) {
   const extra = state.activities.filter((a) => !isScheduledWithPauses(a, viewDate, state.pausas)
     && (a.streakMode !== 'weekly' || a.days?.length));
   const semanales = state.activities.filter((a) => a.streakMode === 'weekly');
-  const hechas = toca.filter((a) => state.byActivity.get(a.id)?.byDate.get(viewDate)?.met).length;
+  const cumplida = (a) => !!state.byActivity.get(a.id)?.byDate.get(viewDate)?.met;
+  const cuantasHechas = toca.filter(cumplida).length;
   const dayXp = state.daily.get(viewDate)?.xp || 0;
-  const perfecto = toca.length > 0 && hechas === toca.length;
-  const casi = !perfecto && toca.length > 0 && hechas / toca.length >= 0.8;
   const rutina = templateForDay(keyToDate(viewDate).getDay());
+  const resumen = resumenDelDia({ hechas: cuantasHechas, total: toca.length, xp: dayXp });
+
+  // Qué racha está en juego hoy, por actividad. El cartel de arriba lo dice una
+  // vez; la fila lo lleva encima, que es donde se mira cuando ya scrolleaste.
+  const riesgos = new Map();
+  if (viewDate === state.today) {
+    for (const r of rachasEnRiesgo([...state.byActivity.values()],
+      (a) => isScheduledWithPauses(a, viewDate, state.pausas))) riesgos.set(r.activity.id, r);
+  }
 
   // Lo que se pierde hoy si no hacés nada. Sólo en el día de hoy: en un día
   // pasado ya no hay nada que decidir.
-  if (viewDate === state.today) {
-    const riesgo = rachasEnRiesgo([...state.byActivity.values()], (a) => isScheduledWithPauses(a, viewDate, state.pausas));
-    if (riesgo.length) root.append(avisoDeRacha(riesgo));
-  }
+  if (riesgos.size) root.append(avisoDeRacha([...riesgos.values()]));
 
   // --- Resumen del día ---
   root.append(el('div', { class: 'card', style: 'margin-bottom:4px' },
-    el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px' },
-      el('div', {},
-        el('div', { style: 'font-weight:700', text: perfecto
-          ? '¡Día perfecto! ⭐'
-          : `${hechas} de ${toca.length} misiones de hoy${casi ? ' — ¡casi!' : ''}` }),
-        el('div', { class: 'row__sub', text: perfecto
-          ? '+50 XP de bonus por completar todo lo que tocaba'
-          : casi
-            ? `+20 XP por llegar al 80%. Te falta ${toca.length - hechas === 1 ? 'una' : toca.length - hechas} para el día perfecto (+50 XP)`
-            : 'Desde el 80% hay bonus; completándolo todo son +50 XP' })),
-      el('div', { style: 'text-align:right' },
-        el('div', { class: 'stat__value', text: `${formatNumber(dayXp)}` }),
-        el('div', { class: 'stat__label', text: 'XP del día' }))),
-    el('div', { style: 'margin-top:10px' }, xpBar(toca.length ? hechas / toca.length : 0))));
+    el('div', { class: 'stat-grid stat-grid--tres' },
+      statDoble(resumen.hechas, resumen.total, 'Misiones'),
+      stat(resumen.xp, 'XP del día'),
+      resumen.perfecto
+        ? stat('⭐', 'Día perfecto')
+        : stat(resumen.faltan, resumen.faltan === 1 ? 'Falta hoy' : 'Faltan hoy')),
+    el('div', { style: 'margin-top:12px' },
+      xpBar(resumen.pct, { left: resumen.porcentaje, right: resumen.marcas }))));
 
   // --- Lo que este día tiene perdonado ---
   // Las misiones perdonadas desaparecen del tablero, y sin decirlo parecería
@@ -87,8 +89,13 @@ export function render({ navigate, celebrate }) {
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Hoy toca' }),
     el('small', { text: rutina ? rutina.short : (isToday ? 'Tocá para registrar' : 'Registro retroactivo') })));
+  const { pendientes, hechas: yaHechas } = partirPorHechas(toca, cumplida);
+  const armar = (a, extraOpts) => misionFila(a, state, viewDate, navigate, celebrate,
+    { riesgo: riesgos.get(a.id) || null, ...extraOpts });
   root.append(toca.length
-    ? el('div', { class: 'quests' }, toca.map((a) => questCard(a, state, viewDate, navigate, celebrate)))
+    ? el('div', { class: 'quests' },
+        pendientes.map((a) => armar(a)),
+        yaHechas.length ? plegadoDeHechas(yaHechas, state, viewDate, armar) : null)
     : el('div', { class: 'empty' }, 'Hoy descansás. 😌 Igual podés registrar lo que hagas.'));
 
   // --- Lo que hoy no toca (se puede registrar igual) ---
@@ -96,14 +103,14 @@ export function render({ navigate, celebrate }) {
     root.append(el('div', { class: 'section-title' },
       el('h2', { text: 'Hoy no toca' }), el('small', { text: 'suma igual' })));
     root.append(el('div', { class: 'quests' },
-      extra.map((a) => questCard(a, state, viewDate, navigate, celebrate, { off: true }))));
+      extra.map((a) => armar(a, { off: true }))));
   }
 
   // --- Progreso de la semana ---
   if (semanales.length) {
-    root.append(el('div', { class: 'section-title' },
-      el('h2', { text: 'Tu semana' }), el('small', { text: weekLabel(weekStart(viewDate)) })));
-    root.append(el('div', { class: 'card', style: 'display:grid;gap:12px' },
+    const estados = semanales.map((a) => state.byActivity.get(a.id)).filter(Boolean);
+    const totalSemanal = estados.reduce((n, st) => n + (Number(st.weekTarget) || 1), 0);
+    const cuerpo = el('div', { class: 'card', style: 'display:grid;gap:12px' },
       semanales.map((a) => {
         const st = state.byActivity.get(a.id);
         const hecho = st?.weekCount || 0;
@@ -118,7 +125,20 @@ export function render({ navigate, celebrate }) {
           el('div', { style: 'margin-top:6px' },
             el('div', { class: 'xpbar' },
               el('div', { class: 'xpbar__fill', style: `width:${Math.min(100, (hecho / meta) * 100)}%;background:${colorDe(a)}` }))));
-      })));
+      }));
+
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Tu semana' }), el('small', { text: weekLabel(weekStart(viewDate)) })));
+    // Toda en cero son casi doscientos píxeles para decir que no empezaste.
+    // Plegada ocupa una línea, y se abre sola con la primera hecha.
+    root.append(semanaArrancada(estados)
+      ? cuerpo
+      : el('details', { class: 'plegado' },
+          el('summary', { class: 'plegado__cabeza' },
+            el('span', { class: 'plegado__iconos', text: semanales.map((a) => a.icon).join(' ') }),
+            el('span', { class: 'plegado__nota', text: `todavía sin arrancar · 0 de ${totalSemanal}` }),
+            el('span', { class: 'plegado__flecha', text: '⌄' })),
+          cuerpo));
   }
 
   // --- Aviso de copia de seguridad ---
@@ -142,44 +162,41 @@ export function render({ navigate, celebrate }) {
   return root;
 }
 
-function questCard(activity, state, dateKey, navigate, celebrate, { off = false } = {}) {
+/**
+ * Una misión del tablero, en una fila.
+ *
+ * Antes era una tarjeta de 128 a 180 px: con seis misiones por día entraban
+ * tres y media en pantalla, así que marcar el agua de la tarde pedía scrollear.
+ * La fila conserva todo lo que se usa —el emoji, el color de la disciplina, el
+ * avance, el nivel y el registro de un toque— y ocupa menos de la mitad.
+ *
+ * Lo que no entra son las insignias de siempre: de ésas se muestran las dos que
+ * más dicen, y el resto vive en la pantalla de la actividad.
+ */
+function misionFila(activity, state, dateKey, navigate, celebrate, { off = false, riesgo = null } = {}) {
   const st = state.byActivity.get(activity.id);
   const day = st?.byDate.get(dateKey);
   const value = day?.value || 0;
-  const isWeekly = activity.streakMode === 'weekly';
-  // El gimnasio se mide contra la rutina del día: 27 series el viernes, 42 el miércoles.
+  // El gimnasio se mide contra la rutina del día: 35 series el viernes, 45 el miércoles.
   const rutina = activity.kind === 'gym'
     ? (templateById(day?.entry?.templateId) || templateForDay(keyToDate(dateKey).getDay()))
     : null;
   const goal = day?.goal ?? goalFor(activity, rutina ? { templateId: rutina.id } : null);
   const met = value >= goal;
   const pct = Math.min(1, value / goal);
+  // Lo que falta, dicho en el tiempo que cuesta: 5.800 pasos no se sienten como
+  // nada hasta que son "58 min a pie" y entra la decisión de salir o no. Se mira
+  // la unidad y no el id: si algún día hay otra actividad en pasos, vale igual.
+  const minutos = activity.unit === 'pasos' && !met ? minutosDeCaminata(goal - value) : 0;
+  const enJuego = riesgo && !met ? riesgo : null;
 
-  const meta = el('div', { class: 'quest__meta' });
-  meta.append(el('span', { text: value > 0 ? `${formatValue(value, activity.unit)} / ${formatValue(goal, activity.unit)}` : `Meta: ${formatValue(goal, activity.unit)}` }));
-  // Lo que falta, dicho en el tiempo que cuesta: 5.800 pasos no se sienten
-  // como nada hasta que son "58 min a pie" y entra la decisión de salir o no.
-  // Se mira la unidad y no el id: si algún día hay otra actividad en pasos,
-  // vale lo mismo.
-  if (activity.unit === 'pasos' && !met) {
-    const minutos = minutosDeCaminata(goal - value);
-    if (minutos) meta.append(chip(`🚶 ${formatValue(Math.round(minutos), 'min')} a pie`));
-  }
-  if (day?.xp) meta.append(chip(`+${day.xp} XP`, 'chip--ok'));
-  if (isWeekly && st) {
-    meta.append(chip(`${formatNumber(st.weekCount)}/${st.weekTarget} esta semana`, st.weekCount >= st.weekTarget ? 'chip--ok' : ''));
-  }
-  if (st?.streak > 0) {
-    meta.append(chip(isWeekly
-      ? `🔥 ${plural(st.streak, 'semana', 'semanas')}`
-      : `🔥 ${plural(st.streak, 'día', 'días')}`, 'chip--fire'));
-  }
-  if (st?.shields > 0) meta.append(chip(`🛡 ${st.shields}`, 'chip--shield'));
+  const micro = microDatos({ activity, st, day: { met }, minutos, riesgo: enJuego });
+  const nivel = nivelTexto(activity, st);
 
   const abrir = () => openLogger(activity, dateKey, (...args) => { celebrate(...args); navigate(); });
 
-  const card = el('div', {
-    class: `quest${met ? ' is-done' : ''}${off ? ' quest--off' : ''}`,
+  const fila = el('div', {
+    class: `quest${met ? ' is-done' : ''}${off ? ' quest--off' : ''}${enJuego ? ' quest--urge' : ''}`,
     style: `--c:${colorDe(activity)}`,
   },
     el('button', { class: 'quest__tap', 'aria-label': `Registrar ${activity.name}`, onClick: abrir }),
@@ -187,24 +204,49 @@ function questCard(activity, state, dateKey, navigate, celebrate, { off = false 
     el('div', { class: 'quest__body' },
       el('div', { class: 'quest__head' },
         el('span', { class: 'quest__name', text: activity.name }),
-        rutina && !met ? chip(rutina.short) : null,
-        met ? el('span', { text: '✓', style: `color:${colorDe(activity)};font-weight:700` }) : null),
-      meta),
-    ring(pct, {
-      color: colorDe(activity),
-      size: 48,
-      children: st?.leveled === false
-        // Un hábito no tiene nivel: el anillo muestra cuánto llevás del día.
-        ? el('b', { style: 'font-size:.66rem', text: met ? '✓' : `${Math.round(pct * 100)}%` })
-        : el('div', { style: 'text-align:center;line-height:1' },
-            el('span', { style: 'font-size:.44rem;letter-spacing:.1em;color:var(--muted);display:block', text: 'NV' }),
-            el('b', { style: 'font-size:.82rem', text: `${st?.level.level ?? 1}` })),
-    }),
+        el('span', { class: 'quest__num', text: met
+          ? `✓ ${formatValue(goal, activity.unit)}`
+          : parValor(value, goal, activity.unit) })),
+      el('div', { class: 'quest__foot' },
+        el('div', { class: 'quest__bar' },
+          el('i', { style: `width:${met ? 100 : Math.max(3, pct * 100)}%` })),
+        el('div', { class: 'quest__micro' },
+          micro.map((m) => chip(m.texto, `chip--${m.nivel}`)),
+          day?.xp ? chip(`+${formatNumber(day.xp)} XP`, 'chip--dato') : null,
+          nivel ? el('span', { class: 'quest__nv', text: nivel }) : null))),
     botonRapido(activity, dateKey, met, navigate, celebrate));
 
   // Ir al detalle con pulsación larga o clic derecho.
-  card.addEventListener('contextmenu', (e) => { e.preventDefault(); location.hash = `#/actividad/${activity.id}`; });
-  return card;
+  fila.addEventListener('contextmenu', (e) => { e.preventDefault(); location.hash = `#/actividad/${activity.id}`; });
+  return fila;
+}
+
+/**
+ * Las que ya están, plegadas en una línea.
+ *
+ * Una misión cumplida no pide nada: ocupa lugar para felicitarte. Queda el
+ * resumen a la vista y las filas enteras a un toque, por si querés corregir
+ * lo que cargaste.
+ */
+function plegadoDeHechas(lista, state, dateKey, armar) {
+  const xp = lista.reduce((n, a) => n + (state.byActivity.get(a.id)?.byDate.get(dateKey)?.xp || 0), 0);
+  return el('details', { class: 'plegado' },
+    el('summary', { class: 'plegado__cabeza' },
+      el('span', { class: 'plegado__tilde', text: '✓' }),
+      el('b', { text: plural(lista.length, 'ya hecha', 'ya hechas') }),
+      el('span', { class: 'plegado__iconos', text: lista.map((a) => a.icon).join(' ') }),
+      xp ? el('span', { class: 'plegado__nota', text: `+${formatNumber(xp)} XP` }) : null,
+      el('span', { class: 'plegado__flecha', text: '⌄' })),
+    el('div', { class: 'plegado__cuerpo' }, lista.map((a) => armar(a))));
+}
+
+/** Los tres números del día, con el denominador en chico. */
+function statDoble(valor, total, label) {
+  return el('div', { class: 'stat' },
+    el('div', { class: 'stat__value' },
+      el('span', { text: formatNumber(valor) }),
+      el('span', { class: 'stat__de', text: `/${formatNumber(total)}` })),
+    el('div', { class: 'stat__label', text: label }));
 }
 
 /** Tira de los últimos 7 días con la XP de cada uno. */
