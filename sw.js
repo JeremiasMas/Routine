@@ -63,17 +63,33 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Red primero para tener siempre la última versión; caché como respaldo offline.
+/**
+ * Caché primero, y la red por detrás para la próxima vez.
+ *
+ * Antes era al revés y costaba dos cosas. Una, cada apertura volvía a bajar la
+ * app entera aunque estuviera cacheada. Dos, y peor: con señal mala —el
+ * subsuelo de un gimnasio— los pedidos no fallan, se cuelgan, así que la app
+ * quedaba esperando en vez de abrir con lo que ya tenía.
+ *
+ * Lo que se sirve puede ser de la versión anterior. Es el precio, y es barato:
+ * la copia nueva se guarda mientras usás la vieja y entra en la próxima
+ * apertura.
+ */
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
   event.respondWith(
-    fetch(request)
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-        return res;
-      })
-      .catch(() => caches.match(request).then((hit) => hit || caches.match('./index.html'))),
+    caches.match(request).then((hit) => {
+      const red = fetch(request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          return res;
+        })
+        // Sin red y sin copia de ESTE pedido, la app igual tiene que abrir:
+        // cualquier ruta cae en el índice, que es lo que arranca todo.
+        .catch(() => hit || caches.match('./index.html'));
+      return hit || red;
+    }),
   );
 });

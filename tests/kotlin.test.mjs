@@ -559,14 +559,32 @@ test('la app del clima abre clima/ y avisa por notificaciones, sin widgets', () 
   assert.match(ci, /gh release create apk [^\n]*clima\.apk/);
 });
 
-test('el respaldo sólo se usa cuando la red falla', () => {
-  // Interceptar siempre mataría la actualización automática: la app dejaría
-  // de tomar lo que se sube a GitHub Pages.
+test('la copia del APK se sirve primero, no como respaldo', () => {
+  // Antes era al revés, y la razón era buena: interceptar siempre corta la
+  // actualización automática desde GitHub Pages. El canje se hizo a
+  // conciencia — con señal mala los pedidos se cuelgan en vez de fallar, así
+  // que el respaldo no se encendía nunca, y cada apertura bajaba de nuevo la
+  // app entera. El APK se compila con cada merge, así que la actualización
+  // que se pierde llega igual al instalarlo.
   const kt = leer(MAIN);
-  assert.match(kt, /if \(!sinConexion\) return null/,
-    'shouldInterceptRequest tiene que dejar pasar todo mientras haya red');
-  assert.match(kt, /request\.isForMainFrame/,
-    'sólo el fallo de la navegación principal debe disparar el cambio');
+  assert.match(kt, /val local = copiaLocal\.shouldInterceptRequest\(request\.url\)/,
+    'shouldInterceptRequest tiene que probar la copia local antes que la red');
+  assert.doesNotMatch(kt, /if \(!sinConexion\) return null/,
+    'ya no se deja pasar todo por el solo hecho de haber red');
+  // Un manejador de assets puede contestar vacío cuando el archivo no está
+  // adentro del APK. Servir eso sería un 404 con forma de respuesta.
+  assert.match(kt, /local\?\.data != null/,
+    'una respuesta vacía del manejador tiene que ceder a la red');
+});
+
+test('la página se pide por su nombre, no como carpeta', () => {
+  // Un manejador de assets no sabe servir el índice de un directorio: pedir
+  // la carpeta a secas se iría a la red y la copia del APK no serviría de
+  // nada justo para la página principal.
+  const kt = leer(MAIN);
+  assert.doesNotMatch(kt, /loadUrl\(inicio \+ \(rutaPedida/,
+    'cargar la carpeta sola saltea la copia local');
+  assert.match(kt, /loadUrl\(inicio \+ "index\.html"/);
 });
 
 test('el APK se lleva todo lo que la web necesita para abrir sola', () => {
@@ -782,4 +800,19 @@ test('el resumen no toca lo que sólo el motor de la web sabe calcular', () => {
     assert.ok(!funcion.includes(`put("${campo}"`),
       `conPasosDeHoy escribe ${campo}, que no puede calcular`);
   }
+});
+
+test('el service worker también se sirve desde el APK', () => {
+  // Un WebViewClient no ve los pedidos que nacen del service worker: corren
+  // en su propio hilo y se saltean shouldInterceptRequest. Sin esto, la copia
+  // del APK servía la primera carga y el service worker se iba igual a la red
+  // por detrás a buscar los mismos archivos, que es justo el consumo de datos
+  // que se venía a sacar.
+  const kt = leer(MAIN);
+  assert.match(kt, /ServiceWorkerControllerCompat\.getInstance\(\)\s*\n?\s*\.setServiceWorkerClient/,
+    'falta registrar el cliente del service worker');
+  assert.match(kt, /servirAlServiceWorkerDesdeElApk\(\)/,
+    'y hay que llamarlo, no sólo definirlo');
+  assert.match(kt, /SERVICE_WORKER_BASIC_USAGE/,
+    'con el chequeo de soporte: en un WebView viejo la API no existe');
 });

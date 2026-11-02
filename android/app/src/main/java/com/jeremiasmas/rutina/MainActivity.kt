@@ -25,7 +25,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.ServiceWorkerClientCompat
+import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewFeature
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
@@ -63,6 +66,27 @@ class MainActivity : AppCompatActivity() {
    * atado al origen, así que un respaldo servido desde file:// o desde
    * cualquier otro dominio abriría la app vacía, sin un solo registro.
    */
+  /**
+   * Lo mismo para los pedidos que nacen del service worker.
+   *
+   * Un WebViewClient no los ve: el service worker corre en su propio hilo y
+   * sus pedidos se saltean shouldInterceptRequest. Sin esto, la copia del APK
+   * servía la primera carga y el service worker igual se iba a la red por
+   * detrás a buscar los mismos archivos — que es exactamente el consumo de
+   * datos que veníamos a sacar.
+   */
+  private fun servirAlServiceWorkerDesdeElApk() {
+    if (!WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) return
+    ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(
+      object : ServiceWorkerClientCompat() {
+        override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? {
+          val local = copiaLocal.shouldInterceptRequest(request.url)
+          return if (local?.data != null) local else null
+        }
+      },
+    )
+  }
+
   private val copiaLocal by lazy {
     WebViewAssetLoader.Builder()
       .setDomain(DOMINIO)
@@ -226,10 +250,21 @@ class MainActivity : AppCompatActivity() {
         view: WebView,
         request: WebResourceRequest,
       ): WebResourceResponse? {
-        // Mientras haya red no se toca nada: así la app se sigue actualizando
-        // sola con lo que haya en GitHub Pages.
-        if (!sinConexion) return null
-        return copiaLocal.shouldInterceptRequest(request.url)
+        // La copia del APK primero, siempre.
+        //
+        // Antes era al revés —la red primero y el respaldo sólo si fallaba— y
+        // eso costaba dos cosas. Una, cada apertura bajaba de nuevo 430 KB de
+        // código que ya estaba instalado en el teléfono. Dos, y peor: en el
+        // subsuelo del gimnasio la señal mala no es "sin señal", los pedidos
+        // se cuelgan sin fallar, y el respaldo no se encendía nunca.
+        //
+        // El precio es que lo que mergeás no llega hasta que instalás la APK
+        // nueva. En la práctica ya era así: el APK se compila con cada merge.
+        val local = copiaLocal.shouldInterceptRequest(request.url)
+        // Un manejador de assets puede contestar con una respuesta vacía
+        // cuando el archivo no está adentro del APK. Eso no es "servilo", es
+        // un 404 que dejaría la página rota: ahí sí hay que ir a la red.
+        return if (local?.data != null) local else null
       }
 
       override fun onPageFinished(view: WebView?, url: String?) {
@@ -245,10 +280,14 @@ class MainActivity : AppCompatActivity() {
     // El origen pasó a unas preferencias con nombre propio, que el widget
     // también puede leer: corre en otro proceso y a las privadas de acá no
     // llega. La migración es para no perder la elección ya hecha.
+    servirAlServiceWorkerDesdeElApk()
     Pasos.migrarOrigen(this, getPreferences(MODE_PRIVATE))
     origenElegido = Pasos.origen(this)
     rutaPedida = intent?.getStringExtra(EXTRA_RUTA)
-    web.loadUrl(inicio + (rutaPedida ?: ""))
+    // Por su nombre y no la carpeta a secas: un manejador de assets no sabe
+    // servir el índice de un directorio, así que pedir la carpeta se iría a la
+    // red y la copia del APK no serviría de nada justo para la página.
+    web.loadUrl(inicio + "index.html" + (rutaPedida ?: ""))
 
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
