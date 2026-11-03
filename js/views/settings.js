@@ -13,7 +13,7 @@ import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
   COLUMNAS, COLUMNAS_GIMNASIO, COLUMNAS_CUERPO,
 } from '../csv.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, puedeAvisar, estadoDelAviso, programarAviso, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -100,6 +100,13 @@ export function render({ navigate }) {
   if (enApp()) root.append(tarjetaDelWidget());
   root.append(tarjetaDePausas(navigate));
 
+  // --- Aviso del teléfono ---
+  if (puedeAvisar()) {
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Aviso' }), el('small', { text: 'con la app cerrada' })));
+    root.append(tarjetaDeAviso(navigate));
+  }
+
   // --- Aspecto ---
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Aspecto' }), el('small', { text: 'tema' })));
@@ -128,8 +135,16 @@ export function render({ navigate }) {
           el('div', { class: 'row__sub', text: 'Si se borran los datos de este navegador, se pierde todo.' })));
     })(),
     el('p', { class: 'hint' }, 'Todo se guarda solamente en este dispositivo, en el navegador. Exportá de vez en cuando para no perder el progreso si borrás los datos del navegador o cambiás de teléfono.'),
+    // La copia automática va a Descargas, que está en el mismo teléfono: te
+    // salva de borrar la app, no de perderlo. Esto la saca de acá adentro.
+    puedeCompartir()
+      ? el('p', { class: 'hint', style: 'margin-top:8px' },
+          'La copia automática queda en Descargas, en este mismo teléfono. ',
+          'Mandala a Drive o al chat de vos mismo y deja de depender de un solo aparato.')
+      : null,
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn', onClick: doExport }, '⬇ Exportar'),
+      puedeCompartir() ? el('button', { class: 'btn', onClick: doCompartir }, '📤 Mandar') : null,
       el('button', { class: 'btn', onClick: () => doImport(navigate) }, '⬆ Importar'),
       el('button', { class: 'btn', onClick: doExportCsv }, '📊 CSV'),
       el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo'))));
@@ -324,6 +339,66 @@ function importarPasos(navigate) {
         el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'))));
   });
   input.click();
+}
+
+/**
+ * El aviso de lo que falta hoy.
+ *
+ * La app sabía desde siempre qué racha se te corta esta noche y no te lo
+ * podía decir: ese dato existía sólo si abrías la app, justo lo que no hacés
+ * el día que te la olvidás.
+ */
+function tarjetaDeAviso(navigate) {
+  const estado = estadoDelAviso();
+  if (!estado) return el('div', {});
+  const activo = !!estado.activo;
+  const hora = `${String(estado.hora ?? 19).padStart(2, '0')}:${String(estado.minuto ?? 0).padStart(2, '0')}`;
+
+  const card = el('div', { class: 'card' },
+    toggle('Avisarme lo que falta', 'Una notificación por día, sólo si queda algo sin hacer.',
+      activo, (v) => {
+        const [h, m] = hora.split(':');
+        programarAviso({ activo: v, hora: Number(h), minuto: Number(m) });
+        navigate();
+      }));
+
+  if (activo) {
+    card.append(el('div', { class: 'field', style: 'margin-top:12px;margin-bottom:0' },
+      el('label', { text: 'A qué hora' }),
+      el('input', {
+        type: 'time', value: hora,
+        onChange: (e) => {
+          const [h, m] = (e.target.value || '19:00').split(':');
+          programarAviso({ activo: true, hora: Number(h), minuto: Number(m) });
+        },
+      })));
+    card.append(el('p', { class: 'hint', style: 'margin-top:8px' },
+      'Si a esa hora ya cerraste el día, no suena. Y cuando hay una racha en juego ',
+      'el aviso la nombra, en vez de decirte que "falta algo".'));
+  }
+
+  if (estado.permiso === false) {
+    card.append(el('p', { class: 'hint', style: 'margin-top:8px;color:var(--gold)' },
+      '⚠️ El teléfono todavía no tiene permiso para mostrar notificaciones.'));
+    card.append(el('button', {
+      class: 'btn', style: 'margin-top:8px',
+      onClick: () => { pedirPermiso(); setTimeout(navigate, 600); },
+    }, 'Dar permiso'));
+  }
+
+  return card;
+}
+
+/** La copia, fuera del teléfono. */
+function doCompartir() {
+  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  if (compartirArchivo(nombre, exportData())) {
+    // Se marca como exportada igual que al guardar: el aviso de los catorce
+    // días cuenta copias hechas, no adónde fueron a parar.
+    markExported();
+    return;
+  }
+  toast('📤', 'No se pudo abrir el menú de compartir.');
 }
 
 function doExport() {
@@ -663,7 +738,7 @@ function tarjetaDePausas(navigate) {
     el('div', { class: 'field' }, el('label', { text: 'Qué te perdiste' }), quienExcusa));
 
   const botones = [];
-  const accion = el('button', { class: 'btn btn--primary', style: '--c:#f59e0b' }, 'Declarar vacaciones');
+  const accion = el('button', { class: 'btn btn--primary btn--block', style: '--c:#f59e0b' }, 'Declarar vacaciones');
 
   const pintar = () => {
     const esExcusa = modo === 'excusa';
@@ -671,15 +746,17 @@ function tarjetaDePausas(navigate) {
     campoExcusa.style.display = esExcusa ? '' : 'none';
     accion.textContent = esExcusa ? 'Excusar ese día' : 'Declarar vacaciones';
     motivo.placeholder = esExcusa ? 'Motivo (un evento de trabajo, por ejemplo)' : 'Motivo (opcional)';
-    // Dorado y no verde: el verde en esta app quiere decir "cumplido".
-    for (const b of botones) b.classList.toggle('chip--warn', b.dataset.modo === modo);
+    // Dorado y no verde: el verde en esta app quiere decir "cumplido". Y el
+    // mismo dorado para las dos, porque las dos significan lo mismo —"esto no
+    // cuenta"—: lo que el color distingue es la elegida, no la opción.
+    for (const b of botones) b.setAttribute('aria-checked', String(b.dataset.modo === modo));
   };
 
   for (const [valor, texto] of [['vacaciones', '🌴 Vacaciones'], ['excusa', '📝 Excusa']]) {
-    const b = el('button', { class: 'chip', style: 'width:auto;padding:0 14px', onClick: () => {
-      modo = valor;
-      pintar();
-    } }, texto);
+    const b = el('button', {
+      class: 'segmento__opcion', type: 'button', role: 'radio', 'aria-checked': 'false',
+      onClick: () => { modo = valor; pintar(); },
+    }, texto);
     b.dataset.modo = valor;
     botones.push(b);
   }
@@ -704,7 +781,10 @@ function tarjetaDePausas(navigate) {
   };
 
   card.append(
-    el('div', { class: 'btn-row', style: 'margin-top:14px' }, botones),
+    el('div', {
+      class: 'segmento', role: 'radiogroup', 'aria-label': 'Qué querés declarar',
+      style: 'margin:16px 0 14px;--c:#f59e0b',
+    }, botones),
     campoVacaciones,
     campoExcusa,
     el('div', { class: 'field' }, el('label', { text: 'Motivo' }), motivo),

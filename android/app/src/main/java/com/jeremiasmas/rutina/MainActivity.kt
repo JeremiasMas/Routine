@@ -22,6 +22,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -497,6 +498,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Ese día ya se hizo lo que pide el recordatorio: no hace falta que suene. */
+    /** El texto del aviso de hoy, escrito por la web con lo que de verdad falta. */
+    @JavascriptInterface
+    fun textoRecordatorio(tipo: String, fecha: String, titulo: String, texto: String) {
+      val t = Recordatorio.Tipo.de(tipo) ?: return
+      Recordatorio.guardarTexto(this@MainActivity, t, fecha, titulo, texto)
+    }
+
     @JavascriptInterface
     fun recordatorioHecho(tipo: String, fecha: String) {
       val cual = Recordatorio.Tipo.de(tipo) ?: return
@@ -528,6 +536,39 @@ class MainActivity : AppCompatActivity() {
       } catch (e: Exception) {
         runOnUiThread {
           Toast.makeText(this@MainActivity, "No se pudo guardar: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+        false
+      }
+    }
+
+    /**
+     * Manda la copia a donde sea: Drive, mail, el chat de uno mismo.
+     *
+     * `guardarArchivo` la deja en Descargas, que salva de borrar la app pero
+     * no de perder el teléfono. Esto la saca de ahí. El archivo pasa por la
+     * caché y se comparte con una URI temporal: la app que lo recibe puede
+     * leer ese archivo y nada más.
+     */
+    @JavascriptInterface
+    fun compartirArchivo(nombre: String, contenido: String): Boolean {
+      return try {
+        val carpeta = java.io.File(cacheDir, "copias").apply { mkdirs() }
+        // Una sola a la vez: la anterior ya no sirve y no tiene por qué
+        // quedar ocupando lugar ni apareciendo en el selector.
+        carpeta.listFiles()?.forEach { it.delete() }
+        val archivo = java.io.File(carpeta, nombre).apply { writeText(contenido) }
+        val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.archivos", archivo)
+        val envio = Intent(Intent.ACTION_SEND).apply {
+          type = "application/json"
+          putExtra(Intent.EXTRA_STREAM, uri)
+          putExtra(Intent.EXTRA_SUBJECT, nombre)
+          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runOnUiThread { startActivity(Intent.createChooser(envio, "Mandar la copia")) }
+        true
+      } catch (e: Exception) {
+        runOnUiThread {
+          Toast.makeText(this@MainActivity, "No se pudo compartir: ${e.message}", Toast.LENGTH_LONG).show()
         }
         false
       }

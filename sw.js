@@ -31,6 +31,7 @@ const ASSETS = [
   './js/backup.js',
   './js/theme.js',
   './js/analisis.js',
+  './js/recordatorios.js',
   './js/tablero.js',
   './js/config.js',
   './js/copys.js',

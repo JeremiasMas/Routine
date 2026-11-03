@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lo único que la app comparte: la copia de seguridad, desde la caché.
+     Una carpeta propia y nada más, para no exponer el resto de los datos. -->
+<paths>
+  <cache-path name="copias" path="copias/" />
+</paths>

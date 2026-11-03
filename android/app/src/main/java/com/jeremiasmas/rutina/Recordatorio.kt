@@ -68,6 +68,15 @@ object Recordatorio {
       "Recordatorio de creatina",
       "💊 La creatina de hoy", "¿Ya la tomaste? Marcala en la app.",
       -1, 9, 0,
+    ),
+    // Diario, a la tarde. El título y el texto los escribe la web con lo que
+    // de verdad falta hoy; estos dos son el respaldo de cuando no hay nada
+    // guardado del día.
+    RUTINA(
+      "rutina", "recordatorio_rutina", 3, 1004, "recordatorio_rutina",
+      "Recordatorio de la rutina",
+      "🎯 Te queda algo de hoy", "Abrí la app para ver qué falta.",
+      -1, 19, 0,
     );
 
     companion object {
@@ -115,6 +124,34 @@ object Recordatorio {
 
   private fun hechoHoy(c: Context, tipo: Tipo): Boolean =
     prefs(c, tipo).getString("hecho", "") == LocalDate.now().toString()
+
+  /**
+   * El texto que la web quiere para el aviso de hoy.
+   *
+   * "Se corta tu racha de 30 días de piano" sirve; "te queda algo de hoy" es
+   * lo que se puede decir sin mirar los datos, y los datos viven en la web.
+   *
+   * Va con la fecha a propósito: si la app no se abrió hoy, lo guardado es de
+   * ayer y nombrar una racha que ya salvaste es peor que no decir nada. En
+   * ese caso vuelve el texto de respaldo.
+   */
+  fun guardarTexto(c: Context, tipo: Tipo, fecha: String, titulo: String, texto: String) {
+    prefs(c, tipo).edit()
+      .putString("texto_fecha", fecha)
+      .putString("texto_titulo", titulo)
+      .putString("texto_cuerpo", texto)
+      .apply()
+  }
+
+  private fun textoDeHoy(c: Context, tipo: Tipo): Pair<String, String> {
+    val p = prefs(c, tipo)
+    if (p.getString("texto_fecha", "") != LocalDate.now().toString()) {
+      return tipo.titulo to tipo.texto
+    }
+    val titulo = p.getString("texto_titulo", "").orEmpty().ifBlank { tipo.titulo }
+    val cuerpo = p.getString("texto_cuerpo", "").orEmpty().ifBlank { tipo.texto }
+    return titulo to cuerpo
+  }
 
   fun permisoDado(c: Context): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -196,10 +233,12 @@ object Recordatorio {
       Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
+    val (titulo, cuerpo) = textoDeHoy(c, tipo)
     val aviso = NotificationCompat.Builder(c, tipo.canal)
       .setSmallIcon(android.R.drawable.ic_popup_reminder)
-      .setContentTitle(tipo.titulo)
-      .setContentText(tipo.texto)
+      .setContentTitle(titulo)
+      .setContentText(cuerpo)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(cuerpo))
       .setContentIntent(abrir)
       .setAutoCancel(true)
       .build()

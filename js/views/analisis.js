@@ -4,7 +4,7 @@ import { chip, xpBar } from '../ui/components.js';
 import {
   tendencia, constancia, proximosSaltos, mejorInversion,
   estancados, proyeccionGrasa, repartoDeFuentes, balances, volumenPorGrupo,
-  rangoDe, ordenarPorXp, resumenDeDisciplina,
+  rangoDe, ordenarPorXp, resumenDeDisciplina, desajustesDeLaRutina,
 } from '../analisis.js';
 import { colorDe, colorDeRango } from '../theme.js';
 import { bodySummary } from '../body.js';
@@ -253,9 +253,51 @@ function detalleGimnasio(st, state) {
 }
 
 /** Series semanales por grupo, contra el rango donde la gente progresa. */
+/** Lo que la rutina planea para ese grupo, si no coincide con lo que hiciste. */
+function planDe(plan, id) {
+  const f = plan.porId.get(id);
+  if (!f) return null;
+  return el('span', {
+    style: f.estado === 'ok' ? '' : 'color:var(--gold)',
+    text: ` · tu rutina planea ${formatNumber(f.porSemana)}`,
+  });
+}
+
+/**
+ * Cuando el problema no es cómo entrenaste sino cómo está escrita la rutina.
+ *
+ * Es otra conversación: un grupo corto en el plan no se arregla yendo más
+ * seguido, porque las series que faltan no están anotadas en ningún día.
+ */
+function rutinaDesajustada(plan) {
+  if (!plan.bajos.length && !plan.altos.length) return null;
+  // Sin verbo que concuerde: "queda corto pantorrillas" es lo que sale de
+  // elegir singular o plural por la cantidad de grupos en vez de por el
+  // grupo. Cada uno con su rango al lado, para no tener que buscarlo arriba.
+  const lista = (fs) => fs
+    .map((f) => `${f.nombre.toLowerCase()} ${formatNumber(f.porSemana)} de ${f.min}-${f.max}`)
+    .join(', ');
+  return el('div', { class: 'analisis__foco', style: 'margin-top:10px' },
+    el('div', { style: 'font-weight:700' }, '📋 La rutina, tal como está escrita'),
+    el('p', { class: 'hint', style: 'margin-top:6px' },
+      'Series por semana sumando los tres días.'),
+    plan.bajos.length
+      ? el('p', { class: 'hint', style: 'margin-top:4px' }, `Por debajo: ${lista(plan.bajos)}.`)
+      : null,
+    plan.altos.length
+      ? el('p', { class: 'hint', style: 'margin-top:4px' }, `Por encima: ${lista(plan.altos)}.`)
+      : null,
+    el('p', { class: 'hint', style: 'margin-top:6px' },
+      'Esto no se arregla entrenando mejor: las series que faltan no están ',
+      'anotadas en ningún día, y las que sobran se hacen igual aunque rindan menos.'));
+}
+
 function tarjetaDeVolumen(v) {
   const flojos = v.filas.filter((f) => f.estado === 'bajo');
   const pasados = v.filas.filter((f) => f.estado === 'alto');
+  // Lo que la rutina planea, al lado de lo que hiciste. Son preguntas
+  // distintas: una se arregla entrenando, la otra cambiando la rutina.
+  const plan = desajustesDeLaRutina();
 
   const barra = (f) => {
     // La barra llega hasta el máximo del rango; la zona verde marca dónde
@@ -281,7 +323,10 @@ function tarjetaDeVolumen(v) {
           el('div', { class: 'row__value', style: f.estado === 'ok' ? '' : 'color:var(--gold)',
             text: formatNumber(f.porSemana) })),
         barra(f),
-        el('div', { class: 'row__sub', text: `${f.min}-${f.max} por semana es donde suele rendir` })))),
+        el('div', { class: 'row__sub' },
+          `${f.min}-${f.max} por semana es donde suele rendir`,
+          planDe(plan, f.id))))),
+    rutinaDesajustada(plan),
     flojos.length
       ? el('p', { class: 'hint', style: 'margin-top:8px' },
           `Abajo del rango: ${flojos.map((f) => f.nombre.toLowerCase()).join(', ')}. `,

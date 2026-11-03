@@ -7,7 +7,7 @@
  */
 import { addDays, daysBetween, weekStart, formatNumber, formatValue, plural } from './utils.js';
 import { NIVELES } from './strength.js';
-import { GRUPOS, perfilDeEjercicio, PLAYER_TITLES } from './config.js';
+import { GRUPOS, GYM_TEMPLATES, DEFAULT_SETS, perfilDeEjercicio, PLAYER_TITLES } from './config.js';
 import { xpToNextPlayerLevel, playerTitleFor } from './xp.js';
 
 /** Días que mira la tendencia de cada lado de la comparación. */
@@ -23,13 +23,18 @@ export const SESIONES_PARA_ESTANCARSE = 3;
  */
 export function tendencia(historia, hoy) {
   if (!historia?.length) return null;
+  // Hoy no entra, por lo mismo que no entra en la ventana corta: estaría a
+  // medias de un lado y completo del otro. Acá el sesgo es chico —medio día
+  // en veintiocho— pero es el mismo, y dos ventanas que se miran juntas en la
+  // misma pantalla tienen que medir igual.
   const corte = addDays(hoy, -VENTANA);
   const inicio = addDays(hoy, -VENTANA * 2);
   let antes = 0;
   let ahora = 0;
   for (const h of historia) {
-    if (h.date > corte) ahora += h.value;
-    else if (h.date > inicio) antes += h.value;
+    if (h.date >= hoy) continue;
+    if (h.date >= corte) ahora += h.value;
+    else if (h.date >= inicio) antes += h.value;
   }
   if (antes === 0 && ahora === 0) return null;
   const cambio = antes === 0 ? 1 : (ahora - antes) / antes;
@@ -727,4 +732,57 @@ function totalDicho(a, n) {
   if (a.kind === 'gym') return plural(n, 'serie', 'series');
   if (a.kind === 'body') return plural(n, 'medición', 'mediciones');
   return formatValue(n, a.unit);
+}
+
+
+/* ---------------------------------------------------------------------------
+   La rutina escrita, auditada contra los rangos que la propia app define.
+   --------------------------------------------------------------------------- */
+
+/**
+ * Las series por semana que la rutina PLANEA para cada grupo.
+ *
+ * `volumenPorGrupo` mide lo que hiciste. Esto mide lo que pensás hacer, que
+ * es otra cosa: si la rutina escrita deja un músculo corto, entrenar mejor no
+ * lo arregla. La app tenía los dos lados —los rangos en GRUPOS y la rutina en
+ * GYM_TEMPLATES— y nunca los comparó.
+ *
+ * Un músculo que ayuda cuenta media serie, igual que al medir lo hecho.
+ */
+export function volumenPlanificado(plantillas = GYM_TEMPLATES, porDefecto = DEFAULT_SETS) {
+  const cuenta = new Map();
+  // Lo que se suma de un grupo que no existe no se lee: la salida se arma
+  // recorriendo GRUPOS, no lo acumulado. Filtrar acá sería filtrar dos veces.
+  const sumar = (id, n) => cuenta.set(id, (cuenta.get(id) || 0) + n);
+  for (const t of plantillas || []) {
+    for (const e of t.exercises || []) {
+      const series = Number(e.sets) || porDefecto;
+      sumar(e.grupo, series);
+      for (const g of e.tambien || []) sumar(g, series * 0.5);
+    }
+  }
+  return Object.entries(GRUPOS).map(([id, g]) => {
+    const porSemana = Math.round((cuenta.get(id) || 0) * 10) / 10;
+    return {
+      id,
+      nombre: g.name,
+      porSemana,
+      min: g.min,
+      max: g.max,
+      estado: porSemana < g.min ? 'bajo' : porSemana > g.max ? 'alto' : 'ok',
+    };
+  }).sort((a, b) => b.porSemana - a.porSemana);
+}
+
+/**
+ * Sólo lo que se sale del rango, que es lo único que hay para decir.
+ * Un grupo dentro del rango no necesita una frase.
+ */
+export function desajustesDeLaRutina(plantillas = GYM_TEMPLATES, porDefecto = DEFAULT_SETS) {
+  const todo = volumenPlanificado(plantillas, porDefecto);
+  return {
+    bajos: todo.filter((f) => f.estado === 'bajo'),
+    altos: todo.filter((f) => f.estado === 'alto'),
+    porId: new Map(todo.map((f) => [f.id, f])),
+  };
 }

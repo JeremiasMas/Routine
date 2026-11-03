@@ -5,6 +5,11 @@
   <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
   <uses-permission android:name="android.permission.INTERNET" />
 
+  <!-- El aviso de lo que falta hoy, y volver a programarlo cuando el teléfono
+       se reinicia: Android borra las alarmas en cada arranque. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
   <!-- Health Connect: sólo lectura de pasos. Nada más. -->
   <uses-permission android:name="android.permission.health.READ_STEPS" />
 
@@ -118,6 +123,30 @@
           android:name="android.appwidget.provider"
           android:resource="@xml/widget_barra_info" />
     </receiver>
+
+    <!-- La alarma del recordatorio diario. El código vivía acá desde siempre
+         pero sólo Ataraxia lo declaraba, así que en Rutina nunca sonaba nada. -->
+    <receiver
+        android:name=".RecordatorioReceptor"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+
+    <!-- Para mandar la copia de seguridad a donde sea: Drive, mail, lo que
+         haya. El archivo sale de la caché y se comparte por una URI temporal,
+         que es la única forma de que otra app lo lea sin darle acceso a todo. -->
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.archivos"
+        android:exported="false"
+        android:grantUriPermissions="true">
+      <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/archivos_compartidos" />
+    </provider>
 
     <!-- Health Connect pregunta por acá para qué queremos los datos. -->
     <activity-alias
