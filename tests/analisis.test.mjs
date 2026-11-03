@@ -543,23 +543,25 @@ test('las semanales no entran: no se cortan por un día', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Resumen semanal
+// Resumen de la ventana: siete días cerrados contra los siete anteriores.
+// Pidiéndolo con hoy = 21/9 la ventana va del 14 al 20, y la previa del 7 al
+// 13: los mismos dos tramos que estas pruebas miraban cuando se pedían por
+// semana calendaria.
 // ---------------------------------------------------------------------------
 
-test('el resumen compara la semana con la anterior', async () => {
-  const { resumenSemanal } = await import('../js/analisis.js');
+test('el resumen compara la ventana con la anterior', async () => {
+  const { resumenDeVentana } = await import('../js/analisis.js');
   const { derive } = await import('../js/derive.js');
   const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
   const { isScheduled } = await import('../js/derive.js');
 
-  const LUNES = '2026-09-14';          // lunes
   const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'piano');
   const entries = {};
-  // Semana anterior: dos sesiones. Esta semana: cuatro.
+  // Ventana anterior (7 al 13): dos sesiones. La de ahora (14 al 20): cuatro.
   for (const d of ['2026-09-07', '2026-09-11']) entries[d] = { piano: { value: 30 } };
   for (const d of ['2026-09-14', '2026-09-18', '2026-09-19', '2026-09-20']) entries[d] = { piano: { value: 30 } };
   const state = derive({ activities: acts, entries, unlocked: {}, settings: {} }, '2026-09-21');
-  const r = resumenSemanal(state, LUNES, { tocaba: isScheduled });
+  const r = resumenDeVentana(state, '2026-09-21', { tocaba: isScheduled });
 
   const piano = r.porActividad.find((x) => x.id === 'piano');
   assert.equal(piano.total, 120, 'cuatro sesiones de 30');
@@ -570,8 +572,8 @@ test('el resumen compara la semana con la anterior', async () => {
   assert.equal(r.vacia, false);
 });
 
-test('señala lo que se cayó respecto de la semana anterior', async () => {
-  const { resumenSemanal } = await import('../js/analisis.js');
+test('señala lo que se cayó respecto de la ventana anterior', async () => {
+  const { resumenDeVentana } = await import('../js/analisis.js');
   const { derive, isScheduled } = await import('../js/derive.js');
   const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
   const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'datos');
@@ -579,47 +581,47 @@ test('señala lo que se cayó respecto de la semana anterior', async () => {
   for (const d of ['2026-09-07', '2026-09-08', '2026-09-09']) entries[d] = { datos: { value: 45 } };
   entries['2026-09-14'] = { datos: { value: 45 } };
   const state = derive({ activities: acts, entries, unlocked: {}, settings: {} }, '2026-09-21');
-  const r = resumenSemanal(state, '2026-09-14', { tocaba: isScheduled });
+  const r = resumenDeVentana(state, '2026-09-21', { tocaba: isScheduled });
   assert.equal(r.peor.id, 'datos');
   assert.ok(r.peor.delta < 0);
 });
 
 test('los días declarados libres no cuentan como fallo', async () => {
-  const { resumenSemanal } = await import('../js/analisis.js');
+  const { resumenDeVentana } = await import('../js/analisis.js');
   const { derive, isScheduled } = await import('../js/derive.js');
   const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
   const acts = DEFAULT_ACTIVITIES.filter((a) => a.id === 'datos');
   const state = derive({ activities: acts, entries: { '2026-09-14': { datos: { value: 45 } } },
     unlocked: {}, settings: {} }, '2026-09-21');
-  const conLibres = resumenSemanal(state, '2026-09-14',
+  const conLibres = resumenDeVentana(state, '2026-09-21',
     { tocaba: isScheduled, libre: (d) => d >= '2026-09-15' });
-  const sinLibres = resumenSemanal(state, '2026-09-14', { tocaba: isScheduled });
+  const sinLibres = resumenDeVentana(state, '2026-09-21', { tocaba: isScheduled });
   const a = conLibres.porActividad.find((x) => x.id === 'datos');
   const b = sinLibres.porActividad.find((x) => x.id === 'datos');
-  assert.ok(a.agendados < b.agendados, 'una semana de descanso pide menos');
+  assert.ok(a.agendados < b.agendados, 'una ventana de descanso pide menos');
   assert.equal(conLibres.diasLibres, 6);
 });
 
 test('un permiso de una disciplina no se cuenta como día libre', async () => {
-  const { resumenSemanal } = await import('../js/analisis.js');
+  const { resumenDeVentana } = await import('../js/analisis.js');
   const { derive, isScheduled } = await import('../js/derive.js');
   const { DEFAULT_ACTIVITIES } = await import('../js/config.js');
   const acts = DEFAULT_ACTIVITIES.filter((a) => ['datos', 'pasos'].includes(a.id));
   const state = derive({ activities: acts, entries: { '2026-09-14': { datos: { value: 45 }, pasos: { value: 12000 } } },
     unlocked: {}, settings: {} }, '2026-09-21');
   // El permiso es sólo para análisis de datos, de martes a domingo.
-  const r = resumenSemanal(state, '2026-09-14',
+  const r = resumenDeVentana(state, '2026-09-21',
     { tocaba: isScheduled, libre: (d, id) => id === 'datos' && d >= '2026-09-15' });
   assert.equal(r.diasLibres, 0, 'no hubo ningún día libre de verdad');
   assert.equal(r.porActividad.find((x) => x.id === 'datos').agendados, 1, 'sólo el lunes le pide algo');
   assert.equal(r.porActividad.find((x) => x.id === 'pasos').agendados, 7, 'los pasos siguen todos los días');
 });
 
-test('una semana sin nada se declara vacía en vez de fingir', async () => {
-  const { resumenSemanal } = await import('../js/analisis.js');
+test('una ventana sin nada se declara vacía en vez de fingir', async () => {
+  const { resumenDeVentana } = await import('../js/analisis.js');
   const { derive, isScheduled } = await import('../js/derive.js');
   const state = derive({ activities: [], entries: {}, unlocked: {}, settings: {} }, '2026-09-21');
-  assert.equal(resumenSemanal(state, '2026-09-14', { tocaba: isScheduled }).vacia, true);
+  assert.equal(resumenDeVentana(state, '2026-09-21', { tocaba: isScheduled }).vacia, true);
 });
 
 // ---------------------------------------------------------------------------
