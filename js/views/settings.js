@@ -13,7 +13,7 @@ import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
   COLUMNAS, COLUMNAS_GIMNASIO, COLUMNAS_CUERPO,
 } from '../csv.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -128,8 +128,16 @@ export function render({ navigate }) {
           el('div', { class: 'row__sub', text: 'Si se borran los datos de este navegador, se pierde todo.' })));
     })(),
     el('p', { class: 'hint' }, 'Todo se guarda solamente en este dispositivo, en el navegador. Exportá de vez en cuando para no perder el progreso si borrás los datos del navegador o cambiás de teléfono.'),
+    // La copia automática va a Descargas, que está en el mismo teléfono: te
+    // salva de borrar la app, no de perderlo. Esto la saca de acá adentro.
+    puedeCompartir()
+      ? el('p', { class: 'hint', style: 'margin-top:8px' },
+          'La copia automática queda en Descargas, en este mismo teléfono. ',
+          'Mandala a Drive o al chat de vos mismo y deja de depender de un solo aparato.')
+      : null,
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn', onClick: doExport }, '⬇ Exportar'),
+      puedeCompartir() ? el('button', { class: 'btn', onClick: doCompartir }, '📤 Mandar') : null,
       el('button', { class: 'btn', onClick: () => doImport(navigate) }, '⬆ Importar'),
       el('button', { class: 'btn', onClick: doExportCsv }, '📊 CSV'),
       el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo'))));
@@ -324,6 +332,18 @@ function importarPasos(navigate) {
         el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'))));
   });
   input.click();
+}
+
+/** La copia, fuera del teléfono. */
+function doCompartir() {
+  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  if (compartirArchivo(nombre, exportData())) {
+    // Se marca como exportada igual que al guardar: el aviso de los catorce
+    // días cuenta copias hechas, no adónde fueron a parar.
+    markExported();
+    return;
+  }
+  toast('📤', 'No se pudo abrir el menú de compartir.');
 }
 
 function doExport() {

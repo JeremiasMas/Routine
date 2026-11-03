@@ -119,6 +119,19 @@
           android:resource="@xml/widget_barra_info" />
     </receiver>
 
+    <!-- Para mandar la copia de seguridad a donde sea: Drive, mail, lo que
+         haya. El archivo sale de la caché y se comparte por una URI temporal,
+         que es la única forma de que otra app lo lea sin darle acceso a todo. -->
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.archivos"
+        android:exported="false"
+        android:grantUriPermissions="true">
+      <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/archivos_compartidos" />
+    </provider>
+
     <!-- Health Connect pregunta por acá para qué queremos los datos. -->
     <activity-alias
         android:name="ViewPermissionUsageActivity"

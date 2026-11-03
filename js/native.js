@@ -234,6 +234,29 @@ export function guardarArchivo(nombre, contenido) {
   }
 }
 
+/**
+ * Manda la copia a otra app: Drive, mail, el chat de uno mismo.
+ *
+ * `guardarArchivo` la deja en Descargas, que salva de borrar la app pero no
+ * de perder el teléfono. Fuera de la app de Android esto no existe: el
+ * navegador ya descarga de verdad.
+ *
+ * @returns {boolean} si la app se hizo cargo.
+ */
+export function compartirArchivo(nombre, contenido) {
+  if (typeof window.RutinaNativa?.compartirArchivo !== 'function') return false;
+  try {
+    return window.RutinaNativa.compartirArchivo(nombre, contenido) !== false;
+  } catch {
+    return false;
+  }
+}
+
+/** Si este APK sabe compartir. Los viejos no tienen el método. */
+export function puedeCompartir() {
+  return typeof window.RutinaNativa?.compartirArchivo === 'function';
+}
+
 export function pedirPermiso() { window.RutinaNativa?.pedirPermiso?.(); }
 export function instalarHealthConnect() { window.RutinaNativa?.instalarHealthConnect?.(); }
 export function refrescar() { window.RutinaNativa?.refrescar?.(); }

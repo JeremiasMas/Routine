@@ -816,3 +816,50 @@ test('el service worker también se sirve desde el APK', () => {
   assert.match(kt, /SERVICE_WORKER_BASIC_USAGE/,
     'con el chequeo de soporte: en un WebView viejo la API no existe');
 });
+
+// ---------------------------------------------------------------------------
+// Compartir la copia de seguridad
+// ---------------------------------------------------------------------------
+
+test('la copia se puede mandar fuera del teléfono', () => {
+  // guardarArchivo la deja en Descargas, que está en el mismo aparato: salva
+  // de borrar la app, no de perderlo.
+  const main = readFileSync(MAIN, 'utf8');
+  assert.match(main, /@JavascriptInterface\s*\n\s*fun compartirArchivo/,
+    'el puente dejó de ofrecer compartir');
+  assert.match(main, /Intent\.ACTION_SEND/, 'no abre el selector de apps');
+  assert.match(main, /FLAG_GRANT_READ_URI_PERMISSION/,
+    'sin el permiso temporal la app que recibe no puede leer el archivo');
+  assert.match(main, /FileProvider\.getUriForFile/,
+    'un file:// se lo rechaza Android desde Nougat');
+});
+
+test('el proveedor expone sólo la carpeta de las copias', () => {
+  const manifest = readFileSync(MANIFEST, 'utf8');
+  assert.match(manifest, /androidx\.core\.content\.FileProvider/, 'falta declarar el proveedor');
+  // Acotado al bloque del proveedor: el manifiesto tiene media docena de
+  // exported="false" de los widgets, y encontrar cualquiera no prueba nada.
+  const desde = manifest.indexOf('<provider');
+  const bloque = manifest.slice(desde, manifest.indexOf('</provider>', desde));
+  assert.ok(desde > 0, 'falta el <provider>');
+  assert.match(bloque, /android:authorities="\$\{applicationId\}\.archivos"/,
+    'la autoridad tiene que salir del applicationId: los tres sabores conviven en el mismo teléfono');
+  assert.match(bloque, /android:exported="false"/,
+    'un proveedor exportado deja que cualquier app pida esas URIs');
+  assert.match(bloque, /android:grantUriPermissions="true"/);
+
+  const paths = readFileSync(`${RES}/xml/archivos_compartidos.xml`, 'utf8');
+  assert.match(paths, /<cache-path[^>]*path="copias\/"/,
+    'se expone algo más que la carpeta de las copias');
+  assert.ok(!/root-path|external-path name="todo"/.test(paths),
+    'el proveedor expone media app');
+});
+
+test('cada copia compartida pisa a la anterior', () => {
+  // Si no, la caché junta un archivo por cada vez que compartís y el selector
+  // de Android muestra media docena de copias viejas.
+  const main = readFileSync(MAIN, 'utf8');
+  const bloque = main.slice(main.indexOf('fun compartirArchivo'));
+  assert.match(bloque.slice(0, bloque.indexOf('\n    }')), /listFiles\(\)\?\.forEach \{ it\.delete\(\) \}/,
+    'la caché de copias no se limpia');
+});
