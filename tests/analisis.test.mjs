@@ -53,6 +53,27 @@ test('la tendencia compara las últimas cuatro semanas con las cuatro previas', 
   assert.ok(Math.abs(t.cambio - 0.5) < 1e-9);
 });
 
+test('la tendencia tampoco cuenta el día de hoy', () => {
+  // Medio día en veintiocho es poco, pero es el mismo sesgo que tenía la
+  // ventana corta: estaría a medias de un lado y completo del otro.
+  const base = [];
+  for (let d = 1; d <= 56; d++) base.push({ date: hace(d), value: 30 });
+  assert.equal(tendencia(base, HOY).cambio, 0, 'yendo parejo tiene que dar cero');
+
+  const conHoy = [{ date: HOY, value: 600 }, ...base];
+  assert.equal(tendencia(conHoy, HOY).cambio, 0, 'un día enorme de hoy movió la tendencia');
+  assert.equal(tendencia(conHoy, HOY).ahora, tendencia(base, HOY).ahora);
+});
+
+test('las dos ventanas de la tendencia miden veintiocho días cada una', () => {
+  // Una de 28 contra otra de 27 daría una caída del 3,6% sin que pase nada.
+  const base = [];
+  for (let d = 1; d <= 56; d++) base.push({ date: hace(d), value: 10 });
+  const t = tendencia(base, HOY);
+  assert.equal(t.ahora, 280);
+  assert.equal(t.antes, 280);
+});
+
 test('un cambio chico es "estable", no una tendencia', () => {
   // Sin esto, 100 → 103 se anunciaría como una mejora, que es ruido.
   const historia = [
