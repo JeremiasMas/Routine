@@ -111,9 +111,11 @@ function heatmap(state) {
 function tarjetaSemanal(state) {
   const libre = (f, id) => esLibre(state.pausas, f, id);
   const dow = new Date(`${state.today}T00:00:00Z`).getUTCDay();
-  // El lunes conviene ver la semana que cerró, no una de un día.
+  // El lunes se muestra la semana que cerró. Ya no es por la comparación
+  // —ésa ahora mide lo mismo de los dos lados cualquier día— sino porque un
+  // lunes lo que hay para leer es la semana que terminó, no una de un día.
   const lunes = dow === 1 ? addDays(weekStart(state.today), -7) : weekStart(state.today);
-  const r = resumenSemanal(state, lunes, { libre, tocaba: isScheduled });
+  const r = resumenSemanal(state, lunes, { libre, tocaba: isScheduled, hoy: state.today });
   if (r.vacia) return el('div', {});
 
   const enCurso = lunes === weekStart(state.today);
@@ -125,7 +127,10 @@ function tarjetaSemanal(state) {
       el('div', { class: 'row__sub', text: `${shortDate(lunes)} → ${shortDate(addDays(lunes, 6))}` })),
     el('div', { class: 'stat-grid', style: 'margin-top:12px' },
       stat(formatNumber(r.xp), 'XP'),
-      stat(signo(r.deltaXp), 'vs. semana previa'),
+      // Un número comparado sin decir contra qué ventana no se puede creer.
+      stat(signo(r.deltaXp), r.parcial
+        ? (r.diasComparados === 1 ? 'vs. el mismo día' : `vs. mismos ${r.diasComparados} días`)
+        : 'vs. semana previa'),
       stat(r.perfectos, r.perfectos === 1 ? 'día perfecto' : 'días perfectos'),
       stat(r.diasLibres, r.diasLibres === 1 ? 'día libre' : 'días libres')));
 
