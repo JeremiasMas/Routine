@@ -464,6 +464,20 @@ test('la copia local se pide por su nombre, no por el directorio', () => {
     'sin conexión hay que pedir inicio + "index.html", no la carpeta');
 });
 
+/**
+ * Los receptores de la app principal que son widgets.
+ *
+ * Se los reconoce por su meta-data de appwidget, no por ser receptores: el
+ * del recordatorio también es un receptor, y los sabores sin widgets lo
+ * necesitan igual. Filtrar por "es un receptor" los sacaba a todos.
+ */
+function widgetsDeMain() {
+  const manifiesto = leer(MANIFEST);
+  return [...manifiesto.matchAll(/<receiver\s+android:name="\.(\w+)"[\s\S]*?<\/receiver>/g)]
+    .filter((m) => m[0].includes('android.appwidget.provider'))
+    .map((m) => m[1]);
+}
+
 test('cada app abre su propia página y la de siempre conserva su identidad', () => {
   const gradle = leer('android/app/build.gradle.kts');
   const sabor = (nombre) => new RegExp(`create\\("${nombre}"\\)\\s*\\{([\\s\\S]*?)\\n    \\}`).exec(gradle)?.[1];
@@ -482,9 +496,11 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
 
   // Ataraxia no tiene widgets: los de Rutina mostrarían datos que no existen.
   const manifiesto = leer('android/app/src/ataraxia/AndroidManifest.xml');
-  for (const m of leer('android/app/src/main/AndroidManifest.xml').matchAll(/<receiver\s+android:name="\.(\w+)"/g)) {
-    assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${m[1]}" tools:node="remove"`),
-      `el widget ${m[1]} aparecería en Ataraxia`);
+  const widgets = widgetsDeMain();
+  assert.ok(widgets.length >= 6, `esperaba los seis widgets, encontré ${widgets.length}`);
+  for (const w of widgets) {
+    assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${w}" tools:node="remove"`),
+      `el widget ${w} aparecería en Ataraxia`);
   }
   assert.match(leer('android/app/src/ataraxia/res/values/strings.xml'), /name="app_name">Ataraxia</);
 
@@ -496,7 +512,7 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   // el código, programar uno cancelaría al otro sin que nada falle.
   const kt = leer('android/app/src/main/java/com/jeremiasmas/rutina/Recordatorio.kt');
   const tipos = [...kt.matchAll(/^    (\w+)\(\n      "(\w+)", "(\w+)", (\d+), (\d+),/gm)];
-  assert.deepEqual(tipos.map((t) => t[2]), ['peso', 'semaforo', 'creatina']);
+  assert.deepEqual(tipos.map((t) => t[2]), ['peso', 'semaforo', 'creatina', 'rutina']);
   assert.equal(new Set(tipos.map((t) => t[4])).size, tipos.length, 'dos recordatorios comparten código de alarma');
   assert.equal(new Set(tipos.map((t) => t[5])).size, tipos.length, 'dos recordatorios comparten notificación');
   assert.equal(new Set(tipos.map((t) => t[3])).size, tipos.length, 'dos recordatorios comparten preferencias');
@@ -505,9 +521,17 @@ test('cada app abre su propia página y la de siempre conserva su identidad', ()
   for (const m of ['recordatorio', 'estadoRecordatorio', 'recordatorioDe', 'estadoRecordatorioDe', 'recordatorioHecho']) {
     assert.match(main, new RegExp(`@JavascriptInterface\\s+fun ${m}\\(`), `falta el método ${m} del puente`);
   }
+  // Rutina ya tiene su propio recordatorio: el código estaba compilado desde
+  // siempre y sólo le faltaba el receptor declarado acá.
   const principal = leer('android/app/src/main/AndroidManifest.xml');
-  assert.doesNotMatch(principal, /POST_NOTIFICATIONS|RecordatorioReceptor/,
-    'Rutina no tiene recordatorio: no debería pedir permiso de notificaciones');
+  assert.match(principal, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(principal, /android\.permission\.RECEIVE_BOOT_COMPLETED/);
+  const suyo = /<receiver\s+android:name="\.RecordatorioReceptor"[\s\S]*?<\/receiver>/.exec(principal)?.[0];
+  assert.ok(suyo, 'Rutina no declara el receptor del recordatorio: nunca sonaría nada');
+  for (const accion of ['android.intent.action.BOOT_COMPLETED', 'android.intent.action.MY_PACKAGE_REPLACED']) {
+    assert.ok(suyo.includes(`<action android:name="${accion}" />`),
+      `sin ${accion} las alarmas se pierden al reiniciar el teléfono`);
+  }
 
   // El workflow publica los dos APKs desde la carpeta de cada sabor.
   const ci = leer('.github/workflows/android.yml');
@@ -525,9 +549,9 @@ test('la app del clima abre clima/ y avisa por notificaciones, sin widgets', () 
 
   const manifiesto = leer('android/app/src/clima/AndroidManifest.xml');
   // Los de Rutina mostrarían un día que en esta app no existe.
-  for (const m of leer(MANIFEST).matchAll(/<receiver\s+android:name="\.(\w+)"/g)) {
-    assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${m[1]}" tools:node="remove"`),
-      `el widget ${m[1]} aparecería en Clima`);
+  for (const w of widgetsDeMain()) {
+    assert.match(manifiesto, new RegExp(`com\\.jeremiasmas\\.rutina\\.${w}" tools:node="remove"`),
+      `el widget ${w} aparecería en Clima`);
   }
   assert.doesNotMatch(manifiesto, /appwidget/, 'el clima ya no tiene widget');
   assert.match(leer('android/app/src/clima/res/values/strings.xml'), /name="app_name">Clima</);

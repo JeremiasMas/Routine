@@ -10,6 +10,7 @@
  */
 import { bulkSetEntries, getData, getState, setEntry, subscribe } from './state.js';
 import { esFechaValida } from './utils.js';
+import { TIPO as TIPO_AVISO, paqueteDelEstado } from './recordatorios.js';
 import { resumenDelDia, pendientesAAplicar } from './resumen.js';
 
 export const EVENTO = 'rutina-pasos';
@@ -200,9 +201,15 @@ export function conectar() {
   });
 
   // El widget se actualiza solo con cada cambio, que es lo que evita que
-  // muestre el día de ayer.
-  subscribe((state) => publicarResumen(state));
+  // muestre el día de ayer. El aviso del teléfono va por el mismo camino:
+  // suena con la app cerrada, así que el texto tiene que quedar escrito de
+  // antemano y al día.
+  subscribe((state) => {
+    publicarResumen(state);
+    publicarAviso(paqueteDelEstado(state));
+  });
   publicarResumen();
+  publicarAviso(paqueteDelEstado(getState()));
 
   window.addEventListener(EVENTO, (e) => {
     const datos = e.detail || {};
@@ -247,6 +254,54 @@ export function compartirArchivo(nombre, contenido) {
   if (typeof window.RutinaNativa?.compartirArchivo !== 'function') return false;
   try {
     return window.RutinaNativa.compartirArchivo(nombre, contenido) !== false;
+  } catch {
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   El recordatorio del teléfono.
+   --------------------------------------------------------------------------- */
+
+/** Si este APK sabe programar recordatorios. Los viejos no tienen el método. */
+export function puedeAvisar() {
+  return typeof window.RutinaNativa?.recordatorioDe === 'function';
+}
+
+/** Cómo está configurado, según el teléfono. */
+export function estadoDelAviso(tipo = TIPO_AVISO) {
+  if (!puedeAvisar()) return null;
+  try {
+    return JSON.parse(window.RutinaNativa.estadoRecordatorioDe(tipo));
+  } catch {
+    return null;
+  }
+}
+
+/** Prende, apaga o cambia la hora. `dia` -1 es todos los días. */
+export function programarAviso({ activo, hora, minuto }, tipo = TIPO_AVISO) {
+  if (!puedeAvisar()) return false;
+  try {
+    window.RutinaNativa.recordatorioDe(tipo, Boolean(activo), -1, Number(hora) || 0, Number(minuto) || 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Le deja escrito al teléfono qué decir hoy, y si el día ya está cerrado.
+ *
+ * Son dos llamadas porque son dos cosas distintas: el texto se guarda igual,
+ * y lo "hecho" es lo que decide que la notificación no suene.
+ */
+export function publicarAviso(paquete) {
+  if (!paquete) return false;
+  const n = window.RutinaNativa;
+  try {
+    n?.textoRecordatorio?.(paquete.tipo, paquete.fecha, paquete.titulo, paquete.texto);
+    n?.recordatorioHecho?.(paquete.tipo, paquete.hecho ? paquete.fecha : '');
+    return typeof n?.textoRecordatorio === 'function';
   } catch {
     return false;
   }

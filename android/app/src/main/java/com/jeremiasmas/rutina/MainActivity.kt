@@ -498,6 +498,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Ese día ya se hizo lo que pide el recordatorio: no hace falta que suene. */
+    /** El texto del aviso de hoy, escrito por la web con lo que de verdad falta. */
+    @JavascriptInterface
+    fun textoRecordatorio(tipo: String, fecha: String, titulo: String, texto: String) {
+      val t = Recordatorio.Tipo.de(tipo) ?: return
+      Recordatorio.guardarTexto(this@MainActivity, t, fecha, titulo, texto)
+    }
+
     @JavascriptInterface
     fun recordatorioHecho(tipo: String, fecha: String) {
       val cual = Recordatorio.Tipo.de(tipo) ?: return

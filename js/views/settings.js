@@ -13,7 +13,7 @@ import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
   COLUMNAS, COLUMNAS_GIMNASIO, COLUMNAS_CUERPO,
 } from '../csv.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, puedeAvisar, estadoDelAviso, programarAviso, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { stat } from '../ui/components.js';
@@ -99,6 +99,13 @@ export function render({ navigate }) {
     el('h2', { text: 'Días libres' }), el('small', { text: 'no rompen rachas' })));
   if (enApp()) root.append(tarjetaDelWidget());
   root.append(tarjetaDePausas(navigate));
+
+  // --- Aviso del teléfono ---
+  if (puedeAvisar()) {
+    root.append(el('div', { class: 'section-title' },
+      el('h2', { text: 'Aviso' }), el('small', { text: 'con la app cerrada' })));
+    root.append(tarjetaDeAviso(navigate));
+  }
 
   // --- Aspecto ---
   root.append(el('div', { class: 'section-title' },
@@ -332,6 +339,54 @@ function importarPasos(navigate) {
         el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'))));
   });
   input.click();
+}
+
+/**
+ * El aviso de lo que falta hoy.
+ *
+ * La app sabía desde siempre qué racha se te corta esta noche y no te lo
+ * podía decir: ese dato existía sólo si abrías la app, justo lo que no hacés
+ * el día que te la olvidás.
+ */
+function tarjetaDeAviso(navigate) {
+  const estado = estadoDelAviso();
+  if (!estado) return el('div', {});
+  const activo = !!estado.activo;
+  const hora = `${String(estado.hora ?? 19).padStart(2, '0')}:${String(estado.minuto ?? 0).padStart(2, '0')}`;
+
+  const card = el('div', { class: 'card' },
+    toggle('Avisarme lo que falta', 'Una notificación por día, sólo si queda algo sin hacer.',
+      activo, (v) => {
+        const [h, m] = hora.split(':');
+        programarAviso({ activo: v, hora: Number(h), minuto: Number(m) });
+        navigate();
+      }));
+
+  if (activo) {
+    card.append(el('div', { class: 'field', style: 'margin-top:12px;margin-bottom:0' },
+      el('label', { text: 'A qué hora' }),
+      el('input', {
+        type: 'time', value: hora,
+        onChange: (e) => {
+          const [h, m] = (e.target.value || '19:00').split(':');
+          programarAviso({ activo: true, hora: Number(h), minuto: Number(m) });
+        },
+      })));
+    card.append(el('p', { class: 'hint', style: 'margin-top:8px' },
+      'Si a esa hora ya cerraste el día, no suena. Y cuando hay una racha en juego ',
+      'el aviso la nombra, en vez de decirte que "falta algo".'));
+  }
+
+  if (estado.permiso === false) {
+    card.append(el('p', { class: 'hint', style: 'margin-top:8px;color:var(--gold)' },
+      '⚠️ El teléfono todavía no tiene permiso para mostrar notificaciones.'));
+    card.append(el('button', {
+      class: 'btn', style: 'margin-top:8px',
+      onClick: () => { pedirPermiso(); setTimeout(navigate, 600); },
+    }, 'Dar permiso'));
+  }
+
+  return card;
 }
 
 /** La copia, fuera del teléfono. */
