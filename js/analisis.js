@@ -571,9 +571,23 @@ export function rachasEnRiesgo(estados, tocaHoy) {
  * @param {function} tocaba  si una actividad estaba agendada ese día. Se pasa
  *   de afuera porque vive en el motor, y el motor ya depende de este módulo.
  */
-export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () => true } = {}) {
-  const dias = Array.from({ length: 7 }, (_, i) => addDays(lunes, i));
-  const anterior = Array.from({ length: 7 }, (_, i) => addDays(lunes, i - 7));
+export function diasDeLaVentana(lunes, hoy = null) {
+  // Sin fecha, o con una semana que ya cerró: la semana entera.
+  if (!hoy || hoy < lunes) return 7;
+  // El día de hoy cuenta aunque esté a medias: lo que llevás hecho hoy es
+  // parte de lo que llevás hecho esta semana.
+  return Math.max(1, Math.min(7, daysBetween(lunes, hoy) + 1));
+}
+
+export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () => true, hoy = null } = {}) {
+  // Los dos lados miden lo mismo. Antes eran siete días contra siete sin
+  // mirar cuántos habían pasado: un martes a la mañana comparaba día y medio
+  // contra una semana completa, y cualquier semana en curso parecía un
+  // derrumbe. El caso especial del lunes en la vista tapaba uno de los siete
+  // días; los otros cinco seguían mintiendo, sólo que más despacio.
+  const largo = diasDeLaVentana(lunes, hoy);
+  const dias = Array.from({ length: largo }, (_, i) => addDays(lunes, i));
+  const anterior = Array.from({ length: largo }, (_, i) => addDays(lunes, i - 7));
 
   const porActividad = [];
   for (const st of state.byActivity.values()) {
@@ -616,6 +630,10 @@ export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () 
   return {
     lunes,
     dias,
+    // Cuántos días mide cada lado de la comparación, para que la pantalla
+    // pueda decirlo: un número sin su ventana no se puede creer.
+    diasComparados: largo,
+    parcial: largo < 7,
     xp,
     xpAnterior,
     deltaXp: xp - xpAnterior,
