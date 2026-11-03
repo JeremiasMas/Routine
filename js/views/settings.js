@@ -738,7 +738,7 @@ function tarjetaDePausas(navigate) {
     el('div', { class: 'field' }, el('label', { text: 'Qué te perdiste' }), quienExcusa));
 
   const botones = [];
-  const accion = el('button', { class: 'btn btn--primary', style: '--c:#f59e0b' }, 'Declarar vacaciones');
+  const accion = el('button', { class: 'btn btn--primary btn--block', style: '--c:#f59e0b' }, 'Declarar vacaciones');
 
   const pintar = () => {
     const esExcusa = modo === 'excusa';
@@ -746,15 +746,17 @@ function tarjetaDePausas(navigate) {
     campoExcusa.style.display = esExcusa ? '' : 'none';
     accion.textContent = esExcusa ? 'Excusar ese día' : 'Declarar vacaciones';
     motivo.placeholder = esExcusa ? 'Motivo (un evento de trabajo, por ejemplo)' : 'Motivo (opcional)';
-    // Dorado y no verde: el verde en esta app quiere decir "cumplido".
-    for (const b of botones) b.classList.toggle('chip--warn', b.dataset.modo === modo);
+    // Dorado y no verde: el verde en esta app quiere decir "cumplido". Y el
+    // mismo dorado para las dos, porque las dos significan lo mismo —"esto no
+    // cuenta"—: lo que el color distingue es la elegida, no la opción.
+    for (const b of botones) b.setAttribute('aria-checked', String(b.dataset.modo === modo));
   };
 
   for (const [valor, texto] of [['vacaciones', '🌴 Vacaciones'], ['excusa', '📝 Excusa']]) {
-    const b = el('button', { class: 'chip', style: 'width:auto;padding:0 14px', onClick: () => {
-      modo = valor;
-      pintar();
-    } }, texto);
+    const b = el('button', {
+      class: 'segmento__opcion', type: 'button', role: 'radio', 'aria-checked': 'false',
+      onClick: () => { modo = valor; pintar(); },
+    }, texto);
     b.dataset.modo = valor;
     botones.push(b);
   }
@@ -779,7 +781,10 @@ function tarjetaDePausas(navigate) {
   };
 
   card.append(
-    el('div', { class: 'btn-row', style: 'margin-top:14px' }, botones),
+    el('div', {
+      class: 'segmento', role: 'radiogroup', 'aria-label': 'Qué querés declarar',
+      style: 'margin:16px 0 14px;--c:#f59e0b',
+    }, botones),
     campoVacaciones,
     campoExcusa,
     el('div', { class: 'field' }, el('label', { text: 'Motivo' }), motivo),

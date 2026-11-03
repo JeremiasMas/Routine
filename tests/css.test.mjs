@@ -67,3 +67,36 @@ test('las piezas fijas de la interfaz conservan sus propiedades', () => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Elegir entre dos
+// ---------------------------------------------------------------------------
+
+test('el selector de dos opciones es un control, no dos chips sueltos', () => {
+  const ajustes = readFileSync('js/views/settings.js', 'utf8');
+  // Eran class="chip" con el elegido pintado: la misma pinta que un chip
+  // informativo, y anchos distintos según el largo del texto.
+  assert.ok(limpio.includes('.segmento__opcion'), 'falta el estilo del selector');
+  assert.match(ajustes, /class: 'segmento__opcion'/, 'las opciones volvieron a ser chips');
+  assert.ok(!/\['vacaciones', '🌴 Vacaciones'\][\s\S]{0,200}class: 'chip'/.test(ajustes),
+    'el selector volvió a usar chips');
+
+  const regla = limpio.slice(limpio.indexOf('.segmento__opcion {'));
+  assert.match(regla.slice(0, regla.indexOf('}')), /flex:\s*1 1 0/,
+    'las dos mitades tienen que medir igual: si no, no se leen como un control');
+});
+
+test('el selector dice cuál está elegida, y no sólo con color', () => {
+  const ajustes = readFileSync('js/views/settings.js', 'utf8');
+  assert.match(ajustes, /role: 'radiogroup'/, 'un lector de pantalla oiría dos botones sueltos');
+  assert.match(ajustes, /role: 'radio'/);
+  assert.match(ajustes, /setAttribute\('aria-checked'/, 'nada dice cuál está elegida');
+  assert.ok(limpio.includes('.segmento__opcion[aria-checked="true"]'),
+    'el estilo de la elegida no cuelga del estado, así que puede desincronizarse');
+});
+
+test('los botones de ícono se tocan de 44 aunque midan 34', () => {
+  const regla = limpio.slice(limpio.indexOf('.icon-btn::after'));
+  assert.match(regla.slice(0, regla.indexOf('}')), /inset:\s*-5px/,
+    'el área de toque quedó en 34 px');
+});
