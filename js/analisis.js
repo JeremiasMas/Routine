@@ -571,23 +571,42 @@ export function rachasEnRiesgo(estados, tocaHoy) {
  * @param {function} tocaba  si una actividad estaba agendada ese día. Se pasa
  *   de afuera porque vive en el motor, y el motor ya depende de este módulo.
  */
-export function diasDeLaVentana(lunes, hoy = null) {
-  // Sin fecha, o con una semana que ya cerró: la semana entera.
-  if (!hoy || hoy < lunes) return 7;
-  // El día de hoy cuenta aunque esté a medias: lo que llevás hecho hoy es
-  // parte de lo que llevás hecho esta semana.
-  return Math.max(1, Math.min(7, daysBetween(lunes, hoy) + 1));
+export const VENTANA_CORTA = 7;
+
+/**
+ * Los días cerrados de la ventana: los siete que terminan ayer.
+ *
+ * Hoy no entra, y es a propósito. Estaba a medias de un lado y completo del
+ * otro, y eso solo alcanzaba para que una semana idéntica a la anterior
+ * diera -55% un lunes y -8% un domingo. Nunca daba cero. Yendo igual, tiene
+ * que dar cero.
+ */
+export function ventanaCerrada(hoy, largo = VENTANA_CORTA) {
+  const ayer = addDays(hoy, -1);
+  return Array.from({ length: largo }, (_, i) => addDays(ayer, i - largo + 1));
 }
 
-export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () => true, hoy = null } = {}) {
-  // Los dos lados miden lo mismo. Antes eran siete días contra siete sin
-  // mirar cuántos habían pasado: un martes a la mañana comparaba día y medio
-  // contra una semana completa, y cualquier semana en curso parecía un
-  // derrumbe. El caso especial del lunes en la vista tapaba uno de los siete
-  // días; los otros cinco seguían mintiendo, sólo que más despacio.
-  const largo = diasDeLaVentana(lunes, hoy);
-  const dias = Array.from({ length: largo }, (_, i) => addDays(lunes, i));
-  const anterior = Array.from({ length: largo }, (_, i) => addDays(lunes, i - 7));
+/**
+ * Cómo venís, contra cómo venías.
+ *
+ * Siete días cerrados contra los siete anteriores. Antes era la semana del
+ * calendario contra la anterior, y mientras la semana estaba en curso los dos
+ * lados medían distinto: un martes a la mañana comparaba día y medio contra
+ * una semana entera. Recortar el lado viejo a la misma cantidad de días
+ * arreglaba el tamaño pero no el sesgo, porque el día de hoy seguía estando
+ * a medias de un lado nada más.
+ *
+ * Una ventana móvil además lleva siempre un día de cada clase: las tres
+ * sesiones de gimnasio de la semana están de los dos lados, cualquier día que
+ * la mires. Y un lunes la ventana coincide exactamente con la semana que
+ * acaba de cerrar, así que el caso especial del lunes se vuelve innecesario.
+ *
+ * Las metas de la semana calendaria —gimnasio 3 veces, muay thai 2— siguen
+ * viviendo en Hoy, que es donde se persiguen. Acá se mide el ritmo.
+ */
+export function resumenDeVentana(state, hoy, { libre = () => false, tocaba = () => true, largo = VENTANA_CORTA } = {}) {
+  const dias = ventanaCerrada(hoy, largo);
+  const anterior = dias.map((d) => addDays(d, -largo));
 
   const porActividad = [];
   for (const st of state.byActivity.values()) {
@@ -628,12 +647,12 @@ export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () 
     .sort((a, b) => a.delta - b.delta);
 
   return {
-    lunes,
+    largo,
+    desde: dias[0],
+    hasta: dias[dias.length - 1],
+    desdeAnterior: anterior[0],
+    hastaAnterior: anterior[anterior.length - 1],
     dias,
-    // Cuántos días mide cada lado de la comparación, para que la pantalla
-    // pueda decirlo: un número sin su ventana no se puede creer.
-    diasComparados: largo,
-    parcial: largo < 7,
     xp,
     xpAnterior,
     deltaXp: xp - xpAnterior,
@@ -642,11 +661,10 @@ export function resumenSemanal(state, lunes, { libre = () => false, tocaba = () 
     porActividad: porActividad.sort((a, b) => b.total - a.total),
     mejor: subieron[0] || null,
     peor: cayeron[0] || null,
-    // Una semana sin nada no merece un resumen que finja que pasó algo.
+    // Una ventana sin nada no merece un resumen que finja que pasó algo.
     vacia: xp === 0 && porActividad.every((x) => x.total === 0),
   };
 }
-
 
 /* ---------------------------------------------------------------------------
    La lista de disciplinas: una sola, con lo que antes estaba repartido en dos.

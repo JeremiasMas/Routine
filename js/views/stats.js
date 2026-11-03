@@ -4,7 +4,7 @@ import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName
 import { getState } from '../state.js';
 import { stat, xpBar, barChart } from '../ui/components.js';
 import { seccionAnalisis } from './analisis.js';
-import { resumenSemanal, proyeccionDeRango } from '../analisis.js';
+import { resumenDeVentana, proyeccionDeRango } from '../analisis.js';
 import { isScheduled } from '../derive.js';
 import { esLibre } from '../pausas.js';
 
@@ -23,7 +23,7 @@ export function render() {
   if (rumbo) root.append(rumbo);
 
   // --- Mapa de calor del último año ---
-  root.append(tarjetaSemanal(state));
+  root.append(tarjetaDeVentana(state));
 
   const analisis = seccionAnalisis(state);
   if (analisis) root.append(analisis);
@@ -108,29 +108,33 @@ function heatmap(state) {
  * anterior. Hasta el domingo muestra la semana en curso, que todavía se puede
  * cambiar; el lunes ya muestra la cerrada.
  */
-function tarjetaSemanal(state) {
+/**
+ * Cómo venís, contra cómo venías: siete días cerrados contra los siete
+ * anteriores.
+ *
+ * Era la semana del calendario contra la anterior, y mientras la semana
+ * estaba en curso los dos lados medían distinto. Yendo exactamente igual la
+ * tarjeta marcaba -55% un lunes y -8% un domingo: nunca cero.
+ *
+ * Las dos ventanas van escritas en el encabezado. Un número comparado sin
+ * decir contra qué no se puede creer, y "sin contar hoy" hay que decirlo o a
+ * las once de la noche de un día bueno parece que no contó.
+ */
+function tarjetaDeVentana(state) {
   const libre = (f, id) => esLibre(state.pausas, f, id);
-  const dow = new Date(`${state.today}T00:00:00Z`).getUTCDay();
-  // El lunes se muestra la semana que cerró. Ya no es por la comparación
-  // —ésa ahora mide lo mismo de los dos lados cualquier día— sino porque un
-  // lunes lo que hay para leer es la semana que terminó, no una de un día.
-  const lunes = dow === 1 ? addDays(weekStart(state.today), -7) : weekStart(state.today);
-  const r = resumenSemanal(state, lunes, { libre, tocaba: isScheduled, hoy: state.today });
+  const r = resumenDeVentana(state, state.today, { libre, tocaba: isScheduled });
   if (r.vacia) return el('div', {});
 
-  const enCurso = lunes === weekStart(state.today);
   const signo = (n) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
+  const rango = (a, b) => `${shortDate(a)} → ${shortDate(b)}`;
 
   const card = el('div', { class: 'card' },
-    el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px' },
-      el('div', { style: 'font-weight:700', text: enCurso ? 'Esta semana' : 'La semana que cerró' }),
-      el('div', { class: 'row__sub', text: `${shortDate(lunes)} → ${shortDate(addDays(lunes, 6))}` })),
+    el('div', { style: 'display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap' },
+      el('div', { style: 'font-weight:700', text: rango(r.desde, r.hasta) }),
+      el('div', { class: 'row__sub', text: `vs. ${rango(r.desdeAnterior, r.hastaAnterior)}` })),
     el('div', { class: 'stat-grid', style: 'margin-top:12px' },
       stat(formatNumber(r.xp), 'XP'),
-      // Un número comparado sin decir contra qué ventana no se puede creer.
-      stat(signo(r.deltaXp), r.parcial
-        ? (r.diasComparados === 1 ? 'vs. el mismo día' : `vs. mismos ${r.diasComparados} días`)
-        : 'vs. semana previa'),
+      stat(signo(r.deltaXp), `vs. los ${r.largo} previos`),
       stat(r.perfectos, r.perfectos === 1 ? 'día perfecto' : 'días perfectos'),
       stat(r.diasLibres, r.diasLibres === 1 ? 'día libre' : 'días libres')));
 
@@ -143,17 +147,17 @@ function tarjetaSemanal(state) {
     card.append(el('p', { class: 'hint', style: 'margin-top:6px' },
       `📉 Lo que se cayó: ${r.peor.activity.name}, `,
       `${formatValue(r.peor.total, r.peor.activity.unit)} contra ${formatValue(r.peor.totalAnterior, r.peor.activity.unit)}. `,
-      enCurso ? 'Todavía estás a tiempo.' : 'Un buen lugar para empezar la semana.'));
+      'Hoy todavía está abierto.'));
   }
   if (!r.mejor && !r.peor) {
     card.append(el('p', { class: 'hint', style: 'margin-top:10px' },
-      'Semana pareja con la anterior: ni subiste ni bajaste en nada.'));
+      'Mismo ritmo que la ventana anterior: ni subiste ni bajaste en nada.'));
   }
 
   return el('div', {},
     el('div', { class: 'section-title' },
-      el('h2', { text: 'Tu semana' }),
-      el('small', { text: enCurso ? 'en curso' : 'cerrada' })),
+      el('h2', { text: `Últimos ${r.largo} días` }),
+      el('small', { text: 'cerrados, sin contar hoy' })),
     card);
 }
 
