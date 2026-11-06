@@ -16,6 +16,7 @@ import {
 import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, puedeAvisar, estadoDelAviso, programarAviso, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
+import { FASES, faseDe } from '../calorias.js';
 import { stat } from '../ui/components.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { toast } from '../ui/feedback.js';
@@ -99,6 +100,11 @@ export function render({ navigate }) {
     el('h2', { text: 'Días libres' }), el('small', { text: 'no rompen rachas' })));
   if (enApp()) root.append(tarjetaDelWidget());
   root.append(tarjetaDePausas(navigate));
+
+  // --- Lo que comés ---
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Calorías' }), el('small', { text: 'qué hacés con el gasto' })));
+  root.append(tarjetaDeFase(navigate, data));
 
   // --- Aviso del teléfono ---
   if (puedeAvisar()) {
@@ -339,6 +345,36 @@ function importarPasos(navigate) {
         el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'))));
   });
   input.click();
+}
+
+/**
+ * Qué hacer con el gasto del día.
+ *
+ * La app calcula cuánto gastás; lo que hagas con ese número es tuyo. Por eso
+ * el gasto se muestra siempre y la fase sólo lo corre: nadie quiere que una
+ * app le decida un déficit por su cuenta.
+ */
+function tarjetaDeFase(navigate, data) {
+  const actual = faseDe(data.settings);
+  const opciones = Object.entries(FASES).map(([id, f]) => {
+    const b = el('button', {
+      class: 'segmento__opcion', type: 'button', role: 'radio',
+      'aria-checked': String(id === actual),
+      onClick: () => { updateSettings({ fase: id }); navigate?.(); },
+      text: f.nombre,
+    });
+    return b;
+  });
+
+  return el('div', { class: 'card' },
+    el('div', {
+      class: 'segmento', role: 'radiogroup', 'aria-label': 'Qué hacés con el gasto',
+      style: '--c:#34d399',
+    }, opciones),
+    el('p', { class: 'hint', style: 'margin-top:10px', text: FASES[actual].nota }),
+    el('p', { class: 'hint', style: 'margin-top:6px' },
+      'El gasto sale de tu masa magra y de lo que entrenás, no de un multiplicador. ',
+      'Los METs de cada actividad son referencias, no mediciones tuyas: ubican, no deciden decimales.'));
 }
 
 /**

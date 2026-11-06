@@ -3,13 +3,14 @@ import {
   el, formatValue, formatNumber, relativeDay, todayKey, addDays,
   weekStart, weekLabel, dayName, keyToDate, plural,
 } from '../utils.js';
-import { getState, backupVencido, diasSinBackup, setEntry, marcarDescarga } from '../state.js';
+import { getState, getData, backupVencido, diasSinBackup, setEntry, marcarDescarga } from '../state.js';
 import { isScheduledWithPauses, goalFor } from '../derive.js';
 import { templateForDay, templateById, minutosDeCaminata } from '../config.js';
 import { chip, xpBar, stat } from '../ui/components.js';
 import {
   microDatos, nivelTexto, resumenDelDia, parValor, partirPorHechas, semanaArrancada,
 } from '../tablero.js';
+import { gastoDesdeElEstado, FASES } from '../calorias.js';
 import { openLogger } from '../ui/logger.js';
 import { colorDe } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
@@ -74,6 +75,12 @@ export function render({ navigate, celebrate }) {
         : stat(resumen.faltan, resumen.faltan === 1 ? 'Falta hoy' : 'Faltan hoy')),
     el('div', { style: 'margin-top:12px' },
       xpBar(resumen.pct, { left: resumen.porcentaje, right: resumen.marcas }))));
+
+  // --- Lo que vas a necesitar comer ---
+  if (viewDate === state.today) {
+    const calorias = tarjetaDeCalorias(state);
+    if (calorias) root.append(calorias);
+  }
 
   // --- Lo que este día tiene perdonado ---
   // Las misiones perdonadas desaparecen del tablero, y sin decirlo parecería
@@ -238,6 +245,55 @@ function plegadoDeHechas(lista, state, dateKey, armar) {
       xp ? el('span', { class: 'plegado__nota', text: `+${formatNumber(xp)} XP` }) : null,
       el('span', { class: 'plegado__flecha', text: '⌄' })),
     el('div', { class: 'plegado__cuerpo' }, lista.map((a) => armar(a))));
+}
+
+/**
+ * Lo que vas a necesitar comer hoy.
+ *
+ * Dos números y los dos hacen falta. El grande es la proyección: lo que vas a
+ * gastar si cumplís todo lo que falta, que es el que sirve a la mañana para
+ * decidir qué comprar. El chico es lo que llevás gastado de verdad, y es el
+ * que se mueve solo cuando caminás de más.
+ *
+ * El desglose va a la vista a propósito: un número de calorías sin decir de
+ * dónde sale no se puede discutir, y estos salen de referencias (los METs del
+ * compendio), no de mediciones tuyas.
+ */
+function tarjetaDeCalorias(state) {
+  const esDeHoy = (a) => isScheduledWithPauses(a, state.today, state.pausas);
+  const g = gastoDesdeElEstado(state, getData().settings || {}, esDeHoy);
+  if (!g) {
+    return el('div', { class: 'card', style: 'margin-bottom:4px' },
+      el('div', { class: 'row__sub' },
+        '🍽 Medite el cuerpo una vez y la app calcula cuánto gastás por día.'));
+  }
+
+  const fase = FASES[g.fase];
+  const conMeta = g.delta !== 0;
+  const chip2 = (texto, extra = '') => chip(texto, extra || 'chip--dato');
+
+  return el('div', { class: 'card', style: 'margin-bottom:4px' },
+    el('div', { style: 'display:flex;justify-content:space-between;align-items:flex-end;gap:12px' },
+      el('div', {},
+        el('div', { class: 'stat__value', style: 'font-size:1.9rem',
+          text: formatNumber(g.objetivo) }),
+        el('div', { class: 'stat__label',
+          text: conMeta ? `kcal · ${fase.nombre.toLowerCase()}` : 'kcal si cumplís todo' })),
+      el('div', { style: 'text-align:right' },
+        el('div', { class: 'stat__value', style: 'font-size:1.1rem;color:var(--muted)',
+          text: formatNumber(g.gastado) }),
+        el('div', { class: 'stat__label', text: 'vas gastando' }))),
+    el('div', { style: 'margin-top:10px' },
+      xpBar(Math.min(1, g.gastado / Math.max(1, g.proyectado)))),
+    el('div', { class: 'quest__micro', style: 'margin-top:10px;flex-wrap:wrap;justify-content:flex-start' },
+      chip2(`🛌 ${formatNumber(g.sedentario)} base`, 'chip--mudo'),
+      g.partes.map((p) => chip2(
+        `${p.icon} ${formatNumber(p.proyectado)}`,
+        p.pasada ? 'chip--vivo' : 'chip--dato'))),
+    conMeta
+      ? el('div', { class: 'row__sub', style: 'margin-top:8px',
+          text: `Gastás ${formatNumber(g.proyectado)}. ${fase.nota}` })
+      : null);
 }
 
 /** Los tres números del día, con el denominador en chico. */

@@ -623,11 +623,15 @@ export function derive(data, today = todayKey()) {
   // ---- Composición corporal: el rango lo da el porcentaje medido ----
   const sexoPerfil = data.settings?.bodyFormula === '4' ? 'f' : 'm';
   let bodyFat = null;
+  // La composición entera, no sólo el porcentaje: el gasto calórico se calcula
+  // con la masa magra, que es lo que de verdad quema en reposo.
+  let composicion = null;
   for (const [, st] of byActivity) {
     if (st.activity.rankBy !== 'bodyfat') continue;
     const ultima = st.history[st.history.length - 1]?.entry;
     const resumen = ultima ? bodySummary(ultima, data.settings || {}) : null;
     bodyFat = resumen?.fatPct ?? null;
+    composicion = resumen;
     const banda = bodyFatBand(bodyFat, sexoPerfil);
     st.bodyFat = bodyFat;
     st.band = banda;
@@ -755,6 +759,7 @@ export function derive(data, today = todayKey()) {
     descargas,
     bodyweight: pesoCorporal,
     bodyFat,
+    composicion,
     strength,
     strengthOverall,
     calibracion,
