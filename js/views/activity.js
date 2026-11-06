@@ -81,7 +81,7 @@ export function render({ params, navigate, celebrate }) {
             lineaDeNivel(st, state),
             st.nextTier
               ? el('p', { class: 'hint', style: 'margin-top:6px' },
-                  `Próximo rango: ${st.nextTier.name} en el nivel ${st.nextTier.min}.`)
+                  `El próximo rango llega en el nivel ${st.nextTier.min}.`)
               : el('p', { class: 'hint', style: 'margin-top:6px' }, 'Último rango de la escalera. 🐐')),
     a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
@@ -181,7 +181,7 @@ export function render({ params, navigate, celebrate }) {
             el('div', { style: 'font-weight:700;font-size:1.05rem', text: st.tier?.name || state.strengthOverall.name }),
             el('div', { class: 'row__sub', text: `nivel ${state.strengthOverall.name} en la escala general · promedio de ${state.strengthOverall.lifts} ${state.strengthOverall.lifts === 1 ? 'movimiento' : 'movimientos'}` }),
             state.strengthOverall.next
-              ? el('div', { class: 'row__sub', text: `${Math.round(state.strengthOverall.pct * 100)}% hacia ${st.nextTier?.name || state.strengthOverall.next}` })
+              ? el('div', { class: 'row__sub', text: `${Math.round(state.strengthOverall.pct * 100)}% hacia el próximo rango` })
               : null),
           el('div', { style: 'font-size:1.6rem', text: '💪' })),
         el('div', { style: 'margin-top:10px' }, xpBar(state.strengthOverall.pct))));
@@ -201,7 +201,7 @@ export function render({ params, navigate, celebrate }) {
       s.nivel.next
         ? el('div', { style: 'margin-top:8px' },
             xpBar(s.nivel.pct),
-            el('div', { class: 'row__sub', style: 'margin-top:4px', text: `${s.nivel.next} a los ${formatNumber(s.objetivo)} kg — te faltan ${formatNumber(s.falta)} kg` }))
+            el('div', { class: 'row__sub', style: 'margin-top:4px', text: `El próximo escalón está en ${formatNumber(s.objetivo)} kg — te faltan ${formatNumber(s.falta)} kg` }))
         : el('div', { class: 'row__sub', style: 'margin-top:6px', text: 'Nivel máximo de la escala. 🐐' })))));
 
     if (state.calibracionVencida?.length) {
@@ -423,11 +423,11 @@ function strengthHeader(st, a) {
     el('div', { style: 'margin-top:12px' },
       xpBar(g.pct, {
         left: `promedio de ${g.lifts} ${g.lifts === 1 ? 'movimiento' : 'movimientos'}`,
-        right: g.next ? `Próximo: ${st.nextTier?.name || g.next}` : 'Último rango',
+        right: g.next ? 'Falta para el próximo' : 'Último rango',
       })),
     flojo && flojo.falta > 0
       ? el('p', { class: 'hint', style: 'margin-top:10px' },
-          `Lo que más frena el promedio es ${flojo.lift.toLowerCase()}: ${formatNumber(flojo.falta)} kg de 1RM para pasar a ${flojo.nivel.next}.`)
+          `Lo que más frena el promedio es ${flojo.lift.toLowerCase()}: le faltan ${formatNumber(flojo.falta)} kg de 1RM para subir un escalón.`)
       : null,
     avisoDePesoCorporal(st),
     g.lifts < 3
@@ -447,11 +447,11 @@ function bodyFatHeader(st, a) {
     el('div', { style: 'margin-top:12px' },
       xpBar(banda.pct, {
         left: `${formatNumber(st.bodyFat)}% de grasa`,
-        right: banda.next ? `${banda.next.name} bajando de ${banda.next.max}%` : `Meta del ${a.targetBodyFat}% alcanzada`,
+        right: banda.next ? `Próxima banda bajando de ${banda.next.max}%` : `Meta del ${a.targetBodyFat}% alcanzada`,
       })),
     el('p', { class: 'hint', style: 'margin-top:10px' },
       banda.next
-        ? `Te faltan ${formatNumber(banda.falta)} puntos para ${banda.next.name}.` +
+        ? `Te faltan ${formatNumber(banda.falta)} puntos para la próxima banda.` +
           (banda.next.max > a.targetBodyFat ? ` La meta final es el ${a.targetBodyFat}%.` : '')
         : `Llegaste a la meta del ${a.targetBodyFat}%. La escalera termina acá a propósito: más abajo ya no es salud, es preparación de competencia.`));
 }
@@ -517,11 +517,11 @@ function bodySection(st) {
       el('div', {},
         xpBar(banda.pct, {
           left: `FFMI ${formatNumber(ultima.ffmi)}`,
-          right: banda.next ? `${banda.next.name} desde ${banda.next.min}` : 'Último escalón',
+          right: banda.next ? `Próxima banda desde ${banda.next.min}` : 'Último escalón',
         })),
       el('p', { class: 'hint', style: 'margin-top:10px' },
         banda.next
-          ? `Sos ${banda.name.toLowerCase()} para tu estatura. Te faltan ${formatNumber(banda.falta)} puntos de FFMI para ${banda.next.name}, que a ${formatNumber(ultima.height)} cm son unos ${formatNumber(Math.round(banda.falta * (ultima.height / 100) ** 2 * 10) / 10)} kg de músculo.`
+          ? `Sos ${banda.name.toLowerCase()} para tu estatura. Te faltan ${formatNumber(banda.falta)} puntos de FFMI para la próxima banda, que a ${formatNumber(ultima.height)} cm son unos ${formatNumber(Math.round(banda.falta * (ultima.height / 100) ** 2 * 10) / 10)} kg de músculo.`
           : 'Por encima de este número casi no hay casos sin ayuda farmacológica, así que lo más probable es que alguna medida esté mal tomada.')));
     if (mediciones.filter((m) => m.ffmi != null).length > 1) {
       root.append(el('div', { class: 'card' },

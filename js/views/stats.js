@@ -187,8 +187,9 @@ function tarjetaDeRango(state) {
       ? `${faltan} Al ritmo de las últimas 4 semanas quedaría a más de dos años, así que la fecha no diría nada.`
       : `${faltan} En las últimas 4 semanas no sumaste XP, así que no hay ritmo del cual proyectar.`;
 
+  // Sin el nombre ni la nota del rango que viene: enterarse al llegar es
+  // media gracia de la escalera, y leerlo acá la quema.
   return el('div', { class: 'card', style: 'margin-top:10px' },
-    cab(`Próximo rango: ${p.titulo.name}`),
-    el('p', { class: 'hint', style: 'margin-top:6px', text: p.titulo.nota }),
+    cab('Próximo rango'),
     el('p', { class: 'hint', style: 'margin-top:6px', text: cuerpo }));
 }
