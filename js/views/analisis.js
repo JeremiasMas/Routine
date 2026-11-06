@@ -113,7 +113,7 @@ function estadoCorto(st, t) {
 function dondeEstas(st) {
   if (!st.strengthOverall) return null;
   const s = st.strengthOverall;
-  const partes = [`Fuerza general: ${s.name}${s.next ? `, camino a ${s.next}` : ''}.`];
+  const partes = [`Fuerza general: ${s.name}.`];
   // El chip de arriba dice otra palabra para el mismo escalón: uno es la
   // escala de fuerza y el otro el nombre que le pone la app. Sin decirlo,
   // parecen dos medidas que no se ponen de acuerdo.
@@ -181,7 +181,7 @@ function detalleGimnasio(st, state) {
       el('div', { style: 'font-weight:700' }, '🎯 Lo que más te conviene empujar'),
       el('p', { class: 'hint', style: 'margin-top:6px' },
         el('b', { text: mejor.nombre }), ': te faltan ', el('b', { text: kg(mejor.faltan) }),
-        ` de 1RM para llegar a ${mejor.nivelSiguiente}`,
+        ' de 1RM para subir un escalón',
         mejor.esPesoCorporal ? ' (de lastre, no de barra)' : '', '. ',
         `Con eso solo, tu fuerza general sube ${Math.round(mejor.delta * 100)}% de una categoría.`),
       el('p', { class: 'hint', style: 'margin-top:6px' },
@@ -366,6 +366,11 @@ function detalleCuerpo(st, state) {
     el('p', { class: 'hint', style: 'margin-top:6px', text: texto })) : null;
 }
 
+/** La definición de una fuente, para leerle el sesgo. */
+function fuenteDe(activity, id) {
+  return (activity?.sources || []).find((f) => f.id === id) || null;
+}
+
 function detalleFuentes(st) {
   const r = repartoDeFuentes(st.activity, st.sourceTotals);
   if (!r) return null;
@@ -377,12 +382,14 @@ function detalleFuentes(st) {
         el('div', { text: f.nombre }),
         el('div', { class: 'row__sub', text: `${formatNumber(f.cantidad)} en total` })),
       el('div', { class: 'row__value', text: `${Math.round(f.pct * 100)}%` })))),
+    // Qué se pierde por apoyarse en una sola. El texto sale de la fuente
+    // fuerte, que es la que tiene el sesgo; antes estaba escrito acá y le
+    // hablaba de francés al análisis de datos.
     r.desbalance > 0.6
       ? el('p', { class: 'hint', style: 'margin-top:8px' },
-          `Casi todo tu francés viene de ${fuerte.nombre}. `,
-          flojo.id === 'cbf'
-            ? 'Duolingo entrena reconocer y producir frases sueltas, pero casi no entrena el oído: sin escuchar a alguien hablando a velocidad real, entender una conversación sigue siendo el cuello de botella.'
-            : 'El podcast entrena el oído, pero escuchar no hace producir: sin ejercicios que te obliguen a armar frases, el vocabulario queda pasivo.')
+          `Casi todo tu ${st.activity.name.toLowerCase()} viene de ${fuerte.nombre}. `,
+          fuenteDe(st.activity, fuerte.id)?.sesgo
+            || `Apoyarte en una sola fuente deja afuera lo que entrena ${flojo.nombre}.`)
       : el('p', { class: 'hint', style: 'margin-top:8px' },
-          'Tenés las dos fuentes equilibradas: una entrena el oído y la otra te hace producir. Así está bien.'));
+          st.activity.equilibrio || 'Tenés las fuentes equilibradas. Así está bien.'));
 }

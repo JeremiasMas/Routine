@@ -33,10 +33,17 @@ export const DEFAULT_ACTIVITIES = [
     // porque mirando el reloj no se sabe cuánto hiciste y contando lecciones
     // sí. Los 8 minutos por lección son una estimación para arrancar: medí una
     // sesión con cronómetro y cambiá el número por el tuyo.
+    // `sesgo` es lo que te queda afuera cuando casi todo viene de esa fuente.
+    // Vive acá y no en la pantalla porque es propio de la disciplina: el
+    // análisis de fuentes es el mismo código para todas, y tenerlo escrito en
+    // la vista hacía que el francés le hablara al análisis de datos.
     sources: [
-      { id: 'curso', name: 'Curso o video', icon: '🎥', unitLabel: 'minutos', minutes: 1, presets: [15, 30, 45, 60] },
-      { id: 'brilliant', name: 'Brilliant', icon: '💡', unitLabel: 'lecciones', minutes: 8, presets: [2, 4, 6] },
+      { id: 'curso', name: 'Curso o video', icon: '🎥', unitLabel: 'minutos', minutes: 1, presets: [15, 30, 45, 60],
+        sesgo: 'Un curso te da el método y el orden, pero mirar no es resolver: sin problemas donde te trabes, queda todo en una teoría que reconocés y no sabés usar.' },
+      { id: 'brilliant', name: 'Brilliant', icon: '💡', unitLabel: 'lecciones', minutes: 8, presets: [2, 4, 6],
+        sesgo: 'Brilliant te hace resolver, pero de a problemas chicos y guiados: sin un curso o un proyecto largo, falta ver cómo se arma un análisis entero de punta a punta.' },
     ],
+    equilibrio: 'Tenés las dos fuentes equilibradas: una te da el método y la otra te hace resolver. Así está bien.',
     tierNames: ['Curioso', 'Analista Jr.', 'Analista', 'Analista Sr.', 'Científico de datos', 'Oráculo'],
     motto: 'Una hora de datos por día construye una carrera.',
   },
@@ -141,9 +148,12 @@ export const DEFAULT_ACTIVITIES = [
      * De ahí que un episodio equivalga a 11 lecciones.
      */
     sources: [
-      { id: 'duolingo', name: 'Duolingo', icon: '🦉', unitLabel: 'lecciones', minutes: 2, presets: [1, 3, 5, 10] },
-      { id: 'cbf', name: 'Coffee Break French', icon: '🎧', unitLabel: 'episodios', minutes: 22, presets: [1, 2] },
+      { id: 'duolingo', name: 'Duolingo', icon: '🦉', unitLabel: 'lecciones', minutes: 2, presets: [1, 3, 5, 10],
+        sesgo: 'Duolingo entrena reconocer y producir frases sueltas, pero casi no entrena el oído: sin escuchar a alguien hablando a velocidad real, entender una conversación sigue siendo el cuello de botella.' },
+      { id: 'cbf', name: 'Coffee Break French', icon: '🎧', unitLabel: 'episodios', minutes: 22, presets: [1, 2],
+        sesgo: 'El podcast entrena el oído, pero escuchar no hace producir: sin ejercicios que te obliguen a armar frases, el vocabulario queda pasivo.' },
     ],
+    equilibrio: 'Tenés las dos fuentes equilibradas: una entrena el oído y la otra te hace producir. Así está bien.',
     // Los niveles reales del Marco Común Europeo de Referencia.
     tierNames: ['A1 · Débutant', 'A2 · Élémentaire', 'B1 · Intermédiaire', 'B2 · Avancé', 'C1 · Autonome', 'C2 · Maîtrise'],
     motto: 'Petit à petit, l’oiseau fait son nid.',
