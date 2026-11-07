@@ -141,3 +141,32 @@ test('la fila lleva barra, rango y acumulado', () => {
   assert.ok(vista.includes('resumenDeDisciplina(st)'), 'la fila perdió el acumulado');
   assert.ok(vista.includes('xpBar(st.level?.pct'), 'la fila perdió la barra de nivel');
 });
+
+test('Progreso no repite los números que la cabecera ya muestra', () => {
+  // La cabecera del jugador está en las cuatro pantallas y ya dice nivel,
+  // racha, días perfectos y XP total. Progreso abría con un "Resumen" de
+  // cuatro casilleros que decía exactamente esos cuatro, doscientos píxeles
+  // más abajo.
+  const cabecera = readFileSync('js/app.js', 'utf8');
+  const limpio = stats.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+  // Sólo lo que se MUESTRA: casilleros y texto interpolado. state.player.xp
+  // como denominador de una barra de porcentaje no es repetir un número.
+  const mostrado = [
+    ...limpio.matchAll(/\bstat\(([^)]*)\)/g),
+    ...limpio.matchAll(/`([^`]*)`/g),
+  ].map((m) => m[1]).join('\n');
+  // [qué dato, cómo lo escribe la cabecera, cómo lo escribiría Progreso]
+  const DATOS = [
+    ['la XP total', 'p.xp', 'state.player.xp'],
+    ['el nivel', 'p.level', 'state.player.level'],
+    ['la racha global', 'state.globalStreak', 'state.globalStreak'],
+    ['los días perfectos', 'state.perfectDays', 'state.perfectDays'],
+  ];
+  for (const [nombre, enCabecera, enProgreso] of DATOS) {
+    assert.ok(cabecera.includes(enCabecera),
+      `la cabecera dejó de mostrar ${nombre}: este test ya no prueba lo que dice`);
+    assert.ok(!mostrado.includes(enProgreso),
+      `Progreso volvió a mostrar ${nombre}, que la cabecera ya tiene arriba`);
+  }
+  assert.ok(!/text: 'Resumen'/.test(limpio), 'volvió la sección Resumen');
+});
