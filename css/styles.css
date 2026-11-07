@@ -931,3 +931,8 @@ button:focus-visible,
   padding: 8px; border-radius: 10px;
 }
 .logger__mas:active { background: var(--panel); color: var(--text); }
+
+/* Una fila del desglose de calorías que superó su meta: el gasto que la
+   movió por encima de lo proyectado a la mañana. */
+.row--pasada { border-color: color-mix(in srgb, var(--gold) 40%, var(--line)); }
+.row--pasada .row__value { color: var(--gold); }

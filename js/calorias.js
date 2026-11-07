@@ -95,10 +95,16 @@ export function kcalDeMision(activity, valor, pesoKg) {
 }
 
 /** Las fases, y cuánto corren el objetivo respecto del gasto. */
+/**
+ * Las fases, cuánto corren el objetivo, y cuánta proteína piden.
+ *
+ * En déficit sube: cuando falta energía, la proteína es lo que decide si lo
+ * que perdés es grasa o músculo. Los gramos son por kilo de peso.
+ */
 export const FASES = {
-  mantener: { nombre: 'Mantener', delta: 0, nota: 'Comés lo que gastás.' },
-  bajar: { nombre: 'Bajar grasa', delta: -400, nota: 'Unos 400 menos: medio kilo de grasa por semana.' },
-  subir: { nombre: 'Ganar músculo', delta: 250, nota: 'Unos 250 más. Algo de grasa viene con el músculo.' },
+  mantener: { nombre: 'Mantener', delta: 0, proteina: 1.8, nota: 'Comés lo que gastás.' },
+  bajar: { nombre: 'Bajar grasa', delta: -400, proteina: 2.0, nota: 'Unos 400 menos: medio kilo de grasa por semana.' },
+  subir: { nombre: 'Ganar músculo', delta: 250, proteina: 1.8, nota: 'Unos 250 más. Algo de grasa viene con el músculo.' },
 };
 export const FASE_POR_DEFECTO = 'mantener';
 
@@ -126,7 +132,9 @@ export function gastoDelDia({ masaMagra = 0, peso = 0, misiones = [], fase = FAS
 
   for (const m of misiones) {
     const kHecho = kcalDeMision(m.activity, m.valor, peso);
-    // La meta sólo cuenta si todavía no la pasaste.
+    // La meta sólo cuenta si todavía no la pasaste. Una misión que hoy no
+    // tocaba llega con meta 0: no se puede proyectar un muay thai que depende
+    // de si tus compañeros se coparon, pero si lo hiciste, se cobra.
     const kProyectado = kcalDeMision(m.activity, Math.max(m.valor || 0, m.meta || 0), peso);
     hecho += kHecho;
     proyectado += kProyectado;
@@ -137,7 +145,11 @@ export function gastoDelDia({ masaMagra = 0, peso = 0, misiones = [], fase = FAS
         nombre: m.activity.name,
         hecho: Math.round(kHecho),
         proyectado: Math.round(kProyectado),
-        pasada: (m.valor || 0) > (m.meta || 0),
+        // Superaste la meta, que no es lo mismo que haberlo hecho sin meta:
+        // una misión fuera de agenda llega con meta 0 y cualquier valor la
+        // "superaría". El dorado quiere decir "te pasaste", y sólo eso.
+        pasada: (m.meta || 0) > 0 && (m.valor || 0) > m.meta,
+        fueraDeAgenda: !(m.meta > 0) && (m.valor || 0) > 0,
       });
     }
   }
@@ -156,16 +168,52 @@ export function gastoDelDia({ masaMagra = 0, peso = 0, misiones = [], fase = FAS
   };
 }
 
+/**
+ * Lo que te queda para comer, que es el único número sobre el que actuás.
+ *
+ * El gasto y el objetivo son el camino; esto es el destino. Si tenés
+ * declaradas tus comidas fijas, lo que sale es el presupuesto de la comida
+ * variable —el almuerzo—; si no, es el objetivo del día entero.
+ */
+export function presupuesto(gasto, { fijoKcal = 0, fijoProteina = 0, peso = 0, fase = FASE_POR_DEFECTO } = {}) {
+  if (!gasto) return null;
+  const porKg = (FASES[fase] || FASES[FASE_POR_DEFECTO]).proteina;
+  const metaProteina = Math.round(porKg * (Number(peso) || 0));
+  const fijo = Math.max(0, Number(fijoKcal) || 0);
+  const fijoProt = Math.max(0, Number(fijoProteina) || 0);
+  return {
+    // Nunca negativo: un día flojo no puede pedirte que devuelvas comida.
+    kcal: Math.max(0, gasto.objetivo - fijo),
+    proteina: Math.max(0, metaProteina - fijoProt),
+    metaProteina,
+    fijoKcal: fijo,
+    fijoProteina: fijoProt,
+    // Con comidas fijas declaradas el número es el de la comida variable.
+    soloVariable: fijo > 0,
+  };
+}
+
 /** El paquete que la pantalla necesita, sacado del estado derivado. */
 export function gastoDesdeElEstado(state, settings = {}, esDeHoy = () => true) {
   const peso = Number(state?.composicion?.weight) || Number(state?.bodyweight) || 0;
   const grasa = state?.composicion?.fatPct;
   const magra = massSplit(peso, grasa)?.lean || 0;
+  // Lo que hoy no tocaba pero hiciste también se cobra: la energía que
+  // quemaste la quemaste, estuviera o no en la agenda. Un muay thai de sábado
+  // son 860 kcal que antes no se veían por ningún lado.
   const misiones = (state?.activities || [])
-    .filter((a) => esDeHoy(a))
     .map((a) => {
       const dia = state.byActivity.get(a.id)?.byDate.get(state.today);
-      return { activity: a, valor: dia?.value || 0, meta: dia?.goal || Number(a.goal) || 0 };
-    });
+      const valor = dia?.value || 0;
+      const agendada = esDeHoy(a);
+      if (!agendada && valor <= 0) return null;
+      return {
+        activity: a,
+        valor,
+        // Sin agenda no hay nada que proyectar: cuenta sólo lo hecho.
+        meta: agendada ? (dia?.goal || Number(a.goal) || 0) : 0,
+      };
+    })
+    .filter(Boolean);
   return gastoDelDia({ masaMagra: magra, peso, misiones, fase: faseDe(settings) });
 }
