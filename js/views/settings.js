@@ -372,9 +372,38 @@ function tarjetaDeFase(navigate, data) {
       style: '--c:#34d399',
     }, opciones),
     el('p', { class: 'hint', style: 'margin-top:10px', text: FASES[actual].nota }),
+    camposDeComidaFija(data),
     el('p', { class: 'hint', style: 'margin-top:6px' },
       'El gasto sale de tu masa magra y de lo que entrenás, no de un multiplicador. ',
       'Los METs de cada actividad son referencias, no mediciones tuyas: ubican, no deciden decimales.'));
+}
+
+/**
+ * Lo que comés todos los días sin pensarlo.
+ *
+ * No es registrar comida: es una constante, como tu estatura. Con esto
+ * cargado, la pantalla principal deja de decirte cuánto gastás y pasa a
+ * decirte lo único sobre lo que decidís: cuánto te queda para la comida
+ * variable.
+ */
+function camposDeComidaFija(data) {
+  const num = (clave, valor) => el('input', {
+    type: 'number', inputmode: 'numeric', min: '0', step: '1', value: valor || '',
+    placeholder: '0',
+    onChange: (e) => updateSettings({ [clave]: Math.max(0, Number(e.target.value) || 0) }),
+  });
+  return el('div', { style: 'margin-top:14px' },
+    el('div', { class: 'field-row' },
+      el('div', { class: 'field' },
+        el('label', { text: 'Comidas fijas (kcal)' }),
+        num('fijoKcal', data.settings?.fijoKcal)),
+      el('div', { class: 'field' },
+        el('label', { text: 'Y su proteína (g)' }),
+        num('fijoProteina', data.settings?.fijoProteina))),
+    el('p', { class: 'hint', style: 'margin-top:-4px' },
+      'Lo que comés todos los días sin decidirlo: desayuno, meriendas, lo de la noche. ',
+      'Cargado una vez, Hoy te muestra lo que te queda para la comida variable en vez del gasto total. ',
+      'Vacío, te muestra el objetivo del día entero.'));
 }
 
 /**

@@ -210,7 +210,10 @@ test('las secciones plegadas son <details>, no un botón a mano', () => {
   // Abrir y cerrar sin estado propio: la vista se vuelve a dibujar entera en
   // cada registro y cualquier bandera nuestra se perdería en el camino.
   assert.ok(/el\('details'/.test(vista), 'lo plegado dejó de ser nativo');
-  assert.equal([...vista.matchAll(/el\('details'/g)].length, 2,
-    'tiene que haber dos: las misiones hechas y la semana sin arrancar');
+  // Las misiones hechas, la semana sin arrancar y el desglose de calorías.
+  assert.ok([...vista.matchAll(/el\('details'/g)].length >= 3,
+    'se perdió alguna de las secciones plegadas');
+  assert.ok(!/plegado--abierto|estaAbierto|setState/.test(vista),
+    'lo plegado volvió a depender de una bandera nuestra, que se pierde al redibujar');
   assert.ok(css.includes('.plegado > summary'));
 });

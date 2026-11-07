@@ -10,7 +10,7 @@ import { chip, xpBar, stat } from '../ui/components.js';
 import {
   microDatos, nivelTexto, resumenDelDia, parValor, partirPorHechas, semanaArrancada,
 } from '../tablero.js';
-import { gastoDesdeElEstado, FASES } from '../calorias.js';
+import { gastoDesdeElEstado, presupuesto, FASES } from '../calorias.js';
 import { openLogger } from '../ui/logger.js';
 import { colorDe } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
@@ -260,40 +260,71 @@ function plegadoDeHechas(lista, state, dateKey, armar) {
  * compendio), no de mediciones tuyas.
  */
 function tarjetaDeCalorias(state) {
+  const settings = getData().settings || {};
   const esDeHoy = (a) => isScheduledWithPauses(a, state.today, state.pausas);
-  const g = gastoDesdeElEstado(state, getData().settings || {}, esDeHoy);
+  const g = gastoDesdeElEstado(state, settings, esDeHoy);
   if (!g) {
     return el('div', { class: 'card', style: 'margin-bottom:4px' },
       el('div', { class: 'row__sub' },
         '🍽 Medite el cuerpo una vez y la app calcula cuánto gastás por día.'));
   }
 
+  const peso = Number(state.composicion?.weight) || Number(state.bodyweight) || 0;
+  const p = presupuesto(g, {
+    fijoKcal: settings.fijoKcal,
+    fijoProteina: settings.fijoProteina,
+    peso,
+    fase: g.fase,
+  });
   const fase = FASES[g.fase];
-  const conMeta = g.delta !== 0;
-  const chip2 = (texto, extra = '') => chip(texto, extra || 'chip--dato');
 
   return el('div', { class: 'card', style: 'margin-bottom:4px' },
-    el('div', { style: 'display:flex;justify-content:space-between;align-items:flex-end;gap:12px' },
-      el('div', {},
-        el('div', { class: 'stat__value', style: 'font-size:1.9rem',
-          text: formatNumber(g.objetivo) }),
-        el('div', { class: 'stat__label',
-          text: conMeta ? `kcal · ${fase.nombre.toLowerCase()}` : 'kcal si cumplís todo' })),
-      el('div', { style: 'text-align:right' },
-        el('div', { class: 'stat__value', style: 'font-size:1.1rem;color:var(--muted)',
-          text: formatNumber(g.gastado) }),
-        el('div', { class: 'stat__label', text: 'vas gastando' }))),
+    el('div', { class: 'stat__label',
+      text: p.soloVariable ? 'Presupuesto de hoy' : 'Para comer hoy' }),
+    el('div', { style: 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:2px' },
+      el('div', { class: 'stat__value', style: 'font-size:2rem', text: formatNumber(p.kcal) }),
+      el('div', { class: 'stat__label', style: 'margin:0', text: 'kcal' }),
+      p.proteina > 0
+        ? chip(`${formatNumber(p.proteina)} g de proteína`, 'chip--vivo')
+        : null),
     el('div', { style: 'margin-top:10px' },
       xpBar(Math.min(1, g.gastado / Math.max(1, g.proyectado)))),
-    el('div', { class: 'quest__micro', style: 'margin-top:10px;flex-wrap:wrap;justify-content:flex-start' },
-      chip2(`🛌 ${formatNumber(g.sedentario)} base`, 'chip--mudo'),
-      g.partes.map((p) => chip2(
-        `${p.icon} ${formatNumber(p.proyectado)}`,
-        p.pasada ? 'chip--vivo' : 'chip--dato'))),
-    conMeta
-      ? el('div', { class: 'row__sub', style: 'margin-top:8px',
-          text: `Gastás ${formatNumber(g.proyectado)}. ${fase.nota}` })
-      : null);
+    desgloseDeCalorias(g, p, fase));
+}
+
+/**
+ * De dónde sale el número, plegado.
+ *
+ * Un número de calorías sin decir de dónde sale no se puede discutir, pero
+ * tampoco hace falta verlo cada vez que abrís la app para saber qué almorzar.
+ */
+function desgloseDeCalorias(g, p, fase) {
+  const linea = (texto, valor, clase = '') => el('div', { class: `row ${clase}` },
+    el('div', { class: 'row__main', text: texto }),
+    el('div', { class: 'row__value', text: valor }));
+
+  return el('details', { class: 'plegado', style: 'margin-top:10px' },
+    el('summary', { class: 'plegado__cabeza' },
+      el('span', { class: 'plegado__tilde', text: '🍽' }),
+      el('b', { text: 'De dónde sale' }),
+      el('span', { class: 'plegado__nota', text: `gastás ${formatNumber(g.proyectado)}` }),
+      el('span', { class: 'plegado__flecha', text: '⌄' })),
+    el('div', { class: 'plegado__cuerpo' },
+      el('div', { class: 'list' },
+        linea('🛌 Existir, digerir, trabajar', formatNumber(g.sedentario)),
+        g.partes.map((x) => linea(
+          `${x.icon} ${x.nombre}`,
+          `+${formatNumber(x.proyectado)}`,
+          x.pasada ? 'row--pasada' : '')),
+        g.delta !== 0 ? linea(`🎯 ${fase.nombre}`, formatNumber(g.delta)) : null,
+        p.soloVariable ? linea('🥣 Tus comidas fijas', `−${formatNumber(p.fijoKcal)}`) : null),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        p.soloVariable
+          ? `Te quedan ${formatNumber(p.kcal)} kcal y ${formatNumber(p.proteina)} g de proteína para la comida variable, sobre una meta de ${formatNumber(p.metaProteina)} g en el día.`
+          : `Meta de proteína del día: ${formatNumber(p.metaProteina)} g. Cargá tus comidas fijas en Ajustes y acá vas a ver lo que te queda para la variable.`),
+      el('p', { class: 'hint', style: 'margin-top:6px' },
+        'El número sale de lo que vas a gastar si cumplís todo, no de lo que llevás: ',
+        'así sirve a la mañana. Sólo se mueve si te pasás de una meta.')));
 }
 
 /** Los tres números del día, con el denominador en chico. */
