@@ -140,6 +140,40 @@ export function nombreDeApp(paquete, nombreNativo = '') {
   return corto.length > 24 ? `${corto.slice(0, 24)}…` : corto;
 }
 
+/** El prefijo del contador que trae el propio teléfono. */
+export const CONTADOR_DEL_TELEFONO = 'com.android.healthconnect.phone';
+
+/** Ese contador, entre los que están escribiendo pasos. */
+export function origenPreferido(origenes) {
+  return (origenes || []).find((o) => String(o.paquete || '').startsWith(CONTADOR_DEL_TELEFONO)) || null;
+}
+
+/**
+ * De cuál contar, sin preguntar.
+ *
+ * Health Connect suma lo que escribe cada app, así que con dos activas el
+ * total sale inflado. Antes eso abría un cartel con botones cada vez; ahora
+ * se resuelve solo: manda el contador del teléfono.
+ *
+ * Una preferencia explícita gana siempre. Sin ella —'auto', que es el valor
+ * de fábrica— se elige el del teléfono, y sólo si está: si no aparece, no se
+ * toca nada, porque adivinar entre dos desconocidas sería peor que sumar.
+ *
+ * @returns {?string} el paquete a usar, '' para sumar todas, o null si ya está bien
+ */
+export function decidirOrigen(origenes, preferencia = 'auto', elegidoAhora = '') {
+  const actual = elegidoAhora || '';
+  if (preferencia && preferencia !== 'auto') {
+    const destino = preferencia === 'todas' ? '' : preferencia;
+    return destino === actual ? null : destino;
+  }
+  const conPasos = (origenes || []).filter((o) => o.pasos > 0);
+  if (conPasos.length < 2) return null;
+  const tel = origenPreferido(conPasos);
+  if (!tel) return null;
+  return tel.paquete === actual ? null : tel.paquete;
+}
+
 /**
  * ¿Hay más de una app aportando pasos hoy? Es la causa más común de que el
  * número de la app no coincida con el de Samsung Health.
@@ -217,6 +251,17 @@ export function conectar() {
     nativo.dias = datos.dias || {};
     nativo.diagnostico = datos.diagnostico || null;
     nativo.origenes = leerOrigenes(datos.origenes);
+
+    // Con dos apps escribiendo, Health Connect las suma y el total sale
+    // inflado. Se resuelve acá y no con un cartel: manda el contador del
+    // teléfono salvo que haya una preferencia guardada. La vuelta que esto
+    // provoca llega con el origen ya elegido, así que no se repite.
+    const destino = decidirOrigen(
+      nativo.origenes,
+      getData().settings?.pasosOrigen,
+      nativo.diagnostico?.origenElegido || '',
+    );
+    if (destino !== null) usarSoloOrigen(destino);
 
     const aCargar = diasACargar(nativo.dias, getData().entries);
     nativo.cargados = aCargar.length;

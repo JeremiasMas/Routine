@@ -13,7 +13,7 @@ import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
   COLUMNAS, COLUMNAS_GIMNASIO, COLUMNAS_CUERPO,
 } from '../csv.js';
-import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, puedeAvisar, estadoDelAviso, programarAviso, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, versionNativa, versionDeAndroid } from '../native.js';
+import { enApp, nativo, mensajeDeEstado, pedirPermiso, instalarHealthConnect, refrescar as refrescarNativo, guardarArchivo, compartirArchivo, puedeCompartir, puedeAvisar, estadoDelAviso, programarAviso, capacidades, hayConflictoDeOrigenes, usarSoloOrigen, origenPreferido, versionNativa, versionDeAndroid } from '../native.js';
 import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { FASES, faseDe } from '../calorias.js';
@@ -76,7 +76,7 @@ export function render({ navigate }) {
 
   // --- Pasos desde Samsung Health ---
   root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Pasos' }), el('small', { text: 'Samsung Health' })));
+    el('h2', { text: 'Pasos' }), el('small', { text: 'Health Connect' })));
 
   // Adentro de la app de Android los pasos llegan solos por Health Connect.
   if (enApp()) root.append(tarjetaNativa(navigate));
@@ -576,6 +576,19 @@ function tarjetaDelWidget() {
  * Estado del puente con Health Connect. Sólo aparece adentro de la app de
  * Android: en Chrome no hay puente que mostrar.
  */
+/**
+ * De cuál se está contando, con el nombre que se ve en pantalla.
+ *
+ * Decía "según Samsung Health" fijo, y en cuanto se contaba del teléfono el
+ * número y la fuente no se correspondían.
+ */
+function nombreDelOrigen() {
+  const elegido = nativo.diagnostico?.origenElegido;
+  if (!elegido) return 'Health Connect';
+  const o = (nativo.origenes || []).find((x) => x.paquete === elegido);
+  return o?.nombre || 'Health Connect';
+}
+
 function tarjetaNativa(navigate) {
   const msg = mensajeDeEstado(nativo.estado);
   const dias = Object.keys(nativo.dias || {}).length;
@@ -588,37 +601,48 @@ function tarjetaNativa(navigate) {
         el('div', { style: 'font-weight:700', text: 'Health Connect' }),
         el('div', { class: 'hint', text: msg.texto }))));
 
-  // Si hay dos apps escribiendo pasos, Health Connect las suma y el total no
-  // coincide con lo que ves en Samsung Health. Es la causa más común.
+  // Con dos apps escribiendo, Health Connect las suma y el total sale
+  // inflado. Antes esto abría un cartel con botones cada vez que entrabas;
+  // ahora `decidirOrigen` ya eligió el contador del teléfono y acá sólo se
+  // dice de cuál se está contando, con la forma de cambiarlo plegada.
   const conflicto = hayConflictoDeOrigenes(nativo.origenes);
   if (conflicto) {
-    card.append(el('div', { class: 'aviso', style: 'margin-top:12px' },
-      el('div', { style: 'font-weight:700' }, '⚠️ Hay ', String(conflicto.cuantas), ' apps contando tus pasos'),
-      el('p', { class: 'hint', style: 'margin-top:6px' },
-        'Health Connect suma lo que escribe cada una, así que el total queda más alto que el de Samsung Health. ',
-        `Hoy suman ${formatNumber(conflicto.total)} pasos entre todas; `,
-        `${conflicto.mayor.nombre} sola aporta ${formatNumber(conflicto.mayor.pasos)}.`),
-      el('div', { class: 'list', style: 'margin-top:10px' },
-        nativo.origenes.map((o) => el('div', { class: 'row' },
-          el('div', { class: 'row__main' },
-            el('div', { text: o.nombre }),
-            el('div', { class: 'row__sub row__sub--id', text: o.paquete })),
-          el('div', { class: 'row__value', text: formatNumber(o.pasos) })))),
-      el('p', { class: 'hint', style: 'margin-top:10px' }, 'Elegí de cuál querés contar:'),
-      el('div', { class: 'btn-row', style: 'margin-top:8px;flex-wrap:wrap' },
-        nativo.origenes.map((o) => el('button', {
-          class: `btn${nativo.diagnostico?.origenElegido === o.paquete ? ' btn--primary' : ''}`,
-          onClick: () => usarSoloOrigen(o.paquete),
-        }, `Sólo ${o.nombre}`)),
-        nativo.diagnostico?.origenElegido
-          ? el('button', { class: 'btn', onClick: () => usarSoloOrigen('') }, 'Sumar todas')
-          : null)));
+    card.append(el('details', { class: 'plegado', style: 'margin-top:12px' },
+      el('summary', { class: 'plegado__cabeza' },
+        el('span', { class: 'plegado__tilde', text: '👟' }),
+        el('b', { text: `Contando: ${nombreDelOrigen()}` }),
+        el('span', { class: 'plegado__nota',
+          text: `${conflicto.cuantas} apps escriben pasos` }),
+        el('span', { class: 'plegado__flecha', text: '⌄' })),
+      el('div', { class: 'plegado__cuerpo' },
+        el('p', { class: 'hint' },
+          'Health Connect suma lo que escribe cada una, así que el total queda más alto ',
+          `que el de cualquiera sola: hoy suman ${formatNumber(conflicto.total)} entre todas. `,
+          'Por eso se cuenta de una.'),
+        el('div', { class: 'list', style: 'margin-top:10px' },
+          nativo.origenes.map((o) => el('div', { class: 'row' },
+            el('div', { class: 'row__main' },
+              el('div', { text: o.nombre }),
+              el('div', { class: 'row__sub row__sub--id', text: o.paquete })),
+            el('div', { class: 'row__value', text: formatNumber(o.pasos) })))),
+        el('div', { class: 'btn-row', style: 'margin-top:10px;flex-wrap:wrap' },
+          nativo.origenes.map((o) => el('button', {
+            class: `btn${nativo.diagnostico?.origenElegido === o.paquete ? ' btn--primary' : ''}`,
+            onClick: () => { updateSettings({ pasosOrigen: o.paquete }); usarSoloOrigen(o.paquete); navigate?.(); },
+          }, `Sólo ${o.nombre}`)),
+          el('button', {
+            class: `btn${!nativo.diagnostico?.origenElegido ? ' btn--primary' : ''}`,
+            onClick: () => { updateSettings({ pasosOrigen: 'todas' }); usarSoloOrigen(''); navigate?.(); },
+          }, 'Sumar todas')),
+        el('p', { class: 'hint', style: 'margin-top:8px' },
+          'El contador del teléfono sólo cuenta lo que caminás con el teléfono encima. ',
+          'Si salís con el reloj y sin él, esos pasos no entran.'))));
   }
 
   if (msg.ok) {
     card.append(el('p', { class: 'hint', style: 'margin-top:10px' },
       hoy != null
-        ? `Hoy llevás ${formatNumber(hoy)} pasos según Samsung Health. `
+        ? `Hoy llevás ${formatNumber(hoy)} pasos, contados de ${nombreDelOrigen()}. `
         : 'Todavía no hay pasos registrados hoy. ',
       dias > 0 ? `Se sincronizan los últimos ${dias} días con datos, cada vez que abrís la app.` : ''));
     card.append(el('div', { class: 'btn-row', style: 'margin-top:12px' },
