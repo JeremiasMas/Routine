@@ -12,13 +12,10 @@ export function render() {
   const state = getState();
   const root = el('div', {});
 
-  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Resumen' })));
-  root.append(el('div', { class: 'stat-grid' },
-    stat(formatNumber(state.player.xp), 'XP total'),
-    stat(state.player.level, 'Nivel jugador'),
-    stat(state.globalStreak, 'Racha global'),
-    stat(state.perfectDays, 'Días perfectos')));
-
+  // El "Resumen" de cuatro casilleros vivía acá y repetía los cuatro números
+  // que la cabecera ya muestra doscientos píxeles más arriba: XP total, nivel,
+  // racha y días perfectos. Cuatro casilleros grandes para no decir nada
+  // nuevo, justo donde la pantalla tiene que empezar a contarte algo.
   const rumbo = tarjetaDeRango(state);
   if (rumbo) root.append(rumbo);
 
@@ -173,11 +170,13 @@ function tarjetaDeRango(state) {
     el('div', { style: 'font-weight:700', text: texto }));
 
   if (p.estado === 'ultimo') {
+    // Sin el nombre, la nota ni el nivel: los tres están en la cabecera, que
+    // se ve en esta misma pantalla sin scrollear. Lo único que esta tarjeta
+    // sabe y la cabecera no es que la escalera se terminó.
     return el('div', { class: 'card', style: 'margin-top:10px' },
-      cab(`${p.titulo.name} · nivel ${state.player.level}`),
-      el('p', { class: 'hint', style: 'margin-top:6px', text: p.titulo.nota }),
+      cab('Último rango'),
       el('p', { class: 'hint', style: 'margin-top:6px',
-        text: 'Último rango de la escalera. De acá en adelante lo que sube es el nivel.' }));
+        text: 'Llegaste al final de la escalera. De acá en adelante lo que sube es el nivel.' }));
   }
 
   const faltan = `Te faltan ${formatNumber(p.xpFaltante)} XP para el nivel ${p.nivel}.`;

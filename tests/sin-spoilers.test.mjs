@@ -38,11 +38,19 @@ test('la proyección de rango no adelanta ni el nombre ni su nota', () => {
 });
 
 test('lo que ya alcanzaste sí se nombra', () => {
-  // La regla es sobre lo que viene, no sobre lo que sos. Tu rango actual y el
-  // nivel al que acabás de subir se siguen diciendo.
-  const stats = fuentes.find(([r]) => r.endsWith('stats.js'))[1];
-  assert.match(stats, /\$\{p\.titulo\.name\} · nivel/,
-    'se perdió el rango propio en el último escalón, que no es un spoiler');
+  // La regla es sobre lo que viene, no sobre lo que sos: tu rango actual, su
+  // nota y tu nivel se siguen diciendo.
+  //
+  // Antes este test los buscaba en la tarjeta del último escalón de Progreso.
+  // Los tres viven en la cabecera, que se ve en las cuatro pantallas sin
+  // scrollear, así que repetirlos abajo no era "no spoilear": era decir dos
+  // veces lo mismo. Lo que el test cuida es que sigan estando, no dónde.
+  // app.js no está en js/views ni js/ui, así que no entra en `fuentes`.
+  const cabecera = sinComentarios(readFileSync('js/app.js', 'utf8'));
+  assert.match(cabecera, /text: p\.title\.name/,
+    'se perdió el rango propio, que no es un spoiler');
+  assert.match(cabecera, /text: p\.title\.nota/, 'se perdió la nota del rango propio');
+  assert.match(cabecera, /text: String\(p\.level\)/, 'se perdió el nivel');
 });
 
 test('se sigue diciendo cuánto falta', () => {
