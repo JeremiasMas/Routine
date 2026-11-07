@@ -1,10 +1,10 @@
-// Progreso global: resumen, mapa de calor, XP por semana y de dónde sale la XP.
+// Progreso global: rumbo, disciplinas, tu año en XP y de dónde sale la XP.
 // La lista de disciplinas la arma seccionAnalisis, que es una sola.
-import { el, formatNumber, formatValue, addDays, weekStart, shortDate, monthName, keyToDate, daysBetween, plural } from '../utils.js';
+import { el, formatNumber, formatValue, shortDate, monthName, keyToDate, plural } from '../utils.js';
 import { getState } from '../state.js';
-import { stat, xpBar, barChart } from '../ui/components.js';
+import { stat, xpBar } from '../ui/components.js';
 import { seccionAnalisis } from './analisis.js';
-import { resumenDeVentana, proyeccionDeRango } from '../analisis.js';
+import { resumenDeVentana, proyeccionDeRango, semanasDeXp } from '../analisis.js';
 import { isScheduled } from '../derive.js';
 import { esLibre } from '../pausas.js';
 
@@ -25,19 +25,12 @@ export function render() {
   const analisis = seccionAnalisis(state);
   if (analisis) root.append(analisis);
 
+  // El mapa de calor y las barras de XP por semana eran dos lecturas de lo
+  // mismo, una abajo de la otra, cada una con su eje de tiempo. Ahora es una
+  // sola figura: la barra de cada semana cuelga de su propia columna de días.
   root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Tu año' }), el('small', { text: 'XP por día' })));
-  root.append(el('div', { class: 'card' }, heatmap(state)));
-
-  // --- XP por semana ---
-  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'XP por semana' })));
-  const weeks = Array.from({ length: 12 }, (_, i) => {
-    const start = weekStart(addDays(state.today, (i - 11) * 7));
-    let xp = 0;
-    for (let d = 0; d < 7; d++) xp += state.daily.get(addDays(start, d))?.xp || 0;
-    return { label: shortDate(start), short: i % 3 === 0 ? shortDate(start) : '', value: xp, met: true };
-  });
-  root.append(el('div', { class: 'card' }, barChart(weeks, { color: 'var(--accent-2)' })));
+    el('h2', { text: 'Tu año' }), el('small', { text: 'por día y por semana' })));
+  root.append(el('div', { class: 'card' }, anioEnXp(state)));
 
   // El ranking de actividades vivía acá abajo y repetía las mismas ocho filas
   // que "Dónde estás": emoji, nombre y rango, con el gimnasio mostrando dos
@@ -63,39 +56,78 @@ function breakdownRow(label, value, total) {
     el('div', { class: 'row__value', text: formatNumber(value) }));
 }
 
-function heatmap(state) {
-  const weeksBack = 26;
-  const start = weekStart(addDays(state.today, -weeksBack * 7));
-  const totalDays = daysBetween(start, state.today) + 1;
-  const max = Math.max(60, ...[...state.daily.values()].map((d) => d.xp));
-  const grid = el('div', { class: 'heatmap' });
-  const months = [];
-  for (let i = 0; i < totalDays; i++) {
-    const date = addDays(start, i);
-    const info = state.daily.get(date);
-    const xp = info?.xp || 0;
-    const intensity = xp > 0 ? 0.22 + Math.min(1, xp / max) * 0.78 : 0;
-    const color = info?.perfect
-      ? 'var(--gold)'
-      : xp > 0 ? `color-mix(in srgb, var(--heat) ${Math.round(intensity * 100)}%, rgba(255,255,255,.06))` : '';
+/**
+ * Medio año de XP en una sola figura.
+ *
+ * Arriba, un cuadrito por día: para qué sirve es para ver la forma de tu
+ * constancia —los huecos, las rachas, los domingos—. Abajo, colgando de la
+ * misma columna, la barra de esa semana: para qué sirve es para ver la
+ * magnitud, que en cuadritos de doce píxeles no se lee.
+ *
+ * Vivían separadas, cada una con su propio eje de tiempo y su propio título,
+ * y había que ir y volver para saber de qué semana hablaba cada una. Con el
+ * eje compartido es una sola lectura: mirás una columna y tenés el detalle
+ * arriba y el total abajo.
+ *
+ * La semana en curso va aparte: todavía le faltan días, y una barra a medio
+ * llenar al lado de semanas enteras se lee como un derrumbe. Va rayada y lo
+ * dice la leyenda.
+ */
+function anioEnXp(state) {
+  const { semanas, maxDia, maxSemana } = semanasDeXp(state, state.today);
+
+  const grid = el('div', { class: 'anio' });
+  let mesDibujado = -1;
+  for (const sem of semanas) {
+    for (const dia of sem.dias) {
+      if (!dia) { grid.append(el('div', { class: 'anio__dia anio__dia--futuro' })); continue; }
+      const intensidad = dia.xp > 0 ? 0.22 + Math.min(1, dia.xp / maxDia) * 0.78 : 0;
+      const color = dia.perfecto
+        ? 'var(--gold)'
+        : dia.xp > 0
+          ? `color-mix(in srgb, var(--heat) ${Math.round(intensidad * 100)}%, rgba(255,255,255,.06))`
+          : '';
+      grid.append(el('div', {
+        class: 'anio__dia',
+        style: color ? `background:${color}` : '',
+        title: `${dia.fecha}: ${formatNumber(dia.xp)} XP${dia.perfecto ? ' · día perfecto' : ''}`,
+      }));
+    }
+    // Una semana de cero no es una barra chiquita: es una raya apagada. Con
+    // el mismo color que las demás, media pantalla de ceros se lee como que
+    // algo hiciste todas esas semanas.
+    const vacia = sem.total <= 0;
+    const alto = vacia ? 0 : Math.max(6, (sem.total / maxSemana) * 100);
+    const marca = `${sem.enCurso ? ' anio__relleno--curso' : ''}${vacia ? ' anio__relleno--cero' : ''}`;
     grid.append(el('div', {
-      class: 'heatmap__cell',
-      style: color ? `background:${color}` : '',
-      title: `${date}: ${xp} XP${info?.perfect ? ' · día perfecto' : ''}`,
-    }));
-    const d = keyToDate(date);
-    if (d.getDate() <= 7 && d.getDay() === 1) months.push(monthName(d.getMonth()));
+      class: 'anio__barra',
+      title: `Semana del ${shortDate(sem.lunes)}: ${formatNumber(sem.total)} XP${sem.enCurso ? ' hasta hoy' : ''}`,
+    }, el('div', { class: `anio__relleno${marca}`, style: `height:${alto}%` })));
+    // El mes se escribe una vez, en su primera semana. El texto es más ancho
+    // que la columna y se desborda sobre la siguiente, que está vacía.
+    const mes = keyToDate(sem.lunes).getMonth();
+    const nuevo = mes !== mesDibujado;
+    mesDibujado = mes;
+    grid.append(el('div', { class: 'anio__mes', text: nuevo ? monthName(mes) : '' }));
   }
+
+  // Cada par muestra+texto va en su propio grupo: si la leyenda tiene que
+  // cortarse en dos líneas, se corta entre grupos y no entre el cuadrito y
+  // la palabra que lo explica.
+  const grupo = (...hijos) => el('span', { class: 'anio__grupo' }, ...hijos);
+  const muestra = (estilo) => el('span', { class: 'anio__dia', style: estilo });
   return el('div', {},
     grid,
-    el('div', { class: 'heatmap__legend' },
-      el('span', { text: 'menos' }),
-      ...[0.15, 0.4, 0.7, 1].map((i) => el('span', {
-        class: 'heatmap__cell',
-        style: `background:color-mix(in srgb, var(--heat) ${i * 100}%, rgba(255,255,255,.06))`,
-      })),
-      el('span', { class: 'heatmap__cell', style: 'background:var(--gold)' }),
-      el('span', { text: 'día perfecto' })));
+    el('div', { class: 'anio__leyenda' },
+      grupo(
+        el('span', { text: 'menos' }),
+        ...[0.15, 0.4, 0.7, 1].map((i) => muestra(
+          `background:color-mix(in srgb, var(--heat) ${i * 100}%, rgba(255,255,255,.06))`)),
+        el('span', { text: 'más' })),
+      grupo(muestra('background:var(--gold)'), el('span', { text: 'día perfecto' })),
+      grupo(
+        el('span', { class: 'anio__relleno anio__relleno--curso anio__muestra' }),
+        el('span', { text: 'semana en curso' }))));
 }
 
 

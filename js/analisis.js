@@ -786,3 +786,61 @@ export function desajustesDeLaRutina(plantillas = GYM_TEMPLATES, porDefecto = DE
     porId: new Map(todo.map((f) => [f.id, f])),
   };
 }
+
+/**
+ * Medio año de XP, partido en semanas, para dibujarlo en una sola figura.
+ *
+ * Devuelve para cada semana sus siete días y su total, y las dos escalas con
+ * las que se pinta. Vive acá y no en la vista porque tiene tres decisiones
+ * que no son de dibujo y que si se rompen mienten en silencio:
+ *
+ * 1. Un día que todavía no llegó es `null`, no un día de cero XP. Si no, el
+ *    miércoles la semana aparece con cuatro días en blanco como si los
+ *    hubieras fallado.
+ * 2. La semana en curso queda marcada, porque le faltan días: una barra a
+ *    medio llenar al lado de semanas enteras se lee como un derrumbe.
+ * 3. Y por eso mismo no entra en el máximo con el que se escalan las barras.
+ *    Un lunes a la mañana la semana en curso vale casi cero; si fijara la
+ *    escala, todas las demás se irían al techo.
+ *
+ * El día, en cambio, se escala contra tu mejor día de SIEMPRE y no contra el
+ * mejor de la ventana: así un celeste fuerte significa lo mismo cada vez que
+ * entrás, y una mala racha no repinta de colores vivos los días flojos.
+ *
+ * @param {object} state  el estado derivado
+ * @param {string} hoy
+ * @param {number} semanasAtras  cuántas semanas mirar hacia atrás
+ */
+export function semanasDeXp(state, hoy, semanasAtras = 26) {
+  const diario = state?.daily || new Map();
+  const inicio = weekStart(addDays(hoy, -semanasAtras * 7));
+  const semanas = [];
+  for (let s = 0; ; s++) {
+    const lunes = addDays(inicio, s * 7);
+    if (lunes > hoy) break;
+    const dias = [];
+    let total = 0;
+    let enCurso = false;
+    for (let d = 0; d < 7; d++) {
+      const fecha = addDays(lunes, d);
+      if (fecha > hoy) { dias.push(null); enCurso = true; continue; }
+      const info = diario.get(fecha);
+      const xp = info?.xp || 0;
+      dias.push({ fecha, xp, perfecto: !!info?.perfect });
+      total += xp;
+    }
+    semanas.push({ lunes, dias, total, enCurso });
+  }
+  const cerradas = semanas.filter((s) => !s.enCurso);
+  return {
+    semanas,
+    maxDia: Math.max(PISO_DEL_DIA, ...[...diario.values()].map((d) => d.xp || 0)),
+    maxSemana: Math.max(1, ...cerradas.map((s) => s.total)),
+  };
+}
+
+/**
+ * Piso de la escala del día: sin esto, el primer día con 30 XP de una cuenta
+ * nueva se pinta del celeste más fuerte y no queda color para crecer.
+ */
+const PISO_DEL_DIA = 60;

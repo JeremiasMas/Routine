@@ -14,6 +14,7 @@
   --ok: #34d399;
   --accent-2: #a78bfa;      /* el segundo color de los degradés */
   --heat: #38bdf8;          /* el mapa de calor del año */
+  --anio-cell: 11px;        /* el lado del cuadrito de un día */
   --fire: #ffb86b;          /* la racha */
   --shield: #93c5fd;        /* los escudos */
   --sheet-a: #131a33;       /* el panel deslizante */
@@ -596,9 +597,40 @@ button:focus-visible,
 .bars__axis { display: flex; gap: 3px; margin-top: 6px; font-size: .58rem; color: var(--muted); }
 .bars__axis span { flex: 1; text-align: center; }
 
-.heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
-.heatmap__cell { width: 12px; height: 12px; border-radius: 3px; background: rgba(255,255,255,.06); }
-.heatmap__legend { display: flex; align-items: center; gap: 6px; font-size: .68rem; color: var(--muted); margin-top: 8px; justify-content: flex-end; }
+/* Tu año: siete filas de días, una de barras semanales y una de meses, todas
+   en la misma grilla para que la columna de una semana sea literalmente la
+   misma columna en las tres lecturas. El cuadrito se encoge hasta 8px para
+   que medio año entre en un teléfono angosto sin scroll lateral. */
+.anio {
+  display: grid; grid-auto-flow: column;
+  grid-auto-columns: minmax(8px, 1fr);
+  grid-template-rows: repeat(7, var(--anio-cell)) 34px 13px;
+  gap: 2px; padding-bottom: 2px;
+}
+.anio__dia { height: var(--anio-cell); border-radius: 2px; background: rgba(255,255,255,.06); }
+.anio__dia--futuro { background: none; }
+.anio__barra { display: flex; align-items: flex-end; padding-top: 7px; }
+.anio__relleno { width: 100%; min-height: 2px; border-radius: 2px 2px 1px 1px; background: var(--accent-2); }
+/* En curso: le faltan días, así que no se compara de igual a igual. */
+.anio__relleno--curso {
+  background: repeating-linear-gradient(135deg,
+    var(--accent-2) 0 2px, transparent 2px 4px);
+  outline: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent);
+  outline-offset: -1px;
+}
+.anio__relleno--cero { background: rgba(255,255,255,.09); outline: none; }
+.anio__mes {
+  font-size: .6rem; color: var(--muted); line-height: 13px;
+  white-space: nowrap; overflow: visible;
+}
+.anio__leyenda {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  font-size: .68rem; color: var(--muted); margin-top: 10px; justify-content: flex-end;
+}
+.anio__leyenda .anio__dia { width: var(--anio-cell); flex: 0 0 var(--anio-cell); }
+.anio__grupo { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.anio__grupo + .anio__grupo { margin-left: 8px; }
+.anio__muestra { width: var(--anio-cell); height: var(--anio-cell); flex: 0 0 var(--anio-cell); }
 
 .list { display: grid; gap: 8px; }
 .row {
