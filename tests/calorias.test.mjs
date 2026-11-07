@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   metabolismoBasal, kcalDeActividad, minutosDePasos, kcalDeMision, gastoDelDia, presupuesto,
   faseDe, FASES, METS, FACTOR_SEDENTARIO, PASOS_YA_CONTADOS, MINUTOS_POR_SERIE,
+  gastoDesdeElEstado,
 } from '../js/calorias.js';
 import { DEFAULT_ACTIVITIES } from '../js/config.js';
 
@@ -220,15 +221,85 @@ test('lo que no tocaba y no hiciste no se proyecta', () => {
   assert.equal(g.proyectado, g.sedentario);
 });
 
+/**
+ * Un estado mínimo como el que devuelve derive: lo que gastoDesdeElEstado
+ * realmente lee. Antes esto se verificaba leyendo el texto de la función, que
+ * pasaba igual si el cálculo quedaba mal.
+ */
+function estadoFalso({ hoy, registros = {}, descargas = [], actividades }) {
+  const activities = actividades || [de('gym'), de('pasos'), de('muaythai')];
+  const byActivity = new Map(activities.map((a) => [a.id, {
+    byDate: new Map(registros[a.id] ? [[hoy, registros[a.id]]] : []),
+  }]));
+  return {
+    today: hoy,
+    descargas,
+    activities,
+    byActivity,
+    composicion: { weight: 78, fatPct: 15.6 },
+  };
+}
+
+// 2026-11-06 es viernes: pecho y piernas, 35 series. 2026-11-07, sábado: nada.
+const VIERNES = '2026-11-06';
+const SABADO = '2026-11-07';
+// partes no lleva la meta, lleva su costo: la proyección del gimnasio en kcal
+// es la huella de cuántas series se proyectaron.
+const gymProyectado = (g) => g.partes.find((p) => p.id === 'gym')?.proyectado ?? 0;
+const kcalDeSeries = (n) => Math.round(kcalDeMision(de('gym'), n, 78));
+
 test('el adaptador no descarta lo registrado fuera de agenda', () => {
-  const fuente = readFileSync('js/calorias.js', 'utf8');
-  const f = fuente.slice(fuente.indexOf('export function gastoDesdeElEstado'));
-  const cuerpo = f.slice(0, f.indexOf('\n}'));
-  assert.ok(!/\.filter\(\(a\) => esDeHoy\(a\)\)/.test(cuerpo),
-    'volvió el filtro que descartaba el muay thai de sábado');
-  assert.match(cuerpo, /if \(!agendada && valor <= 0\) return null;/);
-  assert.match(cuerpo, /meta: agendada \? /,
-    'una misión fuera de agenda no puede proyectar contra su meta');
+  // Un muay thai de sábado no está en la agenda, pero si lo cargaste la
+  // energía se gastó: tiene que aparecer en el gasto del día.
+  const estado = estadoFalso({ hoy: SABADO, registros: { muaythai: { value: 1 } } });
+  const g = gastoDesdeElEstado(estado, {}, (a) => a.id === 'pasos');
+  assert.ok(g.partes.some((p) => p.id === 'muaythai'), 'el muay thai de sábado no se cobró');
+});
+
+test('lo registrado fuera de agenda se cobra por lo hecho, no por una meta', () => {
+  // Un sábado no toca gimnasio. Si igual fuiste y cargaste 10 series, son 10:
+  // no se puede proyectar la rutina entera sobre un día que no estaba agendado,
+  // porque el número de la mañana serviría para comprar comida que no gastaste.
+  const estado = estadoFalso({ hoy: SABADO, registros: { gym: { value: 10 } } });
+  const g = gastoDesdeElEstado(estado, {}, (a) => a.id === 'pasos');
+  assert.equal(gymProyectado(g), kcalDeSeries(10), 'proyectó una meta en un día sin agenda');
+  const parte = g.partes.find((p) => p.id === 'gym');
+  assert.equal(parte.fueraDeAgenda, true);
+  assert.equal(parte.pasada, false, 'sin meta no te podés haber pasado de ella');
+});
+
+test('lo que no está en agenda y no se hizo no proyecta nada', () => {
+  const estado = estadoFalso({ hoy: SABADO });
+  const g = gastoDesdeElEstado(estado, {}, (a) => a.id === 'pasos');
+  assert.ok(!g.partes.some((p) => p.id === 'muaythai'),
+    'un sábado sin muay thai no puede proyectar uno');
+});
+
+test('a la mañana el gimnasio proyecta la rutina del día, no la meta genérica', () => {
+  // Sin registro todavía. El viernes toca pecho y piernas: 35 series, no las
+  // 30 genéricas de la actividad.
+  const estado = estadoFalso({ hoy: VIERNES });
+  const g = gastoDesdeElEstado(estado, {}, (a) => a.id === 'gym');
+  assert.equal(gymProyectado(g), kcalDeSeries(35),
+    'proyectó la meta genérica en vez de la rutina del viernes');
+  assert.notEqual(kcalDeSeries(35), kcalDeSeries(30), 'el test no distinguiría 35 de 30');
+});
+
+test('en semana de descarga el gimnasio proyecta la mitad', () => {
+  const estado = estadoFalso({ hoy: VIERNES, descargas: ['2026-11-02'] });
+  const g = gastoDesdeElEstado(estado, {}, (a) => a.id === 'gym');
+  assert.equal(gymProyectado(g), kcalDeSeries(18), 'la descarga no bajó la proyección');
+  const normal = gastoDesdeElEstado(estadoFalso({ hoy: VIERNES }), {}, (a) => a.id === 'gym');
+  assert.ok(g.proyectado < normal.proyectado,
+    'una semana de descarga no puede proyectar el mismo gasto que una normal');
+});
+
+test('con el día ya registrado manda la meta que guardó derive', () => {
+  // derive ya resolvió plantilla y descarga cuando construyó el historial:
+  // esa meta gana, para que el pasado se juzgue con la meta de entonces.
+  const estado = estadoFalso({ hoy: VIERNES, registros: { gym: { value: 20, goal: 28 } } });
+  const g = gastoDesdeElEstado(estado, {}, (a) => a.id === 'gym');
+  assert.equal(gymProyectado(g), kcalDeSeries(28));
 });
 
 /* ---------------------------------------------------------------------------

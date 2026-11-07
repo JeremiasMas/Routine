@@ -5,7 +5,7 @@ import {
   ESTADOS, CADA_CUANTAS_SEMANAS,
 } from '../js/descargas.js';
 import { readFileSync } from 'node:fs';
-import { derive } from '../js/derive.js';
+import { derive, metaDelDia } from '../js/derive.js';
 import { DEFAULT_ACTIVITIES, templateForDay, plannedSets } from '../js/config.js';
 
 const gym = DEFAULT_ACTIVITIES.find((a) => a.id === 'gym');
@@ -302,4 +302,64 @@ test('el registrador usa el objetivo de descarga, no el récord', () => {
     'y el objetivo también');
   assert.match(src, /semanaDeDescarga && objetivo\) \? objetivo\.peso/,
     'la precarga no puede traer el peso del récord en descarga');
+});
+
+// ---------------------------------------------------------------------------
+// metaDelDia: la única puerta a "cuánto toca hoy"
+// ---------------------------------------------------------------------------
+
+test('metaDelDia usa la plantilla del día, no la meta genérica', () => {
+  // Sin registro todavía —el caso de la mañana— la rutina del día es la que
+  // manda. El lunes es espalda y bíceps; la meta genérica de la actividad es
+  // otra, y era la que se usaba antes.
+  const esperada = plannedSets(templateForDay(1));
+  assert.equal(metaDelDia(gym, LUNES, {}), esperada);
+  assert.notEqual(esperada, Number(gym.goal), 'el test no distinguiría una de la otra');
+  assert.equal(metaDelDia(gym, MIERCOLES, {}), plannedSets(templateForDay(3)));
+});
+
+test('metaDelDia parte la meta al medio en semana de descarga', () => {
+  // El agujero que esto cierra: a la mañana de un día de descarga el tablero
+  // pedía la rutina entera, porque la mitad sólo se aplicaba al construir el
+  // historial y el historial no existe hasta que registrás algo.
+  assert.equal(metaDelDia(gym, LUNES, { descargas: [LUNES] }),
+    metaDeDescarga(plannedSets(templateForDay(1))));
+  assert.ok(metaDelDia(gym, LUNES, { descargas: [LUNES] }) < metaDelDia(gym, LUNES, {}),
+    'la descarga tiene que pedir menos que una semana normal');
+});
+
+test('metaDelDia respeta la meta que viaja en el registro', () => {
+  // El pasado se juzga con la meta de entonces: si la sesión guardó 28, la
+  // meta de ese día es 28 aunque la plantilla de hoy planee otra cosa.
+  assert.equal(metaDelDia(gym, LUNES, { entry: { meta: 28 } }), 28);
+});
+
+test('metaDelDia no le toca la meta a lo que no es gimnasio', () => {
+  const pasos = DEFAULT_ACTIVITIES.find((a) => a.id === 'pasos');
+  assert.equal(metaDelDia(pasos, LUNES, { descargas: [LUNES] }), Number(pasos.goal));
+});
+
+test('metaDelDia saca la meta del agua del peso de ese día', () => {
+  const agua = DEFAULT_ACTIVITIES.find((a) => a.id === 'agua');
+  const conPeso = metaDelDia(agua, LUNES, { pesoCorporal: 62 });
+  assert.ok(conPeso > 0);
+  assert.notEqual(conPeso, metaDelDia(agua, LUNES, { pesoCorporal: 90 }),
+    'el peso tiene que mover la meta del agua');
+});
+
+test('el tablero resuelve la meta del día por metaDelDia y le pasa las descargas', () => {
+  // El tablero no se puede renderizar acá, así que se verifica el cableado:
+  // sin las descargas, metaDelDia devuelve la rutina entera y un viernes de
+  // descarga volvería a decir 0/35 hasta la primera serie.
+  const vista = readFileSync('js/views/today.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+  assert.match(vista, /metaDelDia\(activity, dateKey, \{ descargas: state\.descargas \}\)/);
+  assert.ok(!/\bgoalFor\b/.test(vista),
+    'volvió goalFor, que no sabe de plantillas ni de descargas');
+});
+
+test('las calorías resuelven la meta del día por metaDelDia y le pasan las descargas', () => {
+  const fuente = readFileSync('js/calorias.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+  assert.match(fuente, /metaDelDia\(a, state\.today, \{ descargas: state\.descargas/);
 });

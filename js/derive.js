@@ -1,7 +1,7 @@
 // Deriva TODO el estado de juego (XP, niveles, rachas, récords, logros)
 // a partir del historial crudo. Es una función pura: mismo historial,
 // mismo resultado. Así nunca se desincroniza nada.
-import { ACHIEVEMENTS, BONUS, TIERS, templateById, plannedSets, esMancuerna, DEFAULT_SETS } from './config.js';
+import { ACHIEVEMENTS, BONUS, TIERS, templateById, templateForDay, plannedSets, esMancuerna, DEFAULT_SETS } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier, esSerieFiable, REPS_CALIBRACION,
@@ -115,6 +115,35 @@ export function goalFor(activity, entry, { pesoCorporal = 0 } = {}) {
     if (planned > 0) return planned;
   }
   return Number(activity.goal) || 1;
+}
+
+/**
+ * La meta de una actividad en una fecha, con todo lo que la mueve.
+ *
+ * Había tres caminos para esto —este archivo, el tablero y las calorías— y
+ * dos se olvidaban de la descarga, porque la mitad sólo se aplicaba al
+ * construir el historial y el historial no existe hasta que registrás algo.
+ *
+ * El resultado: un viernes de descarga el tablero decía 0/35 hasta que
+ * cargabas la primera serie, y las calorías proyectaban 30 series genéricas
+ * cualquier día, descarga incluida. Eran 124 kcal de más por día en la
+ * semana en que entrenás la mitad.
+ *
+ * @param {object} activity
+ * @param {string} fecha
+ * @param {{entry?:object, descargas?:string[], pesoCorporal?:number}} ctx
+ */
+export function metaDelDia(activity, fecha, { entry = null, descargas = [], pesoCorporal = 0 } = {}) {
+  if (!activity) return 0;
+  // Sin registro, la rutina del día es la que manda: la plantilla que toca
+  // ese día de la semana.
+  const rutina = activity.kind === 'gym'
+    ? (templateById(entry?.templateId) || templateForDay(keyToDate(fecha).getDay()))
+    : null;
+  const base = entry || (rutina ? { templateId: rutina.id } : null);
+  const plena = goalFor(activity, base, { pesoCorporal });
+  if (activity.kind !== 'gym' || !esDescarga(descargas, fecha)) return plena;
+  return metaDeDescarga(plena);
 }
 
 /**
@@ -325,10 +354,7 @@ export function derive(data, today = todayKey()) {
       // En una semana de descarga la meta del gimnasio es la mitad. Sin esto,
       // una descarga bien hecha aparecía como tres días incompletos y la app
       // empujaba a hacer series de más, que es lo contrario de descargar.
-      const metaPlena = goalFor(a, raw, { pesoCorporal });
-      const goal = a.kind === 'gym' && esDescarga(descargas, date)
-        ? metaDeDescarga(metaPlena)
-        : metaPlena;
+      const goal = metaDelDia(a, date, { entry: raw, descargas, pesoCorporal });
       const met = value >= goal;
       const agendado = isScheduled(a, date);
       const scheduled = agendado && !libreDe(a.id);

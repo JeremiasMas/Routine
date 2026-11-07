@@ -10,6 +10,7 @@
  * la app ya mide, y cada actividad se cobra por su MET conocido.
  */
 import { massSplit } from './body.js';
+import { metaDelDia } from './derive.js';
 
 /**
  * Lo que gasta el cuerpo en reposo absoluto, por Katch-McArdle.
@@ -211,7 +212,13 @@ export function gastoDesdeElEstado(state, settings = {}, esDeHoy = () => true) {
         activity: a,
         valor,
         // Sin agenda no hay nada que proyectar: cuenta sólo lo hecho.
-        meta: agendada ? (dia?.goal || Number(a.goal) || 0) : 0,
+        // Con agenda, la meta del día de verdad: la plantilla que toca y la
+        // descarga si estás en una. Antes caía en a.goal —30 series genéricas—
+        // hasta que registrabas algo, y eso proyectaba 124 kcal de más por día
+        // en la semana en que entrenás la mitad.
+        meta: agendada
+          ? (dia?.goal || metaDelDia(a, state.today, { descargas: state.descargas, pesoCorporal: peso }))
+          : 0,
       };
     })
     .filter(Boolean);

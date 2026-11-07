@@ -4,8 +4,8 @@ import {
   weekStart, weekLabel, dayName, keyToDate, plural,
 } from '../utils.js';
 import { getState, getData, backupVencido, diasSinBackup, setEntry, marcarDescarga } from '../state.js';
-import { isScheduledWithPauses, goalFor } from '../derive.js';
-import { templateForDay, templateById, minutosDeCaminata } from '../config.js';
+import { isScheduledWithPauses, metaDelDia } from '../derive.js';
+import { templateForDay, minutosDeCaminata } from '../config.js';
 import { chip, xpBar, stat } from '../ui/components.js';
 import {
   microDatos, nivelTexto, resumenDelDia, parValor, partirPorHechas, semanaArrancada,
@@ -184,11 +184,11 @@ function misionFila(activity, state, dateKey, navigate, celebrate, { off = false
   const st = state.byActivity.get(activity.id);
   const day = st?.byDate.get(dateKey);
   const value = day?.value || 0;
-  // El gimnasio se mide contra la rutina del día: 35 series el viernes, 45 el miércoles.
-  const rutina = activity.kind === 'gym'
-    ? (templateById(day?.entry?.templateId) || templateForDay(keyToDate(dateKey).getDay()))
-    : null;
-  const goal = day?.goal ?? goalFor(activity, rutina ? { templateId: rutina.id } : null);
+  // El gimnasio se mide contra la rutina del día —35 series el viernes, 45 el
+  // miércoles— y contra la descarga, que la parte al medio. metaDelDia sabe
+  // las dos cosas; antes el tablero sólo sabía la primera, así que un viernes
+  // de descarga decía 0/35 hasta que cargabas la primera serie.
+  const goal = day?.goal ?? metaDelDia(activity, dateKey, { descargas: state.descargas });
   const met = value >= goal;
   const pct = Math.min(1, value / goal);
   // Lo que falta, dicho en el tiempo que cuesta: 5.800 pasos no se sienten como
