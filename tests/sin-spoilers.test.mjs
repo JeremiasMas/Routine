@@ -58,7 +58,11 @@ test('se sigue diciendo cuánto falta', () => {
   const act = fuentes.find(([r]) => r.endsWith('activity.js'))[1];
   assert.match(act, /El próximo rango llega en el nivel \$\{st\.nextTier\.min\}/);
   assert.match(act, /te faltan \$\{formatNumber\(s\.falta\)\} kg/);
-  assert.match(act, /Te faltan \$\{formatNumber\(banda\.falta\)\} puntos para la próxima banda/);
+  // Lo que se cuida es que el número siga dicho, no cómo está redactado:
+  // antes esto fijaba la frase literal y se rompió al hacer que "1 puntos"
+  // concordara. El dato es `banda.falta` y la referencia, "la próxima banda".
+  assert.match(act, /plural\(banda\.falta, 'punto', 'puntos'\)\} para la próxima banda/,
+    'se dejó de decir cuántos puntos faltan para la próxima banda de grasa');
 });
 
 /* ---------------------------------------------------------------------------

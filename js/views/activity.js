@@ -1,5 +1,5 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
-import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort } from '../utils.js';
+import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort, daysBetween } from '../utils.js';
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
@@ -11,6 +11,7 @@ import { PASOS_POR_MINUTO, minutosDeCaminata } from '../config.js';
 import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta, ffmiBand } from '../body.js';
+import { calibracion, faseDe, FASES, CALIBRACION } from '../calorias.js';
 import { getData } from '../state.js';
 
 export function render({ params, navigate, celebrate }) {
@@ -451,7 +452,7 @@ function bodyFatHeader(st, a) {
       })),
     el('p', { class: 'hint', style: 'margin-top:10px' },
       banda.next
-        ? `Te faltan ${formatNumber(banda.falta)} puntos para la próxima banda.` +
+        ? `Te ${Math.abs(banda.falta) === 1 ? 'falta' : 'faltan'} ${plural(banda.falta, 'punto', 'puntos')} para la próxima banda.` +
           (banda.next.max > a.targetBodyFat ? ` La meta final es el ${a.targetBodyFat}%.` : '')
         : `Llegaste a la meta del ${a.targetBodyFat}%. La escalera termina acá a propósito: más abajo ya no es salud, es preparación de competencia.`));
 }
@@ -506,6 +507,9 @@ function bodySection(st) {
     }
   }
 
+  const cal = tarjetaDeCalibracion(mediciones, perfil);
+  if (cal) root.append(cal);
+
   // Los kilos de magro no se pueden leer solos: hace falta la referencia que
   // dice si son muchos o pocos para esta estatura.
   const banda = ffmiBand(ultima.ffmi, perfil.sexo);
@@ -521,7 +525,18 @@ function bodySection(st) {
         })),
       el('p', { class: 'hint', style: 'margin-top:10px' },
         banda.next
-          ? `Sos ${banda.name.toLowerCase()} para tu estatura. Te faltan ${formatNumber(banda.falta)} puntos de FFMI para la próxima banda, que a ${formatNumber(ultima.height)} cm son unos ${formatNumber(Math.round(banda.falta * (ultima.height / 100) ** 2 * 10) / 10)} kg de músculo.`
+          // El número manda sobre el verbo y sobre el sustantivo: a un punto
+          // de la banda decía "Te faltan 1 puntos", que es justo el momento
+          // en que más se lee la frase.
+          ? (() => {
+            const uno = Math.abs(banda.falta) === 1;
+            const kg = Math.round(banda.falta * (ultima.height / 100) ** 2 * 10) / 10;
+            const unKg = Math.abs(kg) === 1;
+            return `Sos ${banda.name.toLowerCase()} para tu estatura. Te ${uno ? 'falta' : 'faltan'} `
+              + `${plural(banda.falta, 'punto', 'puntos')} de FFMI para la próxima banda, `
+              + `que a ${formatNumber(ultima.height)} cm ${unKg ? 'es un' : 'son unos'} `
+              + `${formatNumber(kg)} kg de músculo.`;
+          })()
           : 'Por encima de este número casi no hay casos sin ayuda farmacológica, así que lo más probable es que alguna medida esté mal tomada.')));
     if (mediciones.filter((m) => m.ffmi != null).length > 1) {
       root.append(el('div', { class: 'card' },
@@ -553,4 +568,57 @@ function bodySection(st) {
     'El porcentaje sale del método de circunferencias de la Marina de EE.UU. Tiene un margen de error de ±3 puntos, así que lo que importa es la tendencia, no el número exacto de una medición suelta. ' +
     'La masa magra y el FFMI se calculan a partir de ese porcentaje, así que arrastran el mismo margen: sirven para ver si subís o bajás, no como medición.'));
   return root;
+}
+
+
+/**
+ * El único control de calidad que esta app puede hacerse a sí misma.
+ *
+ * El gasto que calcula sale de un modelo: basal por fórmula, factor
+ * sedentario de tabla, un MET por actividad. Nada de eso te midió a vos. El
+ * peso en el tiempo sí, y está acá guardado, así que la app puede contrastar
+ * lo que predijo contra lo que pasó y decir en cuánto se equivocó.
+ *
+ * Lo que NO hace es dar un veredicto, porque con dos incógnitas y una
+ * ecuación no se puede: si el peso no bajó lo previsto, puede ser que el
+ * modelo exagere el gasto o que hayas comido de más, y desde acá las dos se
+ * ven igual. Dice el número y nombra las dos salidas.
+ */
+function tarjetaDeCalibracion(mediciones, perfil) {
+  const fase = faseDe(perfil);
+  const c = calibracion(mediciones, FASES[fase].delta, daysBetween);
+  if (!c) return null;
+
+  const kgSem = formatNumber(Math.abs(c.kgPorSemana));
+  const rumbo = c.kgPorSemana < 0 ? 'bajando' : c.kgPorSemana > 0 ? 'subiendo' : 'quieto';
+  const cabeza = el('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:baseline' },
+    el('div', { style: 'font-weight:700', text: 'Tu balanza vs el cálculo' }),
+    el('small', { class: 'hint', text: `${c.dias} días · ${plural(c.mediciones, 'medición', 'mediciones')}` }));
+
+  const fila = (etiqueta, valor) => el('div', { class: 'row' },
+    el('div', { class: 'row__main', text: etiqueta }),
+    el('div', { class: 'row__value', text: valor }));
+
+  const signo = (n) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
+  const filas = el('div', { class: 'list', style: 'margin-top:10px' },
+    fila(`La app asume (${FASES[fase].nombre.toLowerCase()})`, `${signo(c.asumido)} kcal/día`),
+    fila('Tu peso dice', `${signo(c.medido)} kcal/día`),
+    fila(`Peso, ${rumbo}`, `${kgSem} kg/semana`));
+
+  const texto = c.coincide
+    ? `El cálculo te está acertando: la diferencia es de ${formatNumber(Math.abs(c.diferencia))} kcal/día, menos que el ruido de agua y de cinta. No cambies nada por esto.`
+    : c.diferencia > 0
+      ? `Estás perdiendo ${formatNumber(Math.abs(c.diferencia))} kcal/día menos de lo previsto. O el gasto que calcula la app es más alto que el tuyo de verdad —el MET del entrenamiento es el número más flojo de todo el cálculo— o comiste más de lo que decía la pantalla. Desde acá las dos se ven igual.`
+      : `Estás perdiendo ${formatNumber(Math.abs(c.diferencia))} kcal/día más de lo previsto. O el gasto real es mayor que el calculado, o comiste menos de lo que decía la pantalla.`;
+
+  const accion = c.coincide
+    ? null
+    : el('p', { class: 'hint', style: 'margin-top:6px' },
+      `Si comiste lo que la app te pidió, el que está mal es el cálculo: para que la fase haga lo que promete, ${c.diferencia > 0 ? 'comé' : 'sumá'} ${formatNumber(Math.abs(c.diferencia))} kcal/día ${c.diferencia > 0 ? 'menos' : 'más'} que el número de Hoy.`);
+
+  return el('div', { class: 'card', style: 'margin-top:10px' }, cabeza, filas,
+    el('p', { class: 'hint', style: 'margin-top:10px', text: texto }),
+    accion,
+    el('p', { class: 'hint', style: 'margin-top:6px' },
+      `Supone que comiste lo que la app te dijo; si no, lo que mide es tu comida y no el modelo. Necesita ${CALIBRACION.dias} días y ${CALIBRACION.mediciones} mediciones, y usa la pendiente de todas, no la primera contra la última.`));
 }
