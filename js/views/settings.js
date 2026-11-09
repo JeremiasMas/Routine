@@ -368,7 +368,11 @@ function tarjetaDeFase(navigate, data) {
 
   return el('div', { class: 'card' },
     el('div', {
-      class: 'segmento', role: 'radiogroup', 'aria-label': 'Qué hacés con el gasto',
+      // Con cuatro opciones no entran los nombres en una fila de teléfono:
+      // "Ganar músculo" y "Bajar grasa" se parten al medio. En grilla de dos
+      // columnas entran enteros y se siguen leyendo de más a menos comida.
+      class: `segmento${opciones.length > 3 ? ' segmento--grilla' : ''}`,
+      role: 'radiogroup', 'aria-label': 'Qué hacés con el gasto',
       style: '--c:#34d399',
     }, opciones),
     el('p', { class: 'hint', style: 'margin-top:10px', text: FASES[actual].nota }),

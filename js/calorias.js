@@ -102,10 +102,23 @@ export function kcalDeMision(activity, valor, pesoKg) {
  * En déficit sube: cuando falta energía, la proteína es lo que decide si lo
  * que perdés es grasa o músculo. Los gramos son por kilo de peso.
  */
+/**
+ * Qué hacés con el gasto, de más comida a menos.
+ *
+ * "Recomponer" existe porque entre mantener y bajar había un pozo. Con 400
+ * menos bajás grasa rápido y el músculo no se mueve: es un déficit del 17%
+ * sobre un gasto como el tuyo, y a esa profundidad el cuerpo no construye.
+ * Con 200 el proceso es la mitad de rápido del lado de la grasa y es el
+ * único que deja las dos cosas pasando a la vez.
+ */
 export const FASES = {
-  mantener: { nombre: 'Mantener', delta: 0, proteina: 1.8, nota: 'Comés lo que gastás.' },
-  bajar: { nombre: 'Bajar grasa', delta: -400, proteina: 2.0, nota: 'Unos 400 menos: medio kilo de grasa por semana.' },
   subir: { nombre: 'Ganar músculo', delta: 250, proteina: 1.8, nota: 'Unos 250 más. Algo de grasa viene con el músculo.' },
+  mantener: { nombre: 'Mantener', delta: 0, proteina: 1.8, nota: 'Comés lo que gastás.' },
+  recomponer: {
+    nombre: 'Recomponer', delta: -200, proteina: 2.0,
+    nota: 'Unos 200 menos: bajás grasa sin frenar el músculo. Es la mitad de rápido que bajar y la única que hace las dos cosas. La balanza casi no se mueve: lo que se mueve es la cintura.',
+  },
+  bajar: { nombre: 'Bajar grasa', delta: -400, proteina: 2.0, nota: 'Unos 400 menos: medio kilo de grasa por semana. Rápido para la grasa, caro para el músculo.' },
 };
 export const FASE_POR_DEFECTO = 'mantener';
 
@@ -223,4 +236,91 @@ export function gastoDesdeElEstado(state, settings = {}, esDeHoy = () => true) {
     })
     .filter(Boolean);
   return gastoDelDia({ masaMagra: magra, peso, misiones, fase: faseDe(settings) });
+}
+
+/** Lo que vale un kilo de grasa corporal. */
+export const KCAL_POR_KG_GRASA = 7700;
+
+/**
+ * Mínimos para que la cuenta signifique algo, y un techo para que conteste
+ * la pregunta correcta.
+ *
+ * `maxDias` es el que importa y no es un detalle: la pregunta es "¿lo que
+ * estoy comiendo AHORA hace lo que la app promete?", no "¿qué pasó desde que
+ * instalé esto?". Sin techo, una medición de hace dos meses —de antes de
+ * cambiar de fase, de antes de cargar las comidas fijas— arrastra la
+ * pendiente y la app dice que estás subiendo de peso cuando hace tres
+ * semanas que bajás.
+ */
+export const CALIBRACION = { dias: 21, maxDias: 42, mediciones: 3, margen: 80 };
+
+/**
+ * Tu balanza contra el cálculo de la app.
+ *
+ * Todo lo que esta app dice que gastás sale de un modelo: un metabolismo
+ * basal por fórmula, un factor sedentario de tabla y un MET por actividad.
+ * Son referencias de población, no mediciones tuyas. El muay thai, que es la
+ * actividad más grande del día, es también la más floja del cálculo.
+ *
+ * Pero hay un instrumento que sí te mide a vos, y la app ya lo tiene: el peso
+ * en el tiempo. Si comiste lo que la app te pidió y el peso no se movió como
+ * debía, el que está mal es el modelo, y esto dice en cuánto.
+ *
+ * No se compara la primera medición contra la última —dos puntos y cualquiera
+ * de los dos puede ser un día de agua— sino la pendiente de todas por mínimos
+ * cuadrados.
+ *
+ * Supone que comiste lo que la app te dijo. Si no, lo que mide es tu comida y
+ * no el modelo, y por eso la vista lo aclara en vez de dar un veredicto.
+ *
+ * @param {Array<{date:string, weight:number}>} mediciones  en orden cronológico
+ * @param {number} deltaAsumido  el delta de la fase: -200, -400, 0…
+ * @param {(a:string,b:string)=>number} diasEntre
+ */
+export function calibracion(mediciones, deltaAsumido, diasEntre) {
+  const todos = (mediciones || [])
+    .filter((m) => Number(m?.weight) > 0 && m.date)
+    .map((m) => ({ date: m.date, peso: Number(m.weight) }));
+  if (todos.length < CALIBRACION.mediciones) return null;
+
+  // Sólo la ventana reciente: lo de hace dos meses contesta otra pregunta.
+  const ultima = todos[todos.length - 1].date;
+  const puntos = todos.filter((p) => diasEntre(p.date, ultima) <= CALIBRACION.maxDias);
+  if (puntos.length < CALIBRACION.mediciones) return null;
+
+  const base = puntos[0].date;
+  const xs = puntos.map((p) => diasEntre(base, p.date));
+  const dias = xs[xs.length - 1];
+  if (dias < CALIBRACION.dias) return null;
+
+  // Pendiente por mínimos cuadrados: kg por día.
+  const n = puntos.length;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = puntos.reduce((a, p) => a + p.peso, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i += 1) {
+    num += (xs[i] - mx) * (puntos[i].peso - my);
+    den += (xs[i] - mx) ** 2;
+  }
+  if (!den) return null;
+  const kgPorDia = num / den;
+
+  // Un kilo perdido es un kilo de grasa: el balance diario que lo explica.
+  const medido = Math.round(kgPorDia * KCAL_POR_KG_GRASA);
+  const asumido = Math.round(Number(deltaAsumido) || 0);
+  const diferencia = medido - asumido;
+  return {
+    dias,
+    mediciones: n,
+    kgPorSemana: Math.round(kgPorDia * 7 * 100) / 100,
+    medido,
+    asumido,
+    diferencia,
+    // Dentro del margen el modelo no se distingue de la realidad, y mover
+    // números por 50 kcal es perseguir ruido de agua y de cinta.
+    coincide: Math.abs(diferencia) <= CALIBRACION.margen,
+    // Positivo: perdés menos de lo previsto, o sea gastás menos (o comés más).
+    gastoReal: -diferencia,
+  };
 }
