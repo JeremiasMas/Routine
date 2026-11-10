@@ -133,9 +133,27 @@ export function confianzaDe(reps) {
   return 'baja';
 }
 
-export function esSerieFiable(reps) {
+/**
+ * Si una serie sirve para fijar un récord.
+ *
+ * El tope general son 12 repeticiones, porque el 1RM que sale de una serie
+ * más larga se dispersa demasiado. Pero la app le prescribe 12 a 20 a once
+ * ejercicios —vuelos, face pulls, pantorrillas, muñecas, abdominales— y
+ * después no contaba nada arriba de 12. O sea: hacías exactamente lo que te
+ * pidió y no quedaba registrado. Ni récord, ni progreso, ni precarga.
+ *
+ * Por eso el tope puede subir hasta donde llegue el rango del propio
+ * ejercicio, nunca bajar: `topeDelRango` ensancha, no achica. Ninguno de los
+ * ejercicios de rango liviano alimenta los estándares de fuerza, así que
+ * aflojar acá no toca las escaleras de sentadilla, banca ni dominadas.
+ *
+ * @param {number} reps
+ * @param {number} [topeDelRango] el máximo que la app prescribe para ese ejercicio
+ */
+export function esSerieFiable(reps, topeDelRango = 0) {
   const r = Number(reps) || 0;
-  return r > 0 && r <= REPS_FIABLES;
+  const tope = Math.max(REPS_FIABLES, Number(topeDelRango) || 0);
+  return r > 0 && r <= tope;
 }
 
 /**
