@@ -382,7 +382,8 @@ function avisoDeDescarga(state, fecha, navigate) {
   }
 
   const semanasConSesion = (gym.history || []).map((h) => h.date);
-  const quietos = estancados(gym.history);
+  // Las descargas van: lo de antes de la última no puede pedir otra.
+  const quietos = estancados(gym.history, 3, { descargas: state.descargas, hoy: fecha });
   const toca = tocaDescarga(semanasConSesion, state.descargas, fecha, { estancados: quietos });
   if (!toca) return null;
 

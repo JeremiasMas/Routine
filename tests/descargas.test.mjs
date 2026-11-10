@@ -363,3 +363,117 @@ test('las calorías resuelven la meta del día por metaDelDia y le pasan las des
     .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
   assert.match(fuente, /metaDelDia\(a, state\.today, \{ descargas: state\.descargas/);
 });
+
+/* ---------------------------------------------------------------------------
+   La descarga borra la pizarra
+   --------------------------------------------------------------------------- */
+
+/** Un historial de sesiones con un solo ejercicio que nunca sube. */
+const sesion = (date, peso, reps, nombre = 'Pullover') => ({
+  date, entry: { exercises: [{ name: nombre, sets: [{ weight: peso, reps }, { weight: peso, reps }] }] },
+});
+
+test('lo anterior a la descarga no puede pedir otra descarga', () => {
+  // Es el punto entero: el estancamiento es la evidencia de fatiga y la
+  // descarga es el tratamiento. Sin esto, el lunes siguiente a descargar la
+  // app volvía a recomendar descargar con los mismos ejercicios de antes, y
+  // así para siempre hasta que algún día subieran.
+  const antes = [sesion('2026-10-12', 55, 12), sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12)];
+  assert.deepEqual(estancados(antes), ['Pullover'], 'sin descarga declarada tiene que marcarlo');
+  assert.deepEqual(estancados(antes, 3, { descargas: ['2026-11-02'], hoy: '2026-11-09' }), [],
+    'la descarga no limpió el estancamiento anterior');
+});
+
+test('las sesiones de la propia descarga no son un estancamiento', () => {
+  // En descarga se levanta lo mismo con la mitad de las series y las reps en
+  // el piso: bajan a propósito. Leerlas como "no subió" es al revés.
+  //
+  // Hacen falta TRES sesiones dentro de la semana de descarga, que es el
+  // mínimo para que el detector opine: con dos, cortar al inicio de la
+  // semana o a su fin da lo mismo y el test no probaría nada.
+  const h = [
+    sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 13),
+    sesion('2026-11-02', 55, 8), sesion('2026-11-04', 55, 8), sesion('2026-11-06', 55, 8),
+  ];
+  assert.deepEqual(estancados(h, 3, { descargas: ['2026-11-02'], hoy: '2026-11-06' }), [],
+    'contó las sesiones de la semana de descarga');
+  // El control: esas mismas tres sesiones, sin declarar la descarga, sí son
+  // tres sesiones sin subir.
+  assert.deepEqual(estancados(h, 3, { hoy: '2026-11-06' }), ['Pullover'],
+    'el test no distinguiría nada si sin descarga tampoco las marcara');
+});
+
+test('después de la descarga hacen falta tres sesiones nuevas', () => {
+  const previo = [sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12), sesion('2026-11-02', 55, 8)];
+  const d = ['2026-11-02'];
+  const nuevas = ['2026-11-09', '2026-11-16', '2026-11-23'].map((f) => sesion(f, 55, 12));
+  assert.deepEqual(estancados([...previo, nuevas[0]], 3, { descargas: d }), [], 'con una nueva no alcanza');
+  assert.deepEqual(estancados([...previo, ...nuevas.slice(0, 2)], 3, { descargas: d }), [], 'con dos tampoco');
+  assert.deepEqual(estancados([...previo, ...nuevas], 3, { descargas: d }), ['Pullover'],
+    'con tres sesiones nuevas sin subir sí es estancamiento de verdad');
+});
+
+test('si sube después de la descarga, no está estancado', () => {
+  const previo = [sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12)];
+  const sube = [sesion('2026-11-09', 55, 12), sesion('2026-11-16', 55, 13), sesion('2026-11-23', 55, 14)];
+  assert.deepEqual(estancados([...previo, ...sube], 3, { descargas: ['2026-11-02'] }), []);
+});
+
+test('una descarga futura no borra el estancamiento de hoy', () => {
+  // Declarar una descarga para la semana que viene no puede apagar la señal
+  // que la está justificando: la descarga todavía no pasó.
+  const h = [sesion('2026-10-12', 55, 12), sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12)];
+  assert.deepEqual(estancados(h, 3, { descargas: ['2026-12-28'], hoy: '2026-10-26' }), ['Pullover']);
+});
+
+test('una descarga sin ninguna sesión adentro igual limpia', () => {
+  // La descarga mejor hecha es la que no tiene sesiones: descansaste. Medir
+  // el corte contra la última sesión la dejaba siempre en el futuro, así que
+  // descansar entero era lo único que no contaba como descarga.
+  const h = [sesion('2026-10-12', 55, 12), sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12)];
+  assert.deepEqual(estancados(h, 3, { descargas: ['2026-11-02'], hoy: '2026-11-09' }), [],
+    'una semana de descanso total no limpió el estancamiento');
+});
+
+test('vale la última descarga, no la primera', () => {
+  const h = [sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12), sesion('2026-11-09', 55, 12)];
+  assert.deepEqual(estancados(h, 3, { descargas: ['2026-09-07', '2026-11-02'], hoy: '2026-11-16' }), [],
+    'se quedó con la descarga vieja y dejó pasar lo anterior a la última');
+});
+
+test('sin descargas declaradas se comporta igual que antes', () => {
+  const h = [sesion('2026-10-12', 55, 12), sesion('2026-10-19', 55, 12), sesion('2026-10-26', 55, 12)];
+  assert.deepEqual(estancados(h, 3, { descargas: [] }), estancados(h));
+  assert.deepEqual(estancados(h, 3, {}), estancados(h));
+});
+
+test('la semana siguiente a una descarga no recomienda descargar', () => {
+  // El caso completo, de punta a punta: tres sesiones sin subir, se descarga,
+  // y al lunes siguiente la app no vuelve a pedir lo mismo.
+  // Hacen falta DOS ejercicios trabados: con uno solo tocaDescarga no opina,
+  // y el test no probaría lo que dice.
+  const dos = (date) => ({
+    date,
+    entry: {
+      exercises: [
+        { name: 'Pullover', sets: [{ weight: 55, reps: 12 }] },
+        { name: 'Remo con barra al pecho', sets: [{ weight: 50, reps: 10 }] },
+      ],
+    },
+  });
+  const previo = ['2026-10-12', '2026-10-19', '2026-10-26'].map(dos);
+  const d = ['2026-11-02'];
+  const fechas = previo.map((h) => h.date);
+  assert.equal(estancados(previo).length, 2, 'el fixture no tiene dos ejercicios trabados');
+  assert.equal(tocaDescarga(fechas, [], '2026-10-26', { estancados: estancados(previo) })?.motivo,
+    'estancamiento', 'antes de descargar tiene que recomendarla');
+  assert.equal(tocaDescarga(fechas, d, '2026-11-09',
+    { estancados: estancados(previo, 3, { descargas: d, hoy: '2026-11-09' }) }), null,
+  'el lunes después de la descarga volvió a pedir descarga');
+});
+
+test('el tablero le pasa las descargas al detector', () => {
+  const vista = readFileSync('js/views/today.js', 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+  assert.match(vista, /estancados\(gym\.history, 3, \{ descargas: state\.descargas, hoy: fecha \}\)/,
+    'el tablero volvió a llamar al detector sin decirle cuándo descargaste');
+});

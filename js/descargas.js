@@ -17,7 +17,7 @@
  * exactamente lo contrario de una descarga.
  */
 
-import { weekStart, esFechaValida, formatNumber } from './utils.js';
+import { weekStart, addDays, esFechaValida, formatNumber } from './utils.js';
 import { RANGOS_REPS, DEFAULT_SETS } from './config.js';
 
 /** Cada cuántas semanas de trabajo conviene una de descarga. */
@@ -126,13 +126,39 @@ export const ESTADOS = {
  * no sólo el peso: tres series de 60×10 progresaron respecto de 60×9 aunque el
  * peso sea el mismo.
  *
+ * Las sesiones anteriores a la última descarga NO cuentan. Es el punto
+ * entero de la función: el estancamiento es la evidencia de fatiga y la
+ * descarga es el tratamiento, así que la evidencia junta antes del
+ * tratamiento no puede pedir repetirlo. Sin esto, la semana siguiente a una
+ * descarga la app volvía a recomendar descargar con los mismos tres
+ * ejercicios de antes, y así hasta que algún día subieran. Medido con datos
+ * reales: veinticuatro ejercicios marcados al día siguiente de descargar.
+ *
+ * Después de una descarga hacen falta tres sesiones nuevas para volver a
+ * hablar de estancamiento, que es lo mismo que hace falta desde cero.
+ *
  * @param {Array<{date:string, entry:object}>} historial de más viejo a más nuevo
  * @param {number} sesiones cuántas de las últimas mirar
+ * @param {{descargas?: string[], hoy?: string}} ctx semanas declaradas y la fecha
  * @returns {Array<string>} nombres, como se escriben en la plantilla
  */
-export function estancados(historial, sesiones = 3) {
+export function estancados(historial, sesiones = 3, { descargas = [], hoy = null } = {}) {
+  const sesionesTodas = historial || [];
+  // El corte se mide contra HOY y no contra la última sesión: una descarga
+  // en la que descansaste de verdad no tiene sesiones propias, y medirla
+  // contra la última sesión la dejaría siempre en el futuro y sin efecto.
+  // Justo la descarga mejor hecha era la que no limpiaba nada.
+  const referencia = hoy || sesionesTodas[sesionesTodas.length - 1]?.date;
+  const corte = referencia
+    ? semanas(descargas).filter((s) => s <= referencia).pop()
+    : null;
+  // La semana de descarga entera queda afuera, no sólo lo anterior a ella:
+  // esas sesiones bajan a propósito y leerlas como "no subió" es al revés.
+  const desde = corte ? addDays(corte, 7) : null;
+
   const porEjercicio = new Map();
-  for (const h of historial || []) {
+  for (const h of sesionesTodas) {
+    if (desde && h.date < desde) continue;
     for (const ex of h.entry?.exercises || []) {
       const nombre = (ex.name || '').trim();
       if (!nombre) continue;
