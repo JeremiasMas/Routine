@@ -1,6 +1,7 @@
 // Hojas de registro: número simple, sesión de gimnasio y publicación semanal.
 import { el, formatValue, formatNumber, relativeDay, uid, keyToDate } from '../utils.js';
 import { openSheet, closeSheet } from './sheet.js';
+import { mezclarSesion } from '../sesion.js';
 import { chip, stat } from './components.js';
 import { setEntry, getState, getData, guardarBorrador, borrarBorrador, entradaOBorrador } from '../state.js';
 import { bodySummary, bodyDelta, waterGoalMl } from '../body.js';
@@ -236,20 +237,35 @@ function gymForm(activity, dateKey, onSaved) {
     }));
   }
 
+  /** Cuántas series planea la rutina para este ejercicio. */
+  const seriesDe = (ex) => Number(ex?.sets) || DEFAULT_SETS;
+
+  /** Una fila de ejercicio armada desde la plantilla, con sus series vacías. */
+  function filaDePlantilla(ex) {
+    const n = seriesDe(ex);
+    return {
+      id: uid(), name: ex.name, bw: ex.bw, db: ex.db ?? esMancuerna(ex.name),
+      sets: seedSets(ex.name, n), objetivo: objetivoDe(ex.name, n),
+    };
+  }
+
   function loadTemplate(id, { keepExisting = false } = {}) {
     templateId = id;
-    if (keepExisting && existing?.exercises?.length) {
-      exercises = structuredClone(existing.exercises).map((ex) => ({ ...ex, id: uid() }));
-      return;
-    }
     const template = templateById(id);
     const base = template?.exercises?.length
       ? template.exercises
       : (lastByTemplate.get(id) || []); // el Día 4 aprende de la última vez
+
+    if (keepExisting && existing?.exercises?.length) {
+      const filas = mezclarSesion(base.map(filaDePlantilla), existing.exercises);
+      exercises = filas.map((ex) => ({ ...ex, id: ex.id ?? uid() }));
+      if (exercises.length) return;
+    }
     exercises = base.length
-      ? base.map((ex) => ({ id: uid(), name: ex.name, bw: ex.bw, db: ex.db ?? esMancuerna(ex.name), sets: seedSets(ex.name), objetivo: objetivoDe(ex.name) }))
+      ? base.map(filaDePlantilla)
       : [{ id: uid(), name: '', sets: [{ weight: '', reps: '' }] }];
   }
+
   loadTemplate(templateId, { keepExisting: true });
 
   const list = el('div', {});

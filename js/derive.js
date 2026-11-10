@@ -1,7 +1,7 @@
 // Deriva TODO el estado de juego (XP, niveles, rachas, récords, logros)
 // a partir del historial crudo. Es una función pura: mismo historial,
 // mismo resultado. Así nunca se desincroniza nada.
-import { ACHIEVEMENTS, BONUS, TIERS, templateById, templateForDay, plannedSets, esMancuerna, DEFAULT_SETS } from './config.js';
+import { ACHIEVEMENTS, BONUS, TIERS, templateById, templateForDay, plannedSets, esMancuerna, DEFAULT_SETS, perfilDeEjercicio, RANGOS_REPS } from './config.js';
 import {
   entryXp, levelFromXp, playerLevelFromXp, tierFor, nextTierFor, playerTitleFor,
   gymVolume, estimatedOneRepMax, streakMultiplier, esSerieFiable, REPS_CALIBRACION,
@@ -414,12 +414,16 @@ export function derive(data, today = todayKey()) {
           }
 
           const esPesoCorporal = ex.bw === true || usaPesoCorporal(liftDeEjercicio(ex.name));
+          const topeDelRango = (RANGOS_REPS[perfilDeEjercicio(ex.name)?.rango] || {}).max || 0;
           for (const set of ex.sets || []) {
             const extra = Number(set.weight) || 0;
             const reps = Number(set.reps) || 0;
             // Una serie larga entrena, pero no mide: el 1RM que sale de 15
-            // repeticiones es demasiado incierto para fijar un récord.
-            if (!esSerieFiable(reps)) continue;
+            // repeticiones es demasiado incierto para fijar un récord. Salvo
+            // que el propio ejercicio pida esas repeticiones —los de rango
+            // liviano van de 12 a 20—, porque entonces no hay ninguna serie
+            // que pueda registrarse y el ejercicio no progresa nunca.
+            if (!esSerieFiable(reps, topeDelRango)) continue;
             if (reps <= REPS_CALIBRACION) st.ultimaCalibracion.set(name, date);
             // Dos preguntas distintas que se parecen:
             //  - ex.db dice CÓMO anotaste el número (una mancuerna o el total).
