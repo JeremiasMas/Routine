@@ -3,7 +3,7 @@
 import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js';
 import { waterGoalMl } from './body.js';
 import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
-import { derive } from './derive.js';
+import { derive, ANTES_DE_TODO } from './derive.js';
 import { todayKey, uid, daysBetween, weekStart } from './utils.js';
 import { fusionar } from './merge.js';
 import { tramos, agregar, quitar } from './pausas.js';
@@ -253,10 +253,37 @@ export function bulkSetEntries(activityId, days) {
   });
 }
 
+/**
+ * Guarda los cambios de una actividad, anotando cuándo cambió la meta.
+ *
+ * Si la meta cambia, el día de hoy queda como frontera: lo de antes se sigue
+ * juzgando con la meta vieja y lo de hoy en adelante con la nueva. Sin esto,
+ * subir el piano de 30 a 45 minutos volvía incompletas todas las sesiones de
+ * 30 que ya habías hecho, y con ellas la racha, la XP y los días perfectos.
+ *
+ * La historia se escribe sola porque nadie se acuerda de escribirla: el
+ * momento en que cambiás el número es el único en que se sabe la fecha.
+ */
 export function updateActivity(id, patch) {
   return mutate((d) => {
     const act = d.activities.find((a) => a.id === id);
-    if (act) Object.assign(act, patch);
+    if (!act) return;
+    const nueva = Number(patch?.goal);
+    const vieja = Number(act.goal);
+    if (nueva > 0 && vieja > 0 && nueva !== vieja) {
+      const hoy = todayKey();
+      const historia = Array.isArray(act.goalHistory) ? [...act.goalHistory] : [];
+      // El primer cambio tiene que dejar escrita también la meta de antes:
+      // sin ese tramo, el pasado se quedaría sin historia que consultar y
+      // volvería a juzgarse con la de hoy, que es justo lo que se evita.
+      if (!historia.length) historia.push({ from: ANTES_DE_TODO, goal: vieja });
+      // Dos cambios el mismo día son un solo cambio: vale el último.
+      const mismoDia = historia.findIndex((t) => t.from === hoy);
+      if (mismoDia >= 0) historia[mismoDia] = { from: hoy, goal: nueva };
+      else historia.push({ from: hoy, goal: nueva });
+      act.goalHistory = historia.sort((a, b) => (a.from < b.from ? -1 : 1));
+    }
+    Object.assign(act, patch);
   });
 }
 
