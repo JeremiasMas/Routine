@@ -135,6 +135,12 @@ export function goalFor(activity, entry, { pesoCorporal = 0 } = {}) {
  */
 export function metaDelDia(activity, fecha, { entry = null, descargas = [], pesoCorporal = 0 } = {}) {
   if (!activity) return 0;
+  // Fuera del gimnasio la meta es un número, y ese número pudo cambiar: la
+  // del día es la que regía ESE día, no la de hoy.
+  if (activity.kind !== 'gym') {
+    if (activity.autoGoal === 'water' && pesoCorporal > 0) return waterGoalMl(pesoCorporal);
+    return goalEnLaFecha(activity, fecha);
+  }
   // Sin registro, la rutina del día es la que manda: la plantilla que toca
   // ese día de la semana.
   const rutina = activity.kind === 'gym'
@@ -144,6 +150,47 @@ export function metaDelDia(activity, fecha, { entry = null, descargas = [], peso
   const plena = goalFor(activity, base, { pesoCorporal });
   if (activity.kind !== 'gym' || !esDescarga(descargas, fecha)) return plena;
   return metaDeDescarga(plena);
+}
+
+/**
+ * Fecha anterior a cualquier registro posible. El primer tramo de historia
+ * arranca acá para que no quede ningún día sin meta asignada.
+ */
+export const ANTES_DE_TODO = '1970-01-01';
+
+/**
+ * La meta diaria que regía en una fecha.
+ *
+ * Subir una meta no puede volver incompletos los días que ya cumpliste. Si
+ * el piano pedía 30 minutos y ahora pide 45, los meses de sesiones de 30 se
+ * cumplieron: la meta de entonces era 30. Sin esto, cambiar el número en
+ * Ajustes reescribía el historial entero —la racha, la XP y los días
+ * perfectos— hacia atrás.
+ *
+ * Es el mismo principio que weeklyTargetFor y que la meta del agua, que sale
+ * del peso que tenías ese día. La diferencia es que esta historia se escribe
+ * sola: la llena Ajustes cada vez que tocás el número.
+ *
+ * @param {object} activity
+ * @param {string} fecha
+ */
+export function goalEnLaFecha(activity, fecha) {
+  const actual = Number(activity?.goal) || 1;
+  const historia = activity?.goalHistory;
+  if (!historia?.length || !fecha) return actual;
+  let meta = null;
+  let mejor = null;
+  for (const tramo of historia) {
+    const desde = tramo?.from;
+    const valor = Number(tramo?.goal) || 0;
+    if (!desde || valor <= 0) continue;
+    if (desde <= fecha && (mejor === null || desde >= mejor)) {
+      mejor = desde;
+      meta = valor;
+    }
+  }
+  // Antes del primer tramo no hay historia que consultar: manda la de hoy.
+  return meta ?? actual;
 }
 
 /**
