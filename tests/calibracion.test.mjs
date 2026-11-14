@@ -158,7 +158,7 @@ test('el selector se acomoda cuando hay más de tres fases', () => {
   const vista = readFileSync('js/views/settings.js', 'utf8');
   assert.match(vista, /segmento--grilla/, 'el selector no cambia de forma con cuatro opciones');
   assert.match(readFileSync('css/styles.css', 'utf8'),
-    /\.segmento--grilla \{[^}]*grid-template-columns: 1fr 1fr/);
+    /\.segmento--grilla \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
 });
 
 test('la vista del cuerpo muestra la calibración', () => {

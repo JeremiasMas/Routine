@@ -6,7 +6,7 @@
  * su meta, y qué se dice arriba de todo. Nada de esto se puede probar desde
  * `today.js`, porque esa pantalla sólo existe dentro de un navegador.
  */
-import { formatNumber } from './utils.js';
+import { formatNumber, unidadPara } from './utils.js';
 
 /** Los tres niveles de chip. Un cuarto se agrega sólo si significa algo nuevo. */
 export const NIVELES = ['dato', 'mudo', 'vivo', 'urgente'];
@@ -26,7 +26,9 @@ export function parValor(valor, meta, unidad) {
   const m = Math.max(0, Number(meta) || 0);
   if (unidad === 'ml' && m >= 1000) return `${litros(v)} / ${litros(m)} L`;
   if (unidad === 'min' && m >= 60) return `${horas(v)} / ${horas(m)}`;
-  return `${formatNumber(v)} / ${formatNumber(m)} ${unidad}`;
+  // La unidad acompaña a la meta, que es el número que tiene al lado:
+  // "0 / 1 post", no "0 / 1 posts".
+  return `${formatNumber(v)} / ${formatNumber(m)} ${unidadPara(m, unidad)}`;
 }
 
 function litros(ml) { return formatNumber(Math.round(ml / 100) / 10); }
@@ -108,6 +110,14 @@ export function resumenDelDia({ hechas = 0, total = 0, xp = 0 } = {}) {
     paraBonus,
     titulo: perfecto ? '¡Día perfecto! ⭐' : 'Misiones',
     marcas: perfecto ? '+50 XP de bonus' : '80% → +20 XP · 100% → +50 XP',
+    // El próximo premio, dicho en misiones y no en porcentajes: "80% → +20 XP"
+    // obliga a hacer la cuenta de cuántas son el 80% de cinco, y la app ya
+    // la tiene hecha.
+    siguiente: perfecto
+      ? '+50 XP de bonus'
+      : paraBonus > 0
+        ? `${paraBonus} más → +20 XP`
+        : `${faltan} más → +50 XP`,
     porcentaje: `${Math.round(pct * 100)}%`,
   };
 }

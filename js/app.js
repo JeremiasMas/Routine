@@ -11,7 +11,7 @@ import * as awards from './views/awards.js';
 import * as settings from './views/settings.js';
 import { conectar as conectarNativo, alCambiar as alCambiarNativo, publicarResumen } from './native.js';
 import { copiaAutomatica } from './backup.js';
-import { aplicarTema } from './theme.js';
+import { aplicarTema, estiloDeBoton } from './theme.js';
 
 const TABS = [
   { hash: '#/', icon: '⚔️', label: 'Hoy' },
@@ -76,7 +76,10 @@ function renderTopbar() {
           : null),
       el('div', { class: 'player__sub' },
         chip(`🔥 ${plural(state.globalStreak, 'día', 'días')}`, 'chip--fire'),
-        chip(`⭐ ${state.perfectDays} perfectos`),
+        // La palabra se esconde en los teléfonos angostos (ver .chip__extra):
+        // ahí los tres chips no entran en una fila y la estrella sola alcanza.
+        el('span', { class: 'chip', title: 'Días perfectos' },
+          `⭐ ${state.perfectDays}`, el('span', { class: 'chip__extra', text: ' perfectos' })),
         chip(`🏆 ${state.unlockedIds.length}/${state.achievements.length}`)),
       el('div', { class: 'player__xp' },
         xpBar(p.pct, {
@@ -153,7 +156,7 @@ function showLevelUp({ activity: act, to, tier }) {
     el('div', { class: 'levelup__title', text: act.name }),
     el('div', { class: 'levelup__lvl', text: `Nv ${to}` }),
     el('div', { class: 'levelup__sub', text: `Rango: ${tier.name}` }),
-    el('button', { class: 'btn btn--primary btn--block', style: `--c:${act.color};margin-top:18px`, onClick: closeSheet }, 'Seguir')));
+    el('button', { class: 'btn btn--primary btn--block', style: `${estiloDeBoton(act.color)};margin-top:18px`, onClick: closeSheet }, 'Seguir')));
 }
 
 function showPlayerLevelUp({ to, title }) {
@@ -163,7 +166,7 @@ function showPlayerLevelUp({ to, title }) {
     el('div', { class: 'levelup__icon', text: '🏅' }),
     el('div', { class: 'levelup__lvl', text: `Nv ${to}` }),
     el('div', { class: 'levelup__title', text: title.name }),
-    el('button', { class: 'btn btn--primary btn--block', style: '--c:#fbbf24;margin-top:18px', onClick: closeSheet }, 'Seguir')));
+    el('button', { class: 'btn btn--primary btn--block', style: `${estiloDeBoton('#fbbf24')};margin-top:18px`, onClick: closeSheet }, 'Seguir')));
 }
 
 /** Si la app quedó abierta y cambió el día, refresca el tablero. */

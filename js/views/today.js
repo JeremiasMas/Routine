@@ -6,13 +6,13 @@ import {
 import { getState, getData, backupVencido, diasSinBackup, setEntry, marcarDescarga } from '../state.js';
 import { isScheduledWithPauses, metaDelDia } from '../derive.js';
 import { templateForDay, minutosDeCaminata } from '../config.js';
-import { chip, xpBar, stat } from '../ui/components.js';
+import { chip, xpBar } from '../ui/components.js';
 import {
   microDatos, nivelTexto, resumenDelDia, parValor, partirPorHechas, semanaArrancada,
 } from '../tablero.js';
 import { gastoDesdeElEstado, presupuesto, FASES } from '../calorias.js';
 import { openLogger } from '../ui/logger.js';
-import { colorDe } from '../theme.js';
+import { colorDe, estiloDeBoton } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
 import { enApp } from '../native.js';
 import { puedeUnToque } from '../resumen.js';
@@ -66,15 +66,21 @@ export function render({ navigate, celebrate }) {
   if (riesgos.size) root.append(avisoDeRacha([...riesgos.values()]));
 
   // --- Resumen del día ---
-  root.append(el('div', { class: 'card', style: 'margin-bottom:4px' },
-    el('div', { class: 'stat-grid stat-grid--tres' },
-      statDoble(resumen.hechas, resumen.total, 'Misiones'),
-      stat(resumen.xp, 'XP del día'),
-      resumen.perfecto
-        ? stat('⭐', 'Día perfecto')
-        : stat(resumen.faltan, resumen.faltan === 1 ? 'Falta hoy' : 'Faltan hoy')),
-    el('div', { style: 'margin-top:12px' },
-      xpBar(resumen.pct, { left: resumen.porcentaje, right: resumen.marcas }))));
+  // Una sola franja. Eran tres casilleros —misiones, XP y "faltan hoy"— y el
+  // tercero era la resta de los dos números del primero: 2/5 y, al lado, 3.
+  // Ocupaban el alto de dos misiones, justo arriba de las misiones, que son
+  // lo único de esta pantalla que se viene a hacer.
+  root.append(el('div', { class: 'card dia', style: 'margin-bottom:4px' },
+    el('div', { class: 'dia__fila' },
+      el('div', { class: 'dia__dato' },
+        el('b', { class: 'dia__n', text: resumen.perfecto ? `⭐ ${formatNumber(resumen.hechas)}` : formatNumber(resumen.hechas) }),
+        el('span', { class: 'dia__de', text: `/${formatNumber(resumen.total)}` }),
+        el('span', { class: 'dia__label', text: resumen.perfecto ? 'día perfecto' : 'misiones' })),
+      el('div', { class: 'dia__dato dia__dato--der' },
+        el('b', { class: 'dia__n dia__n--xp', text: formatNumber(resumen.xp) }),
+        el('span', { class: 'dia__label', text: 'XP del día' }))),
+    el('div', { style: 'margin-top:10px' },
+      xpBar(resumen.pct, { left: resumen.porcentaje, right: resumen.siguiente }))));
 
   // --- Lo que vas a necesitar comer ---
   if (viewDate === state.today) {
@@ -204,7 +210,9 @@ function misionFila(activity, state, dateKey, navigate, celebrate, { off = false
 
   const fila = el('div', {
     class: `quest${met ? ' is-done' : ''}${off ? ' quest--off' : ''}${enJuego ? ' quest--urge' : ''}`,
-    style: `--c:${colorDe(activity)}`,
+    // El color de la disciplina y la tinta que se lee sobre él: el tilde del
+    // botón rápido era casi negro también sobre el rojo oscuro.
+    style: estiloDeBoton(colorDe(activity)),
   },
     el('button', { class: 'quest__tap', 'aria-label': `Registrar ${activity.name}`, onClick: abrir }),
     el('span', { class: 'quest__icon', text: activity.icon }),
@@ -325,15 +333,6 @@ function desgloseDeCalorias(g, p, fase) {
       el('p', { class: 'hint', style: 'margin-top:6px' },
         'El número sale de lo que vas a gastar si cumplís todo, no de lo que llevás: ',
         'así sirve a la mañana. Sólo se mueve si te pasás de una meta.')));
-}
-
-/** Los tres números del día, con el denominador en chico. */
-function statDoble(valor, total, label) {
-  return el('div', { class: 'stat' },
-    el('div', { class: 'stat__value' },
-      el('span', { text: formatNumber(valor) }),
-      el('span', { class: 'stat__de', text: `/${formatNumber(total)}` })),
-    el('div', { class: 'stat__label', text: label }));
 }
 
 /** Tira de los últimos 7 días con la XP de cada uno. */

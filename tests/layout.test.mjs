@@ -19,7 +19,9 @@ test('las rejillas dejan encoger sus columnas', () => {
   // 1fr por sí solo desborda cuando adentro hay algo ancho.
   const rejillas = [...css.matchAll(/grid-template-columns\s*:\s*([^;]+);/g)].map((m) => m[1].trim());
   for (const r of rejillas) {
-    if (!/\bfr\b/.test(r)) continue;
+    // \bfr\b no matchea "1fr" —entre el 1 y la f no hay borde de palabra—, así
+    // que este test saltaba todas las reglas y no revisaba ninguna.
+    if (!/\dfr\b/.test(r)) continue;
     assert.ok(/minmax\(\s*0/.test(r) || /repeat\([^)]*minmax\(\s*0/.test(r) || /auto-fit|auto-fill/.test(r),
       `"grid-template-columns: ${r}" usa fr sin minmax(0, …): puede desbordar`);
   }

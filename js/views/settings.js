@@ -7,7 +7,7 @@ import {
   previewMerge, mergeData, parseBackup, agregarPausa, quitarPausa,
 } from '../state.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
-import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe } from '../theme.js';
+import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe, estiloDeBoton } from '../theme.js';
 import { tramos, largo, esLibre } from '../pausas.js';
 import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
@@ -18,6 +18,7 @@ import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { FASES, faseDe } from '../calorias.js';
 import { stat } from '../ui/components.js';
+import { nombreDeCopiaManual } from '../backup.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { toast } from '../ui/feedback.js';
 
@@ -88,7 +89,7 @@ export function render({ navigate }) {
       el('li', {}, 'Samsung Health → ⚙ Ajustes → ', el('b', {}, 'Descargar datos personales'), '.'),
       el('li', {}, 'Elegí acá el ', el('b', {}, 'ZIP tal cual te llega'), ': la app busca sola el archivo de pasos adentro. (También acepta un CSV suelto.)')),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)')),
+      el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'), onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)')),
     el('p', { class: 'hint', style: 'margin-top:12px' },
       'Para una caminata suelta hay otro camino, sin esperar la exportación: el ',
       el('b', {}, 'modo caminata'), ' en la pantalla de Pasos cuenta con el acelerómetro del teléfono ',
@@ -335,7 +336,7 @@ function importarPasos(navigate) {
         ? el('p', { class: 'hint', style: 'margin-top:10px' }, `Ojo: ${cambios.cambiados} ${cambios.cambiados === 1 ? 'día ya tenía' : 'días ya tenían'} pasos cargados a mano y se van a reemplazar por los de Samsung Health.`)
         : null,
       el('div', { class: 'btn-row', style: 'margin-top:16px' },
-        el('button', { class: 'btn btn--primary btn--block', style: '--c:#34d399',
+        el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton('#34d399'),
           onClick: () => {
             bulkSetEntries('pasos', dias.map((d) => ({ date: d.date, value: d.steps, source: 'samsung-health' })));
             closeSheet();
@@ -460,7 +461,7 @@ function tarjetaDeAviso(navigate) {
 
 /** La copia, fuera del teléfono. */
 function doCompartir() {
-  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  const nombre = nombreDeCopiaManual();
   if (compartirArchivo(nombre, exportData())) {
     // Se marca como exportada igual que al guardar: el aviso de los catorce
     // días cuenta copias hechas, no adónde fueron a parar.
@@ -471,7 +472,7 @@ function doCompartir() {
 }
 
 function doExport() {
-  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  const nombre = nombreDeCopiaManual();
   // Adentro de la app de Android el blob no descarga nada: lo guarda la app.
   if (guardarArchivo(nombre, exportData())) {
     markExported();
@@ -535,7 +536,7 @@ function mostrarPreviaDeImportacion(texto, navigate) {
       : null,
     el('div', { class: 'btn-row', style: 'margin-top:16px' },
       el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'),
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => {
+      el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'), onClick: () => {
         const res = mergeData(texto);
         closeSheet();
         location.hash = '#/';
@@ -682,7 +683,7 @@ function tarjetaNativa(navigate) {
       el('button', { class: 'btn', onClick: () => refrescarNativo() }, '🔄 Volver a leer')));
   } else if (msg.accion) {
     card.append(el('div', { class: 'btn-row', style: 'margin-top:12px' },
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399',
+      el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'),
         onClick: () => (msg.accion === 'permiso' ? pedirPermiso() : instalarHealthConnect()) },
         msg.boton)));
   }
@@ -831,7 +832,7 @@ function tarjetaDePausas(navigate) {
     el('div', { class: 'field' }, el('label', { text: 'Qué te perdiste' }), quienExcusa));
 
   const botones = [];
-  const accion = el('button', { class: 'btn btn--primary btn--block', style: '--c:#f59e0b' }, 'Declarar vacaciones');
+  const accion = el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton('#f59e0b') }, 'Declarar vacaciones');
 
   const pintar = () => {
     const esExcusa = modo === 'excusa';

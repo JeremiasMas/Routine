@@ -59,6 +59,7 @@ body {
 
 /* Brasa: casi negro con rojo encendido. El más oscuro de los tres. */
 :root[data-tema='brasa'] {
+  --sobre: #ffffff;        /* la tinta sobre el botón del color del tema */
   --bg: #000000;
   --bg-soft: #0c0709;
   --panel: rgba(255, 255, 255, .035);
@@ -90,6 +91,7 @@ body {
 
 /* Sangre fría: gris muy oscuro, rojo profundo. Más sobrio, menos neón. */
 :root[data-tema='sangre'] {
+  --sobre: #ffffff;        /* la tinta sobre el botón del color del tema */
   --bg: #0a0a0c;
   --bg-soft: #131316;
   --panel: rgba(255, 255, 255, .04);
@@ -214,7 +216,14 @@ a { color: inherit; text-decoration: none; }
 .player__lvl span { font-size: .55rem; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
 .player__info { flex: 1; min-width: 0; }
 .player__title { font-size: 1.02rem; font-weight: 700; }
-.player__sub { font-size: .76rem; color: var(--muted); margin-top: 2px; display: flex; gap: 10px; flex-wrap: wrap; }
+/* Los tres chips entran en una fila en un teléfono normal: con 10px de
+   separación el trofeo se caía solo a una segunda línea, y en 320px quedaban
+   tres renglones. Ahora, si no entran, bajan de a uno y pegados. */
+.player__sub { font-size: .76rem; color: var(--muted); margin-top: 4px; display: flex; gap: 5px; flex-wrap: wrap; }
+/* "11.097 / 11.490" y abajo "XP": si no entran las dos etiquetas, que baje
+   una entera y no que se partan las dos por la mitad. */
+.player__xp .xpbar__label { flex-wrap: wrap; column-gap: 10px; }
+.player__xp .xpbar__label span { white-space: nowrap; }
 .player__xp { margin-top: 8px; }
 
 /* ---------- Barra de XP ---------- */
@@ -232,12 +241,20 @@ a { color: inherit; text-decoration: none; }
   transition: width .6s cubic-bezier(.2,.8,.25,1);
   position: relative;
   min-width: 0;
+  /* El brillo no se sale del relleno: sin esto seguía de largo y dejaba una
+     mancha gris sobre la parte vacía de la barra. */
+  overflow: hidden;
 }
 .xpbar__fill::after {
   content: "";
   position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
-  animation: shine 2.6s linear infinite;
+  /* Una pasada al dibujarse y listo. Corría para siempre en cada barra de la
+     pantalla —doce a la vez en Progreso—: movimiento que no dice nada, que
+     gasta batería y que en una captura deja la barra con una mancha clara en
+     el medio, como si estuviera mal pintada. */
+  transform: translateX(-100%);
+  animation: shine 1.4s ease-out .25s 1 both;
 }
 @keyframes shine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .xpbar__label {
@@ -360,6 +377,9 @@ button:focus-visible,
   font-size: .6rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
   border: 1px solid var(--line); border-radius: 7px; padding: 2px 5px;
 }
+/* En 320px los chips de la fila se pasaban cuatro píxeles del borde y el
+   nivel quedaba cortado al medio. Es el dato menos urgente de la fila. */
+@media (max-width: 340px) { .quest__nv { display: none; } }
 /* El anillo ya no vive en el tablero, pero sí en la pantalla de la actividad. */
 .quest__ring { flex: 0 0 auto; position: relative; }
 .quest__ringlvl {
@@ -399,6 +419,9 @@ button:focus-visible,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* En la cabecera van tres en una fila de 254px: un pelo más chicos. */
+.player__sub .chip { padding: 2px 5px; font-size: .66rem; gap: 3px; }
+@media (max-width: 379px) { .chip__extra { display: none; } }
 .chip--dato { background: rgba(255, 255, 255, .07); color: var(--text); font-weight: 600; }
 .chip--mudo { background: transparent; color: var(--muted); }
 .chip--vivo {
@@ -490,7 +513,8 @@ button:focus-visible,
 .btn:active { transform: scale(.97); }
 .btn--primary {
   background: linear-gradient(120deg, var(--c, var(--accent)), color-mix(in srgb, var(--c, var(--accent)) 55%, var(--accent-2)));
-  color: #071018; border-color: transparent;
+  /* La tinta la calcula theme.js contra el peor extremo del degradé. */
+  color: var(--sobre, #071018); border-color: transparent;
 }
 .btn--ghost { background: transparent; }
 .btn--danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
@@ -577,18 +601,22 @@ button:focus-visible,
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 70; }
 
 /* ---------- Estadísticas ---------- */
-.stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .stat {
   border: 1px solid var(--line); border-radius: 16px; padding: 12px;
   background: var(--panel);
 }
-.stat-grid--tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.stat-grid--tres .stat { padding: 10px 8px; text-align: center; }
-.stat-grid--tres .stat__value { font-size: 1.3rem; }
-.stat-grid--tres .stat__label { font-size: .58rem; letter-spacing: .05em; }
+/* El resumen del día: una franja, no tres casilleros. */
+.dia { padding-top: 12px; padding-bottom: 12px; }
+.dia__fila { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.dia__dato { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+.dia__n { font-size: 1.55rem; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
+.dia__n--xp { color: var(--gold); }
+.dia__de { font-size: .95rem; color: var(--muted); font-weight: 650; margin-left: -3px; }
+.dia__label { font-size: .68rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-left: 3px; white-space: nowrap; }
 .stat__value { font-size: 1.45rem; font-weight: 750; font-variant-numeric: tabular-nums; }
 .stat__de { font-size: .8rem; color: var(--muted); font-weight: 650; }
-.stat__label { font-size: .7rem; white-space: nowrap; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+.stat__label { font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
 
 .bars { display: flex; align-items: flex-end; gap: 3px; height: 110px; }
 .bars__col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 4px; }
@@ -675,7 +703,7 @@ button:focus-visible,
 }
 .field textarea { min-height: 80px; resize: vertical; }
 .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 
 .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .switch:last-child { border-bottom: 0; }
@@ -690,7 +718,7 @@ button:focus-visible,
 .exercise { border: 1px solid var(--line); border-radius: 16px; padding: 12px; background: var(--panel); margin-bottom: 10px; }
 .exercise__head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .exercise__head input { flex: 1; min-width: 0; min-height: 38px; background: rgba(0,0,0,.28); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
-.set-row { display: grid; grid-template-columns: 26px 1fr 1fr 34px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.set-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr) 34px; gap: 8px; align-items: center; margin-bottom: 6px; }
 .set-row__n { font-size: .72rem; color: var(--muted); text-align: center; }
 .set-row input { min-width: 0; width: 100%; min-height: 40px; text-align: center; background: rgba(0,0,0,.28); border: 1px solid var(--line); border-radius: 10px; font-variant-numeric: tabular-nums; }
 /* ---------------------------------------------------------------------------
@@ -718,7 +746,7 @@ button:focus-visible,
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, var(--gold)) 45%, transparent);
   color: var(--c, var(--gold));
 }
-.segmento--grilla { display: grid; grid-template-columns: 1fr 1fr; }
+.segmento--grilla { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .segmento__opcion:active { transform: scale(.98); }
 
 /* Se ve de 34 px y se toca de 44, como el ✓ del tablero. */
@@ -741,7 +769,6 @@ button:focus-visible,
 
 @media (min-width: 560px) {
   .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .stat-grid--tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -932,7 +959,7 @@ button:focus-visible,
   width: 34px; height: 34px; border-radius: 50%;
   border: 1px solid var(--c, var(--accent));
   background: var(--c, var(--accent));
-  color: #0a0507; font-size: .9rem; font-weight: 800; cursor: pointer;
+  color: var(--sobre, #0a0507); font-size: .9rem; font-weight: 800; cursor: pointer;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--c, var(--accent)) 35%, transparent);
 }
 /* Se ve de 34 px y se toca de 44: con las manos sudadas del gimnasio, errarle

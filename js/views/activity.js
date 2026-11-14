@@ -5,7 +5,7 @@ import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.j
 import { openLogger } from '../ui/logger.js';
 import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
-import { colorDe, colorDeRango } from '../theme.js';
+import { colorDe, colorDeRango, estiloDeBoton } from '../theme.js';
 import { EQUIV_MANCUERNA } from '../strength.js';
 import { PASOS_POR_MINUTO, minutosDeCaminata } from '../config.js';
 import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
@@ -87,7 +87,7 @@ export function render({ params, navigate, celebrate }) {
     a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
   root.append(el('div', { style: 'margin-top:12px' },
-    el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(a)}`,
+    el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton(colorDe(a)),
       onClick: () => openLogger(a, state.today, (...args) => { celebrate(...args); navigate(); }) },
       `Registrar ${relativeDay(state.today).toLowerCase()}`)));
 
@@ -232,18 +232,31 @@ export function render({ params, navigate, celebrate }) {
     root.append(el('div', { class: 'section-title' },
       el('h2', { text: 'Récords personales' }),
       st.prCount > 0 ? el('small', { text: `${st.prCount} superados` }) : null));
-    root.append(el('div', { class: 'list' },
-      st.recordList.map((r) => el('div', { class: 'row' },
-        el('div', { class: 'row__main' },
-          el('div', { text: r.name }),
-          el('div', { class: 'row__sub', text: r.bw
-            ? `${r.weight > 0 ? `+${formatNumber(r.weight)} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
-            : `${formatNumber(r.weight)} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
-        el('div', { class: 'row__value', text: `${formatNumber(r.e1rm)} kg` })))));
+    const filaDeRecord = (r) => el('div', { class: 'row' },
+      el('div', { class: 'row__main' },
+        el('div', { text: r.name }),
+        el('div', { class: 'row__sub', text: r.bw
+          ? `${r.weight > 0 ? `+${formatNumber(r.weight)} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
+          : `${formatNumber(r.weight)} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
+      el('div', { class: 'row__value', text: `${formatNumber(r.e1rm)} kg` }));
+    // Con una rutina de treinta y pico de ejercicios esto eran treinta y pico
+    // de filas: más de dos pantallas enteras de scroll entre "tus números" y
+    // el historial. Los primeros quedan a la vista y el resto a un toque.
+    const aLaVista = st.recordList.slice(0, RECORDS_A_LA_VISTA);
+    const resto = st.recordList.slice(RECORDS_A_LA_VISTA);
+    root.append(el('div', { class: 'list' }, aLaVista.map(filaDeRecord)));
+    if (resto.length) {
+      root.append(el('details', { class: 'plegado', style: 'margin-top:8px' },
+        el('summary', {},
+          el('b', { text: `${plural(resto.length, 'récord más', 'récords más')}` }),
+          el('span', { class: 'plegado__nota', text: 'ver todos' }),
+          el('span', { class: 'plegado__flecha', text: '⌄' })),
+        el('div', { class: 'list' }, resto.map(filaDeRecord))));
+    }
     const progresion = progresionPorEjercicio(st, a);
     if (progresion) root.append(progresion);
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' },
-      'El valor de la derecha es tu 1RM estimado (fórmula de Epley). ',
+      'El valor de la derecha es tu 1RM estimado: el promedio de cuatro fórmulas, no una sola. ',
       st.recordList.some((r) => r.db)
         ? 'En los de mancuerna es por mancuerna, igual que lo que anotás.'
         : ''));
@@ -424,7 +437,9 @@ function strengthHeader(st, a) {
     el('div', { style: 'margin-top:12px' },
       xpBar(g.pct, {
         left: `promedio de ${g.lifts} ${g.lifts === 1 ? 'movimiento' : 'movimientos'}`,
-        right: g.next ? 'Falta para el próximo' : 'Último rango',
+        // Decía "Falta para el próximo" y nada más: una frase sin número,
+        // debajo de una barra que justamente lo tiene.
+        right: g.next ? `${Math.round((g.pct || 0) * 100)}% hacia el próximo` : 'Último rango',
       })),
     flojo && flojo.falta > 0
       ? el('p', { class: 'hint', style: 'margin-top:10px' },
@@ -456,6 +471,9 @@ function bodyFatHeader(st, a) {
           (banda.next.max > a.targetBodyFat ? ` La meta final es el ${a.targetBodyFat}%.` : '')
         : `Llegaste a la meta del ${a.targetBodyFat}%. La escalera termina acá a propósito: más abajo ya no es salud, es preparación de competencia.`));
 }
+
+/** Cuántos récords se muestran antes de plegar el resto. */
+const RECORDS_A_LA_VISTA = 8;
 
 /** Composición corporal: tendencia de grasa, peso y medidas. */
 function bodySection(st) {

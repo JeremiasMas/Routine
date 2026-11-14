@@ -97,3 +97,74 @@ export function colorDeRango(tier, indice, tema = temaActual()) {
 export function esCalido(tema = temaActual()) {
   return CALIDOS.has(tema);
 }
+
+/* ---------------------------------------------------------------------------
+   La tinta sobre un botón de color
+   --------------------------------------------------------------------------- */
+
+export const TINTA_OSCURA = '#071018';
+export const TINTA_CLARA = '#ffffff';
+
+/** Los segundos colores de cada tema, hacia donde se va el degradé del botón. */
+const SEGUNDO = { consola: '#a78bfa', brasa: '#7f1d1d', sangre: '#7a1f1f', carmin: '#9f1239' };
+
+function aRgb(hex) {
+  const h = String(hex || '').trim().replace('#', '');
+  const largo = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  if (!/^[0-9a-f]{6}$/i.test(largo)) return null;
+  return [0, 2, 4].map((i) => parseInt(largo.slice(i, i + 2), 16));
+}
+
+/** Luminancia relativa de WCAG, de 0 (negro) a 1 (blanco). */
+export function luminancia(hex) {
+  const rgb = aRgb(hex);
+  if (!rgb) return null;
+  const [r, g, b] = rgb.map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Contraste WCAG entre dos colores, de 1 a 21. */
+export function contraste(a, b) {
+  const la = luminancia(a);
+  const lb = luminancia(b);
+  if (la === null || lb === null) return null;
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+function mezclar(a, b, parteDeA) {
+  const ra = aRgb(a);
+  const rb = aRgb(b);
+  if (!ra || !rb) return a;
+  return '#' + ra.map((v, i) => Math.round(v * parteDeA + rb[i] * (1 - parteDeA)).toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Con qué color se escribe sobre un botón de este color.
+ *
+ * El texto del botón principal era siempre casi negro, pensado para el celeste
+ * del tema de fábrica. En los temas rojos el botón es un degradé que termina en
+ * bordó, y "Registrar hoy" quedaba en negro sobre rojo oscuro: 3,4 de contraste
+ * en la punta clara y 2,5 en la otra, cuando lo legible arranca en 4,5.
+ *
+ * Se elige la tinta que mejor se lee en el PEOR extremo del degradé, no en el
+ * promedio: un botón con media palabra ilegible es un botón ilegible.
+ *
+ * @param {string} color el color del botón (--c)
+ * @param {string} [tema]
+ * @returns {string} TINTA_OSCURA o TINTA_CLARA
+ */
+export function tintaSobre(color, tema = temaActual()) {
+  if (luminancia(color) === null) return TINTA_OSCURA;
+  // El mismo degradé que arma el CSS: del color al 55% de color con el segundo.
+  const extremos = [color, mezclar(color, SEGUNDO[tema] || SEGUNDO.consola, 0.55)];
+  const peor = (tinta) => Math.min(...extremos.map((e) => contraste(tinta, e)));
+  return peor(TINTA_CLARA) > peor(TINTA_OSCURA) ? TINTA_CLARA : TINTA_OSCURA;
+}
+
+/** El estilo en línea de un botón principal: su color y la tinta que le va. */
+export function estiloDeBoton(color, tema = temaActual()) {
+  return `--c:${color};--sobre:${tintaSobre(color, tema)}`;
+}
