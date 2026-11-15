@@ -10,7 +10,7 @@
  * la app ya mide, y cada actividad se cobra por su MET conocido.
  */
 import { massSplit } from './body.js';
-import { metaDelDia } from './derive.js';
+import { metaDelDia, ANTES_DE_TODO } from './derive.js';
 
 /**
  * Lo que gasta el cuerpo en reposo absoluto, por Katch-McArdle.
@@ -124,6 +124,66 @@ export const FASE_POR_DEFECTO = 'mantener';
 
 export function faseDe(settings) {
   return FASES[settings?.fase] ? settings.fase : FASE_POR_DEFECTO;
+}
+
+/**
+ * La historia de fases después de un cambio, o null si no cambió nada.
+ *
+ * Mismo criterio que las metas: el pasado se juzga con lo que regía entonces.
+ * Sin esto, pasar de "bajar" a "recomponer" a mitad de la ventana hace que la
+ * calibración compare seis semanas de balanza contra un déficit que sólo
+ * existió en las últimas dos.
+ *
+ * @returns {Array<{from:string, fase:string}>|null}
+ */
+export function anotarFase(settings, nueva, hoy) {
+  const vieja = faseDe(settings);
+  if (!FASES[nueva] || nueva === vieja || !hoy) return null;
+  const historia = Array.isArray(settings?.faseHistory) ? [...settings.faseHistory] : [];
+  // El primer cambio deja escrita también la fase de antes: sin ese tramo
+  // el pasado no tendría a quién preguntarle.
+  if (!historia.length) historia.push({ from: ANTES_DE_TODO, fase: vieja });
+  // Dos cambios el mismo día son uno solo: vale el último.
+  const mismoDia = historia.findIndex((t) => t.from === hoy);
+  if (mismoDia >= 0) historia[mismoDia] = { from: hoy, fase: nueva };
+  else historia.push({ from: hoy, fase: nueva });
+  return historia.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+}
+
+/**
+ * Qué fases rigieron entre dos fechas, y el delta promedio pesado por días.
+ *
+ * La ventana es [desde, hasta): lo que pesaste el último día es consecuencia
+ * de lo comido hasta la víspera, así que una fase que empieza ese mismo día
+ * todavía no aportó nada.
+ *
+ * @returns {{delta:number, tramos:Array<{fase:string, dias:number}>}}
+ */
+export function fasesEnVentana(historia, faseActual, desde, hasta, diasEntre) {
+  const actual = FASES[faseActual] ? faseActual : FASE_POR_DEFECTO;
+  const total = diasEntre(desde, hasta);
+  const validos = (Array.isArray(historia) ? historia : [])
+    .filter((t) => t && FASES[t.fase] && typeof t.from === 'string' && t.from)
+    .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+  if (!validos.length || !(total > 0)) {
+    return { delta: FASES[actual].delta, tramos: [{ fase: actual, dias: Math.max(total || 0, 0) }] };
+  }
+
+  const dias = new Map();
+  const sumar = (fase, a, b) => {
+    if (a < b) dias.set(fase, (dias.get(fase) || 0) + diasEntre(a, b));
+  };
+  const tope = (f) => (f < hasta ? f : hasta);
+  // Antes del primer tramo no hay historia: vale la de hoy, como en las metas.
+  sumar(actual, desde, tope(validos[0].from));
+  validos.forEach((t, i) => {
+    const fin = i + 1 < validos.length ? tope(validos[i + 1].from) : hasta;
+    sumar(t.fase, t.from > desde ? t.from : desde, fin);
+  });
+
+  const tramos = [...dias].map(([fase, n]) => ({ fase, dias: n }));
+  const delta = tramos.reduce((s, t) => s + FASES[t.fase].delta * t.dias, 0) / total;
+  return { delta, tramos };
 }
 
 /**
@@ -274,7 +334,10 @@ export const CALIBRACION = { dias: 21, maxDias: 42, mediciones: 3, margen: 80 };
  * no el modelo, y por eso la vista lo aclara en vez de dar un veredicto.
  *
  * @param {Array<{date:string, weight:number}>} mediciones  en orden cronológico
- * @param {number} deltaAsumido  el delta de la fase: -200, -400, 0…
+ * @param {number|((desde:string, hasta:string)=>number)} deltaAsumido  el
+ *   delta de la fase (-200, -400, 0…), o una función que lo calcula para la
+ *   ventana que terminó usándose: la ventana la decide esta función, y si la
+ *   fase cambió adentro, el delta depende de dónde empieza y dónde termina.
  * @param {(a:string,b:string)=>number} diasEntre
  */
 export function calibracion(mediciones, deltaAsumido, diasEntre) {
@@ -308,9 +371,12 @@ export function calibracion(mediciones, deltaAsumido, diasEntre) {
 
   // Un kilo perdido es un kilo de grasa: el balance diario que lo explica.
   const medido = Math.round(kgPorDia * KCAL_POR_KG_GRASA);
-  const asumido = Math.round(Number(deltaAsumido) || 0);
+  const delta = typeof deltaAsumido === 'function' ? deltaAsumido(base, ultima) : deltaAsumido;
+  const asumido = Math.round(Number(delta) || 0);
   const diferencia = medido - asumido;
   return {
+    desde: base,
+    hasta: ultima,
     dias,
     mediciones: n,
     kgPorSemana: Math.round(kgPorDia * 7 * 100) / 100,

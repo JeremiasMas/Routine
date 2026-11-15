@@ -112,7 +112,29 @@ export function formatValue(value, unit) {
     const m = Math.round(value % 60);
     return m ? `${h}h ${m}m` : `${h}h`;
   }
-  return `${formatNumber(value)} ${unit}`;
+  return `${formatNumber(value)} ${unidadPara(value, unit)}`;
+}
+
+/**
+ * Los singulares de las unidades que la app usa.
+ *
+ * Las unidades se guardan en plural porque casi siempre acompañan a un número
+ * grande, pero las metas semanales son de a uno: "1 mediciones · 1× por
+ * semana" y "0 / 1 posts" estaban en Ajustes y en el tablero todos los días.
+ * Una unidad que no está acá —las que escribas vos en una actividad propia—
+ * se deja como está: adivinar el singular de una palabra cualquiera sale mal
+ * más veces de las que sale bien.
+ */
+const SINGULARES = {
+  mediciones: 'medición', posts: 'post', pasos: 'paso', series: 'serie',
+  lecciones: 'lección', episodios: 'episodio', minutos: 'minuto',
+  sesiones: 'sesión', semanas: 'semana', veces: 'vez', horas: 'hora',
+  'páginas': 'página', paginas: 'página', vasos: 'vaso', clases: 'clase',
+};
+
+/** La unidad en singular si el valor es exactamente uno. */
+export function unidadPara(value, unit) {
+  return Math.abs(Number(value)) === 1 ? (SINGULARES[unit] || unit) : unit;
 }
 
 /** Crea un elemento con clases, atributos e hijos. */
@@ -139,6 +161,13 @@ export function el(tag, props = {}, ...children) {
 /** "1 semana" / "3 semanas": evita el clásico "1 semanas". */
 export function plural(n, singular, plural_) {
   return `${formatNumber(n)} ${Math.abs(n) === 1 ? singular : plural_}`;
+}
+
+/** "a", "a y b", "a, b y c": una enumeración como se dice en voz alta. */
+export function enLista(partes) {
+  const p = (partes || []).filter(Boolean);
+  if (p.length <= 1) return p[0] || '';
+  return `${p.slice(0, -1).join(', ')} y ${p[p.length - 1]}`;
 }
 
 export function uid() {

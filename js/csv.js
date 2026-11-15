@@ -7,6 +7,7 @@
  * que cualquier herramienta de análisis espera recibir datos.
  */
 import { esFechaValida } from './utils.js';
+import { estimatedOneRepMax } from './xp.js';
 
 export const COLUMNAS = [
   'fecha', 'dia_semana', 'actividad', 'unidad', 'valor', 'meta',
@@ -82,7 +83,10 @@ export function filasDeGimnasio(state) {
           repeticiones: reps,
           por_mancuerna: ex.db ? 1 : 0,
           peso_corporal: ex.bw ? 1 : 0,
-          e1rm_kg: peso > 0 ? redondear(peso * (1 + reps / 30)) : '',
+          // El mismo 1RM que muestra la app: el promedio de cuatro fórmulas.
+          // Acá salía sólo Epley, así que el archivo y la pantalla daban dos
+          // números distintos para la misma serie bajo el mismo nombre.
+          e1rm_kg: peso > 0 ? estimatedOneRepMax(peso, reps) : '',
         });
       });
     }

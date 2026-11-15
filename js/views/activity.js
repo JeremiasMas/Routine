@@ -1,17 +1,17 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
-import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort, daysBetween } from '../utils.js';
+import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort, daysBetween, enLista } from '../utils.js';
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
 import { openWalk, walkDisponible } from '../ui/walk.js';
 import { enApp } from '../native.js';
-import { colorDe, colorDeRango } from '../theme.js';
+import { colorDe, colorDeRango, estiloDeBoton } from '../theme.js';
 import { EQUIV_MANCUERNA } from '../strength.js';
 import { PASOS_POR_MINUTO, minutosDeCaminata } from '../config.js';
 import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta, ffmiBand } from '../body.js';
-import { calibracion, faseDe, FASES, CALIBRACION } from '../calorias.js';
+import { calibracion, faseDe, fasesEnVentana, FASES, CALIBRACION } from '../calorias.js';
 import { getData } from '../state.js';
 
 export function render({ params, navigate, celebrate }) {
@@ -87,7 +87,7 @@ export function render({ params, navigate, celebrate }) {
     a.motto ? el('p', { class: 'hint', style: 'margin-top:6px;font-style:italic', text: `“${a.motto}”` }) : null));
 
   root.append(el('div', { style: 'margin-top:12px' },
-    el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(a)}`,
+    el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton(colorDe(a)),
       onClick: () => openLogger(a, state.today, (...args) => { celebrate(...args); navigate(); }) },
       `Registrar ${relativeDay(state.today).toLowerCase()}`)));
 
@@ -232,18 +232,31 @@ export function render({ params, navigate, celebrate }) {
     root.append(el('div', { class: 'section-title' },
       el('h2', { text: 'Récords personales' }),
       st.prCount > 0 ? el('small', { text: `${st.prCount} superados` }) : null));
-    root.append(el('div', { class: 'list' },
-      st.recordList.map((r) => el('div', { class: 'row' },
-        el('div', { class: 'row__main' },
-          el('div', { text: r.name }),
-          el('div', { class: 'row__sub', text: r.bw
-            ? `${r.weight > 0 ? `+${formatNumber(r.weight)} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
-            : `${formatNumber(r.weight)} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
-        el('div', { class: 'row__value', text: `${formatNumber(r.e1rm)} kg` })))));
+    const filaDeRecord = (r) => el('div', { class: 'row' },
+      el('div', { class: 'row__main' },
+        el('div', { text: r.name }),
+        el('div', { class: 'row__sub', text: r.bw
+          ? `${r.weight > 0 ? `+${formatNumber(r.weight)} kg` : 'sin lastre'} × ${r.reps} reps · ${formatNumber(r.load)} kg movidos · ${shortDate(r.date)}`
+          : `${formatNumber(r.weight)} kg${r.db ? ' c/u' : ''} × ${r.reps} reps · ${shortDate(r.date)}` })),
+      el('div', { class: 'row__value', text: `${formatNumber(r.e1rm)} kg` }));
+    // Con una rutina de treinta y pico de ejercicios esto eran treinta y pico
+    // de filas: más de dos pantallas enteras de scroll entre "tus números" y
+    // el historial. Los primeros quedan a la vista y el resto a un toque.
+    const aLaVista = st.recordList.slice(0, RECORDS_A_LA_VISTA);
+    const resto = st.recordList.slice(RECORDS_A_LA_VISTA);
+    root.append(el('div', { class: 'list' }, aLaVista.map(filaDeRecord)));
+    if (resto.length) {
+      root.append(el('details', { class: 'plegado', style: 'margin-top:8px' },
+        el('summary', {},
+          el('b', { text: `${plural(resto.length, 'récord más', 'récords más')}` }),
+          el('span', { class: 'plegado__nota', text: 'ver todos' }),
+          el('span', { class: 'plegado__flecha', text: '⌄' })),
+        el('div', { class: 'list' }, resto.map(filaDeRecord))));
+    }
     const progresion = progresionPorEjercicio(st, a);
     if (progresion) root.append(progresion);
     root.append(el('p', { class: 'hint', style: 'margin-top:8px' },
-      'El valor de la derecha es tu 1RM estimado (fórmula de Epley). ',
+      'El valor de la derecha es tu 1RM estimado: el promedio de cuatro fórmulas, no una sola. ',
       st.recordList.some((r) => r.db)
         ? 'En los de mancuerna es por mancuerna, igual que lo que anotás.'
         : ''));
@@ -424,7 +437,9 @@ function strengthHeader(st, a) {
     el('div', { style: 'margin-top:12px' },
       xpBar(g.pct, {
         left: `promedio de ${g.lifts} ${g.lifts === 1 ? 'movimiento' : 'movimientos'}`,
-        right: g.next ? 'Falta para el próximo' : 'Último rango',
+        // Decía "Falta para el próximo" y nada más: una frase sin número,
+        // debajo de una barra que justamente lo tiene.
+        right: g.next ? `${Math.round((g.pct || 0) * 100)}% hacia el próximo` : 'Último rango',
       })),
     flojo && flojo.falta > 0
       ? el('p', { class: 'hint', style: 'margin-top:10px' },
@@ -456,6 +471,9 @@ function bodyFatHeader(st, a) {
           (banda.next.max > a.targetBodyFat ? ` La meta final es el ${a.targetBodyFat}%.` : '')
         : `Llegaste a la meta del ${a.targetBodyFat}%. La escalera termina acá a propósito: más abajo ya no es salud, es preparación de competencia.`));
 }
+
+/** Cuántos récords se muestran antes de plegar el resto. */
+const RECORDS_A_LA_VISTA = 8;
 
 /** Composición corporal: tendencia de grasa, peso y medidas. */
 function bodySection(st) {
@@ -586,8 +604,15 @@ function bodySection(st) {
  */
 function tarjetaDeCalibracion(mediciones, perfil) {
   const fase = faseDe(perfil);
-  const c = calibracion(mediciones, FASES[fase].delta, daysBetween);
+  // La ventana la decide calibracion(); recién ahí se sabe qué fases cayeron
+  // adentro y cuántos días cada una.
+  let mezcla = null;
+  const c = calibracion(mediciones, (desde, hasta) => {
+    mezcla = fasesEnVentana(perfil?.faseHistory, fase, desde, hasta, daysBetween);
+    return mezcla.delta;
+  }, daysBetween);
   if (!c) return null;
+  const variasFases = mezcla && mezcla.tramos.length > 1;
 
   const kgSem = formatNumber(Math.abs(c.kgPorSemana));
   const rumbo = c.kgPorSemana < 0 ? 'bajando' : c.kgPorSemana > 0 ? 'subiendo' : 'quieto';
@@ -601,7 +626,7 @@ function tarjetaDeCalibracion(mediciones, perfil) {
 
   const signo = (n) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
   const filas = el('div', { class: 'list', style: 'margin-top:10px' },
-    fila(`La app asume (${FASES[fase].nombre.toLowerCase()})`, `${signo(c.asumido)} kcal/día`),
+    fila(`La app asume (${variasFases ? 'promedio de fases' : FASES[mezcla.tramos[0].fase].nombre.toLowerCase()})`, `${signo(c.asumido)} kcal/día`),
     fila('Tu peso dice', `${signo(c.medido)} kcal/día`),
     fila(`Peso, ${rumbo}`, `${kgSem} kg/semana`));
 
@@ -616,7 +641,15 @@ function tarjetaDeCalibracion(mediciones, perfil) {
     : el('p', { class: 'hint', style: 'margin-top:6px' },
       `Si comiste lo que la app te pidió, el que está mal es el cálculo: para que la fase haga lo que promete, ${c.diferencia > 0 ? 'comé' : 'sumá'} ${formatNumber(Math.abs(c.diferencia))} kcal/día ${c.diferencia > 0 ? 'menos' : 'más'} que el número de Hoy.`);
 
+  // Si cambiaste de fase adentro de la ventana, el número asumido no es el
+  // de hoy: es el promedio de lo que la app te fue pidiendo, y hay que decirlo.
+  const reparto = variasFases
+    ? el('p', { class: 'hint', style: 'margin-top:10px' },
+      `Cambiaste de fase en estos ${c.dias} días: ${enLista(mezcla.tramos.map((t) => `${plural(t.dias, 'día', 'días')} en ${FASES[t.fase].nombre.toLowerCase()}`))}. Lo asumido es el promedio, pesado por días.`)
+    : null;
+
   return el('div', { class: 'card', style: 'margin-top:10px' }, cabeza, filas,
+    reparto,
     el('p', { class: 'hint', style: 'margin-top:10px', text: texto }),
     accion,
     el('p', { class: 'hint', style: 'margin-top:6px' },

@@ -21,6 +21,18 @@ export function nombreDeCopia(fecha = todayKey()) {
 }
 
 /**
+ * El nombre de la copia que exportás o compartís a mano, con la fecha de acá.
+ *
+ * Salía de toISOString(), que es la fecha en Greenwich: en Argentina, de las
+ * nueve de la noche en adelante la copia quedaba fechada con el día siguiente.
+ * Es el archivo que vas a buscar el día que pierdas el teléfono, y buscarlo
+ * por una fecha en la que no lo hiciste es la peor manera de encontrarlo.
+ */
+export function nombreDeCopiaManual(fecha = todayKey()) {
+  return `rutina-rpg-${fecha}.json`;
+}
+
+/**
  * ¿Toca guardar? Decide sobre datos, sin efectos, para poder probarlo.
  * @param {object} settings  los ajustes actuales
  * @param {string} hoy

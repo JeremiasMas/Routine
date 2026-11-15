@@ -12,7 +12,7 @@ import {
   DEFAULT_SETS, esMancuerna, perfilDeEjercicio, RANGOS_REPS, plannedSets,
 } from '../config.js';
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
-import { colorDe } from '../theme.js';
+import { colorDe, estiloDeBoton } from '../theme.js';
 import { queTocaHoy, ESTADOS, esDescarga, objetivoDeDescarga, textoDeDescarga } from '../descargas.js';
 
 /** Cada cuánto se anota lo cargado, por si el sistema mata la app sin avisar. */
@@ -51,7 +51,7 @@ export function openLogger(activity, dateKey, onSaved) {
 
 function footer(activity, dateKey, getPayload, getValue, onSaved, existing, getContext = () => null) {
   const preview = el('span', { class: 'xp-preview' });
-  const save = el('button', { class: 'btn btn--primary btn--block', style: `--c:${colorDe(activity)}` }, 'Guardar');
+  const save = el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton(colorDe(activity)) }, 'Guardar');
   const remove = existing
     ? el('button', { class: 'btn btn--danger', onClick: () => {
         // Se guarda una copia antes de borrar: es lo único que hace posible

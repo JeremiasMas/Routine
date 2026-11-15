@@ -1,13 +1,15 @@
 // Ajustes: metas, actividades, copia de seguridad.
-import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey, addDays, plural } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey, addDays, plural, enLista } from '../utils.js';
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
   previewMerge, mergeData, parseBackup, agregarPausa, quitarPausa,
+  corregirPesoDeBarra, previaDePesoDeBarra,
 } from '../state.js';
+import { candidatosDeBarra, barraValida, BARRA_ASUMIDA, BARRA_MIN, BARRA_MAX } from '../barra.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
-import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe } from '../theme.js';
+import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe, estiloDeBoton } from '../theme.js';
 import { tramos, largo, esLibre } from '../pausas.js';
 import {
   filasACsv, filasDeHistorial, filasDeGimnasio, filasDeCuerpo,
@@ -18,6 +20,7 @@ import { listarEntradas, extraerTextos } from '../zip.js';
 import { waterGoalMl, bodySummary } from '../body.js';
 import { FASES, faseDe } from '../calorias.js';
 import { stat } from '../ui/components.js';
+import { nombreDeCopiaManual } from '../backup.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { toast } from '../ui/feedback.js';
 
@@ -88,7 +91,7 @@ export function render({ navigate }) {
       el('li', {}, 'Samsung Health → ⚙ Ajustes → ', el('b', {}, 'Descargar datos personales'), '.'),
       el('li', {}, 'Elegí acá el ', el('b', {}, 'ZIP tal cual te llega'), ': la app busca sola el archivo de pasos adentro. (También acepta un CSV suelto.)')),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)')),
+      el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'), onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)')),
     el('p', { class: 'hint', style: 'margin-top:12px' },
       'Para una caminata suelta hay otro camino, sin esperar la exportación: el ',
       el('b', {}, 'modo caminata'), ' en la pantalla de Pasos cuenta con el acelerómetro del teléfono ',
@@ -105,6 +108,11 @@ export function render({ navigate }) {
   root.append(el('div', { class: 'section-title' },
     el('h2', { text: 'Calorías' }), el('small', { text: 'qué hacés con el gasto' })));
   root.append(tarjetaDeFase(navigate, data));
+
+  // --- Gimnasio ---
+  root.append(el('div', { class: 'section-title' },
+    el('h2', { text: 'Gimnasio' }), el('small', { text: 'el peso de la barra' })));
+  root.append(tarjetaDeBarra(navigate, data));
 
   // --- Aviso del teléfono ---
   if (puedeAvisar()) {
@@ -335,7 +343,7 @@ function importarPasos(navigate) {
         ? el('p', { class: 'hint', style: 'margin-top:10px' }, `Ojo: ${cambios.cambiados} ${cambios.cambiados === 1 ? 'día ya tenía' : 'días ya tenían'} pasos cargados a mano y se van a reemplazar por los de Samsung Health.`)
         : null,
       el('div', { class: 'btn-row', style: 'margin-top:16px' },
-        el('button', { class: 'btn btn--primary btn--block', style: '--c:#34d399',
+        el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton('#34d399'),
           onClick: () => {
             bulkSetEntries('pasos', dias.map((d) => ({ date: d.date, value: d.steps, source: 'samsung-health' })));
             closeSheet();
@@ -380,6 +388,135 @@ function tarjetaDeFase(navigate, data) {
     el('p', { class: 'hint', style: 'margin-top:6px' },
       'El gasto sale de tu masa magra y de lo que entrenás, no de un multiplicador. ',
       'Los METs de cada actividad son referencias, no mediciones tuyas: ubican, no deciden decimales.'));
+}
+
+/**
+ * El peso de la barra.
+ *
+ * Los pesos con barra se anotan con la barra adentro, y la barra se supone.
+ * Si la supusiste mal, todo lo anotado con ella está corrido por la misma
+ * diferencia. La tarjeta sólo cuenta en qué estado está; la corrección vive
+ * en un panel aparte porque es algo que se hace una vez, no un ajuste que se
+ * mira todos los días.
+ */
+function tarjetaDeBarra(navigate, data) {
+  const candidatos = candidatosDeBarra(data);
+  const corregidos = candidatos.filter((c) => c.barra !== BARRA_ASUMIDA);
+  // Agrupado por barra: lo normal es una sola, y repetir "barra de 15 kg"
+  // detrás de cada ejercicio es decir tres veces lo mismo.
+  const porBarra = new Map();
+  for (const c of corregidos) porBarra.set(c.barra, [...(porBarra.get(c.barra) || []), c.nombre]);
+  const estado = !candidatos.length
+    ? 'Todavía no hay series con peso para corregir.'
+    : corregidos.length
+      ? [...porBarra].map(([kg, nombres]) => `Con barra de ${formatNumber(kg)} kg: ${enLista(nombres)}.`).join(' ')
+      : `Hasta ahora todo está anotado como si la barra pesara ${BARRA_ASUMIDA} kg.`;
+  return el('div', { class: 'card' },
+    el('p', { class: 'hint' },
+      'Lo que hacés con barra se anota con la barra incluida. Si alguna no pesa lo que suponías, acá se corrigen de una vez todos los registros viejos de lo que hacés con ella: cambia el peso y nada más. Cada barra, con su peso.'),
+    el('p', { class: 'hint', style: 'margin-top:8px', text: estado }),
+    candidatos.length
+      ? el('div', { class: 'btn-row', style: 'margin-top:12px' },
+        el('button', { class: 'btn', type: 'button', onClick: () => corregirLaBarra(navigate) }, '🏋️ Corregir el peso de la barra'))
+      : null);
+}
+
+function corregirLaBarra(navigate) {
+  const candidatos = candidatosDeBarra(getData());
+  // Nada arranca tildado, ni lo que ya corregiste. En un gimnasio hay varias
+  // barras —la del rack, la corta, la EZ— y cada pasada es UNA: su peso y
+  // sus ejercicios. Si lo ya corregido viniera tildado, al cargar la segunda
+  // barra se llevaría puestos los ejercicios de la primera. Y qué se hace con
+  // cada barra lo decís vos: el nombre no alcanza para saberlo.
+  const elegidos = new Set();
+  const gimnasio = getData().activities.find((a) => a.kind === 'gym');
+  const color = gimnasio ? colorDe(gimnasio) : '#fb7185';
+
+  const peso = el('input', {
+    type: 'number', inputmode: 'decimal', step: '0.5',
+    min: String(BARRA_MIN), max: String(BARRA_MAX),
+    placeholder: String(BARRA_ASUMIDA), value: '',
+    'aria-label': 'Cuánto pesa esta barra, en kilos',
+  });
+  const resumen = el('div', { 'aria-live': 'polite', style: 'margin-top:12px' });
+  const aplicar = el('button', {
+    class: 'btn btn--primary', type: 'button', style: estiloDeBoton(color),
+    onClick: () => {
+      const hecho = corregirPesoDeBarra([...elegidos], Number(peso.value));
+      navigate?.();
+      // El panel vuelve a abrirse limpio en vez de cerrarse: si hay otra
+      // barra, se carga a continuación, y lo recién corregido ya figura.
+      corregirLaBarra(navigate);
+      toast('🏋️', `${plural(hecho.series, 'serie corregida', 'series corregidas')}. Si usás otra barra, cargala ahora.`, 4500);
+    },
+  }, 'Corregir');
+
+  const kilos = (n) => `${formatNumber(n)} kg`;
+  const filas = candidatos.map((c) => {
+    const caja = el('input', { type: 'checkbox', checked: elegidos.has(c.clave) });
+    const sub = el('div', { class: 'row__sub' });
+    caja.addEventListener('change', () => {
+      if (caja.checked) elegidos.add(c.clave); else elegidos.delete(c.clave);
+      pintar();
+    });
+    return {
+      c, sub,
+      nodo: el('label', { class: 'row elegir', style: `--c:${color}` },
+        caja,
+        el('div', { class: 'row__main' }, el('div', { text: c.nombre }), sub)),
+    };
+  });
+
+  function pintar() {
+    const escrito = peso.value.trim() !== '';
+    const valido = barraValida(peso.value);
+    const p = valido && elegidos.size ? previaDePesoDeBarra([...elegidos], Number(peso.value)) : null;
+    const cambios = new Map((p?.filas || []).map((f) => [f.clave, f]));
+
+    for (const { c, sub } of filas) {
+      const f = cambios.get(c.clave);
+      sub.textContent = f
+        ? `Tu serie más pesada: ${kilos(f.maximoAntes)} → ${kilos(f.maximoDespues)} · ${plural(f.series, 'serie', 'series')}`
+        : c.barra !== BARRA_ASUMIDA
+          ? `✓ Corregido con barra de ${kilos(c.barra)} · máximo ${kilos(c.maximo)}`
+          : `Máximo ${kilos(c.maximo)} · ${plural(c.sesiones, 'sesión', 'sesiones')}`;
+    }
+
+    const lineas = [];
+    if (!escrito) lineas.push('Poné cuánto pesa esta barra.');
+    else if (!valido) lineas.push(`Una barra pesa entre ${BARRA_MIN} y ${BARRA_MAX} kg.`);
+    else if (!elegidos.size) lineas.push('Tildá los ejercicios que hacés con esa barra.');
+    else if (!p.series) lineas.push(`Lo que tildaste ya está anotado con una barra de ${kilos(p.kg)}: no hay nada que corregir.`);
+    else {
+      lineas.push(`${plural(p.series, 'serie cambia', 'series cambian')} de peso, en ${plural(p.sesiones, 'sesión', 'sesiones')}. No cambia ninguna serie, repetición ni meta: lo que estaba cumplido sigue cumplido.`);
+      lineas.push(p.xpDespues !== p.xpAntes
+        ? `Los récords se vuelven a decidir con el peso real, y eso mueve cuáles días fueron récord: la XP de gimnasio pasa de ${formatNumber(p.xpAntes)} a ${formatNumber(p.xpDespues)}.`
+        : 'Los récords y el nivel de fuerza se recalculan con el peso real. La XP no cambia.');
+      if (p.nivelDespues !== p.nivelAntes) lineas.push(`Tu nivel general pasa de ${p.nivelAntes} a ${p.nivelDespues}.`);
+      if (p.sinTocar) lineas.push(`${plural(p.sinTocar, 'serie queda', 'series quedan')} como ${p.sinTocar === 1 ? 'está' : 'están'}: sin peso anotado, o tan ${p.sinTocar === 1 ? 'liviana' : 'livianas'} que no ${p.sinTocar === 1 ? 'pudo' : 'pudieron'} incluir la barra.`);
+      lineas.push('Se puede deshacer: tildá lo mismo y poné el peso de antes.');
+    }
+    resumen.replaceChildren(...lineas.map((t, i) => el('p', { class: 'hint', style: i ? 'margin-top:6px' : '', text: t })));
+    aplicar.disabled = !(p && p.series > 0);
+  }
+  peso.addEventListener('input', pintar);
+  pintar();
+
+  const cuerpo = el('div', {},
+    el('p', { class: 'hint', style: 'margin-bottom:12px' },
+      'De a una barra por vez: cuánto pesa y qué hacés con ella. Si usás varias —la del rack, la corta, la EZ—, corregís una, y el panel queda abierto para la siguiente.'),
+    el('div', { class: 'field' }, el('label', { text: 'Esta barra pesa (kg)' }), peso),
+    el('p', { class: 'hint' },
+      `Hasta ahora todo está anotado como si la barra pesara ${BARRA_ASUMIDA}. La olímpica larga, de 2,2 m, pesa 20 kg y la de 2 m, 15. Las más cortas o finas varían mucho: lo seguro es pesarlas o preguntar en el gimnasio.`),
+    el('div', { class: 'section-title', style: 'margin-top:14px' },
+      el('h2', { text: 'Qué hacés con esta barra' })),
+    el('div', { class: 'list' }, filas.map((f) => f.nodo)),
+    resumen,
+    el('div', { class: 'btn-row', style: 'margin-top:16px' },
+      el('button', { class: 'btn', type: 'button', onClick: closeSheet }, 'Listo'),
+      aplicar));
+
+  openSheet('El peso de la barra', cuerpo);
 }
 
 /**
@@ -460,7 +597,7 @@ function tarjetaDeAviso(navigate) {
 
 /** La copia, fuera del teléfono. */
 function doCompartir() {
-  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  const nombre = nombreDeCopiaManual();
   if (compartirArchivo(nombre, exportData())) {
     // Se marca como exportada igual que al guardar: el aviso de los catorce
     // días cuenta copias hechas, no adónde fueron a parar.
@@ -471,7 +608,7 @@ function doCompartir() {
 }
 
 function doExport() {
-  const nombre = `rutina-rpg-${new Date().toISOString().slice(0, 10)}.json`;
+  const nombre = nombreDeCopiaManual();
   // Adentro de la app de Android el blob no descarga nada: lo guarda la app.
   if (guardarArchivo(nombre, exportData())) {
     markExported();
@@ -524,25 +661,35 @@ function mostrarPreviaDeImportacion(texto, navigate) {
     linea(r.reemplazados, 'registro que el archivo tiene más actualizado', 'registros que el archivo tiene más actualizados'),
     linea(r.actividadesNuevas, 'actividad que no existía acá', 'actividades que no existían acá'));
 
+  // El archivo puede traer corregido el peso de la barra. Eso no suma
+  // registros pero sí cambia pesos de acá, y hay que decirlo antes.
+  const barra = r.barraAjustadas > 0
+    ? el('p', { class: 'hint', style: 'margin-top:10px' },
+        `El archivo trae corregido el peso de la barra: ${plural(r.barraAjustadas, 'serie de acá se ajusta', 'series de acá se ajustan')} a esa corrección, para que las dos copias hablen de los mismos kilos.`)
+    : null;
+
   const cuerpo = el('div', {},
     r.total > 0
       ? el('p', { class: 'hint' }, 'Se va a sumar a lo que ya tenés. Nada de lo que está cargado acá se pierde: cuando un registro está en los dos lados, queda el más reciente.')
-      : el('p', { class: 'hint' }, 'El archivo no trae nada que no tengas ya. Fusionar no va a cambiar nada.'),
+      : el('p', { class: 'hint' }, barra
+        ? 'El archivo no trae registros que no tengas ya.'
+        : 'El archivo no trae nada que no tengas ya. Fusionar no va a cambiar nada.'),
     r.total > 0 ? detalle : null,
+    barra,
     r.conservados > 0
       ? el('p', { class: 'hint', style: 'margin-top:10px' },
           `${formatNumber(r.conservados)} ${r.conservados === 1 ? 'registro de acá es más nuevo y se queda' : 'registros de acá son más nuevos y se quedan'}.`)
       : null,
     el('div', { class: 'btn-row', style: 'margin-top:16px' },
       el('button', { class: 'btn', onClick: closeSheet }, 'Cancelar'),
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399', onClick: () => {
+      el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'), onClick: () => {
         const res = mergeData(texto);
         closeSheet();
         location.hash = '#/';
         navigate?.();
         toast('⬆', res.total > 0
           ? `Fusionado: ${formatNumber(res.total)} ${res.total === 1 ? 'registro' : 'registros'}.`
-          : 'No había nada nuevo que sumar.');
+          : res.barraAjustadas > 0 ? 'Peso de la barra ajustado.' : 'No había nada nuevo que sumar.');
       } }, 'Fusionar')),
     el('details', { style: 'margin-top:14px' },
       el('summary', { class: 'hint', style: 'cursor:pointer', text: 'O reemplazar todo por el archivo' }),
@@ -682,7 +829,7 @@ function tarjetaNativa(navigate) {
       el('button', { class: 'btn', onClick: () => refrescarNativo() }, '🔄 Volver a leer')));
   } else if (msg.accion) {
     card.append(el('div', { class: 'btn-row', style: 'margin-top:12px' },
-      el('button', { class: 'btn btn--primary', style: '--c:#34d399',
+      el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'),
         onClick: () => (msg.accion === 'permiso' ? pedirPermiso() : instalarHealthConnect()) },
         msg.boton)));
   }
@@ -831,7 +978,7 @@ function tarjetaDePausas(navigate) {
     el('div', { class: 'field' }, el('label', { text: 'Qué te perdiste' }), quienExcusa));
 
   const botones = [];
-  const accion = el('button', { class: 'btn btn--primary btn--block', style: '--c:#f59e0b' }, 'Declarar vacaciones');
+  const accion = el('button', { class: 'btn btn--primary btn--block', style: estiloDeBoton('#f59e0b') }, 'Declarar vacaciones');
 
   const pintar = () => {
     const esExcusa = modo === 'excusa';

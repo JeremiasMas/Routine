@@ -13,6 +13,7 @@
  */
 
 import { tramos, agregar } from './pausas.js';
+import { alinearBarras } from './barra.js';
 
 /** Cuándo se tocó por última vez un registro. */
 export function marcaDeTiempo(entry) {
@@ -26,9 +27,13 @@ export function marcaDeTiempo(entry) {
  * Une dos copias.
  * @param {object} local     lo que hay en este dispositivo
  * @param {object} entrante  lo que viene en el archivo
- * @returns {{entries: object, unlocked: object, actividadesNuevas: Array, resumen: object}}
+ * @returns {{entries: object, unlocked: object, actividadesNuevas: Array, barra: object|null, resumen: object}}
  */
-export function fusionar(local, entrante) {
+export function fusionar(localCrudo, entranteCrudo) {
+  // Antes que nada, las dos copias a la misma barra: si una tiene corregido
+  // el peso de la barra y la otra no, comparar sus registros es comparar
+  // kilos distintos.
+  const { local, entrante, barra, ajustadas } = alinearBarras(localCrudo, entranteCrudo);
   const entries = {};
   const resumen = {
     diasNuevos: 0,        // días que sólo estaban en el archivo
@@ -82,8 +87,11 @@ export function fusionar(local, entrante) {
   resumen.pausasNuevas = pausas.length - (local?.pausas?.length || 0);
 
   resumen.actividadesNuevas = actividadesNuevas.length;
+  // Series de acá que cambian de peso porque el archivo trae corregida la
+  // barra. No son registros nuevos, pero fusionar sí las cambia.
+  resumen.barraAjustadas = ajustadas;
   resumen.total = resumen.diasNuevos + resumen.registrosNuevos + resumen.reemplazados;
-  return { entries, unlocked, actividadesNuevas, pausas, resumen };
+  return { entries, unlocked, actividadesNuevas, pausas, barra, resumen };
 }
 
 function iguales(a, b) {

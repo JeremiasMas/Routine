@@ -158,7 +158,7 @@ test('el selector se acomoda cuando hay más de tres fases', () => {
   const vista = readFileSync('js/views/settings.js', 'utf8');
   assert.match(vista, /segmento--grilla/, 'el selector no cambia de forma con cuatro opciones');
   assert.match(readFileSync('css/styles.css', 'utf8'),
-    /\.segmento--grilla \{[^}]*grid-template-columns: 1fr 1fr/);
+    /\.segmento--grilla \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
 });
 
 test('la vista del cuerpo muestra la calibración', () => {
@@ -171,8 +171,11 @@ test('la vista del cuerpo muestra la calibración', () => {
     'la tarjeta existe pero no se llama desde ningún lado');
   assert.match(vista, /if \(cal\) root\.append\(cal\);/,
     'se calcula la tarjeta y no se agrega a la pantalla');
-  assert.match(vista, /calibracion\(mediciones, FASES\[fase\]\.delta, daysBetween\)/,
-    'la tarjeta dejó de comparar contra la fase elegida');
+  // Antes comparaba contra el delta de la fase de hoy. Ahora compara contra
+  // las fases que rigieron en la ventana; la de hoy sólo cubre lo que no
+  // tiene historia.
+  assert.match(vista, /fasesEnVentana\(perfil\?\.faseHistory, fase, desde, hasta, daysBetween\)/,
+    'la tarjeta dejó de comparar contra las fases de la ventana');
 });
 
 test('las frases de bandas concuerdan con su número', () => {
@@ -190,4 +193,176 @@ test('las frases de bandas concuerdan con su número', () => {
   assert.match(vista, /plural\(banda\.falta, 'punto', 'puntos'\)\} de FFMI/,
     'el sustantivo dejó de concordar en la banda de FFMI');
   assert.match(vista, /unKg \? 'es un' : 'son unos'/, 'los kilos dejaron de concordar');
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Cambiar de fase a mitad de la ventana
+//
+// La calibración mira hasta seis semanas de balanza. Si en el medio pasaste
+// de "bajar" a "recomponer", comparar todo contra el −200 de hoy es comparar
+// contra un déficit que sólo existió al final.
+// ─────────────────────────────────────────────────────────────────────────
+
+const { anotarFase, fasesEnVentana } = await import('../js/calorias.js');
+const { ANTES_DE_TODO } = await import('../js/derive.js');
+const { enLista } = await import('../js/utils.js');
+
+const ventana = (historia, actual, desde, hasta) =>
+  fasesEnVentana(historia, actual, desde, hasta, daysBetween);
+
+test('el primer cambio de fase deja escrita también la de antes', () => {
+  const h = anotarFase({ fase: 'bajar' }, 'recomponer', '2026-11-08');
+  assert.deepEqual(h, [
+    { from: ANTES_DE_TODO, fase: 'bajar' },
+    { from: '2026-11-08', fase: 'recomponer' },
+  ]);
+});
+
+test('sin fase guardada, la de antes es la de por defecto', () => {
+  const h = anotarFase({}, 'bajar', '2026-11-08');
+  assert.equal(h[0].fase, faseDe({}));
+  assert.equal(h[0].from, ANTES_DE_TODO);
+});
+
+test('elegir la misma fase, o una que no existe, no escribe nada', () => {
+  assert.equal(anotarFase({ fase: 'bajar' }, 'bajar', '2026-11-08'), null);
+  assert.equal(anotarFase({ fase: 'bajar' }, 'volar', '2026-11-08'), null);
+  // Sin fase guardada rige la de por defecto: elegirla no es un cambio.
+  assert.equal(anotarFase({}, faseDe({}), '2026-11-08'), null);
+});
+
+test('dos cambios el mismo día son uno solo, y vale el último', () => {
+  const uno = anotarFase({ fase: 'bajar' }, 'mantener', '2026-11-08');
+  const dos = anotarFase({ fase: 'mantener', faseHistory: uno }, 'recomponer', '2026-11-08');
+  assert.deepEqual(dos, [
+    { from: ANTES_DE_TODO, fase: 'bajar' },
+    { from: '2026-11-08', fase: 'recomponer' },
+  ]);
+  // Y no tocó la historia que recibió.
+  assert.equal(uno[1].fase, 'mantener');
+});
+
+test('los cambios siguientes se agregan en orden y no repiten la semilla', () => {
+  const uno = anotarFase({ fase: 'bajar' }, 'recomponer', '2026-11-01');
+  const dos = anotarFase({ fase: 'recomponer', faseHistory: uno }, 'mantener', '2026-11-10');
+  assert.deepEqual(dos.map((t) => t.fase), ['bajar', 'recomponer', 'mantener']);
+  assert.deepEqual(dos.map((t) => t.from), [ANTES_DE_TODO, '2026-11-01', '2026-11-10']);
+});
+
+test('sin historia, toda la ventana es la fase de hoy', () => {
+  const v = ventana(undefined, 'bajar', '2026-10-17', '2026-11-07');
+  assert.equal(v.delta, FASES.bajar.delta);
+  assert.deepEqual(v.tramos, [{ fase: 'bajar', dias: 21 }]);
+});
+
+test('con un cambio adentro, el delta es el promedio pesado por días', () => {
+  // 14 días bajando (−400) y 7 recomponiendo (−200): (14·400 + 7·200) / 21.
+  const h = [{ from: ANTES_DE_TODO, fase: 'bajar' }, { from: '2026-10-31', fase: 'recomponer' }];
+  const v = ventana(h, 'recomponer', '2026-10-17', '2026-11-07');
+  assert.deepEqual(v.tramos, [{ fase: 'bajar', dias: 14 }, { fase: 'recomponer', dias: 7 }]);
+  assert.ok(Math.abs(v.delta - (-(14 * 400 + 7 * 200) / 21)) < 1e-9, `delta: ${v.delta}`);
+});
+
+test('una fase que empieza el día de la última medición todavía no aportó nada', () => {
+  // Te pesaste el 7 y ese mismo día cambiaste: ese peso es de lo comido antes.
+  const h = [{ from: ANTES_DE_TODO, fase: 'bajar' }, { from: '2026-11-07', fase: 'recomponer' }];
+  const v = ventana(h, 'recomponer', '2026-10-17', '2026-11-07');
+  assert.deepEqual(v.tramos, [{ fase: 'bajar', dias: 21 }]);
+  assert.equal(v.delta, FASES.bajar.delta);
+});
+
+test('un cambio posterior a la ventana no cuenta, y uno anterior la cubre entera', () => {
+  const despues = [{ from: ANTES_DE_TODO, fase: 'bajar' }, { from: '2026-11-20', fase: 'subir' }];
+  assert.equal(ventana(despues, 'subir', '2026-10-17', '2026-11-07').delta, FASES.bajar.delta);
+  const antes = [{ from: ANTES_DE_TODO, fase: 'bajar' }, { from: '2026-09-01', fase: 'subir' }];
+  assert.deepEqual(ventana(antes, 'subir', '2026-10-17', '2026-11-07').tramos, [{ fase: 'subir', dias: 21 }]);
+});
+
+test('ir y volver a la misma fase suma sus días en un solo renglón', () => {
+  const h = [
+    { from: ANTES_DE_TODO, fase: 'bajar' },
+    { from: '2026-10-24', fase: 'mantener' },
+    { from: '2026-10-31', fase: 'bajar' },
+  ];
+  const v = ventana(h, 'bajar', '2026-10-17', '2026-11-07');
+  assert.deepEqual(v.tramos, [{ fase: 'bajar', dias: 14 }, { fase: 'mantener', dias: 7 }]);
+  assert.ok(Math.abs(v.delta - (-(14 * 400) / 21)) < 1e-9);
+});
+
+test('los tramos sucios se ignoran, y lo anterior al primero vale como hoy', () => {
+  const h = [
+    { from: '', fase: 'subir' }, { from: '2026-10-20', fase: 'volar' }, null,
+    { from: '2026-10-31', fase: 'recomponer' },
+  ];
+  const v = ventana(h, 'mantener', '2026-10-17', '2026-11-07');
+  assert.deepEqual(v.tramos, [{ fase: 'mantener', dias: 14 }, { fase: 'recomponer', dias: 7 }]);
+});
+
+test('los tramos desordenados se leen en orden', () => {
+  const h = [{ from: '2026-10-31', fase: 'recomponer' }, { from: ANTES_DE_TODO, fase: 'bajar' }];
+  const v = ventana(h, 'recomponer', '2026-10-17', '2026-11-07');
+  assert.deepEqual(v.tramos, [{ fase: 'bajar', dias: 14 }, { fase: 'recomponer', dias: 7 }]);
+});
+
+test('calibracion() acepta el delta como función de la ventana que usó', () => {
+  // Cinco mediciones, la primera fuera del techo: la ventana real empieza en
+  // la segunda, y la función tiene que recibir ESA fecha y no la primera.
+  const m = [
+    { date: '2026-08-01', weight: 63 },
+    ...serie(-0.2 / 7),
+  ];
+  let visto = null;
+  const c = calibracion(m, (desde, hasta) => { visto = { desde, hasta }; return -300; }, daysBetween);
+  assert.deepEqual(visto, { desde: INICIO, hasta: addDays(INICIO, 21) });
+  assert.equal(c.asumido, -300);
+  assert.equal(c.desde, INICIO);
+  assert.equal(c.hasta, addDays(INICIO, 21));
+});
+
+test('el caso real: balanza de −140 con dos semanas en bajar y una en recomponer', () => {
+  const reales = [
+    { date: '2026-10-17', weight: 61.6 }, { date: '2026-10-24', weight: 61.5 },
+    { date: '2026-11-02', weight: 61.35 }, { date: '2026-11-08', weight: 61.2 },
+  ];
+  const h = [{ from: ANTES_DE_TODO, fase: 'bajar' }, { from: '2026-11-02', fase: 'recomponer' }];
+  const c = calibracion(reales, (d, a) => ventana(h, 'recomponer', d, a).delta, daysBetween);
+  // 16 días a −400 y 6 a −200 sobre 22: −345, no los −200 de hoy.
+  assert.equal(c.asumido, Math.round(-(16 * 400 + 6 * 200) / 22));
+  assert.equal(c.coincide, false, 'contra el promedio real el modelo sigue sin acertar');
+  // Con el −200 plano de antes habría dicho que acertaba.
+  assert.equal(calibracion(reales, -200, daysBetween).coincide, true);
+});
+
+test('la tarjeta calcula lo asumido con la historia de fases, no con la de hoy', () => {
+  const vista = readFileSync(new URL('../js/views/activity.js', import.meta.url), 'utf8');
+  const cuerpo = vista.slice(vista.indexOf('function tarjetaDeCalibracion('));
+  const tarjeta = cuerpo.slice(0, cuerpo.indexOf('\nfunction ', 10));
+  assert.match(tarjeta, /fasesEnVentana\(perfil\?\.faseHistory, fase, desde, hasta, daysBetween\)/);
+  assert.doesNotMatch(tarjeta, /calibracion\(mediciones, FASES\[fase\]\.delta/);
+  assert.match(tarjeta, /Cambiaste de fase/);
+});
+
+test('guardar la fase pasa por anotarFase', () => {
+  const estado = readFileSync(new URL('../js/state.js', import.meta.url), 'utf8');
+  const cuerpo = estado.slice(estado.indexOf('export function updateSettings('));
+  const fn = cuerpo.slice(0, cuerpo.indexOf('\nexport function ', 10));
+  assert.match(fn, /anotarFase\(d\.settings, patch\.fase, todayKey\(\)\)/);
+  assert.match(fn, /d\.settings\.faseHistory = historia/);
+  // La historia se anota ANTES de pisar la fase: después ya no hay "vieja".
+  assert.ok(fn.indexOf('anotarFase(') < fn.indexOf('Object.assign(d.settings, patch)'));
+});
+
+test('enLista enumera como se dice en voz alta', () => {
+  assert.equal(enLista([]), '');
+  assert.equal(enLista(['a']), 'a');
+  assert.equal(enLista(['a', 'b']), 'a y b');
+  assert.equal(enLista(['a', 'b', 'c']), 'a, b y c');
+  assert.equal(enLista(['a', null, 'c']), 'a y c');
+});
+
+test('anotar una fase deja la historia en orden aunque viniera desordenada', () => {
+  // Una historia que llegó al revés (una copia vieja fusionada, por ejemplo).
+  const sucia = [{ from: '2026-10-01', fase: 'mantener' }, { from: ANTES_DE_TODO, fase: 'bajar' }];
+  const h = anotarFase({ fase: 'mantener', faseHistory: sucia }, 'recomponer', '2026-11-08');
+  assert.deepEqual(h.map((t) => t.from), [ANTES_DE_TODO, '2026-10-01', '2026-11-08']);
 });
