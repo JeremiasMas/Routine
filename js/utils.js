@@ -163,6 +163,13 @@ export function plural(n, singular, plural_) {
   return `${formatNumber(n)} ${Math.abs(n) === 1 ? singular : plural_}`;
 }
 
+/** "a", "a y b", "a, b y c": una enumeración como se dice en voz alta. */
+export function enLista(partes) {
+  const p = (partes || []).filter(Boolean);
+  if (p.length <= 1) return p[0] || '';
+  return `${p.slice(0, -1).join(', ')} y ${p[p.length - 1]}`;
+}
+
 export function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }

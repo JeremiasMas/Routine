@@ -670,6 +670,10 @@ button:focus-visible,
 .row__main { flex: 1; min-width: 0; }
 .row__sub { font-size: .72rem; color: var(--muted); }
 .row__value { font-variant-numeric: tabular-nums; font-weight: 650; }
+/* Una fila que se tilda: toda la fila es el botón, no sólo el cuadradito. */
+.elegir { cursor: pointer; min-height: var(--tap); }
+.elegir input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; accent-color: var(--c, var(--accent)); }
+.elegir:has(input:checked) { border-color: color-mix(in srgb, var(--c, var(--accent)) 55%, var(--line)); }
 
 /* ---------- Logros ---------- */
 .awards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }

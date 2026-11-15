@@ -1,5 +1,5 @@
 // Detalle de una actividad: su nivel, su historia y sus récords.
-import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort, daysBetween } from '../utils.js';
+import { el, formatValue, formatNumber, formatPreciso, shortDate, addDays, relativeDay, plural, scheduleLabel, keyToDate, weekdayShort, daysBetween, enLista } from '../utils.js';
 import { getState } from '../state.js';
 import { ring, chip, xpBar, stat, barChart, lineChart } from '../ui/components.js';
 import { openLogger } from '../ui/logger.js';
@@ -11,7 +11,7 @@ import { PASOS_POR_MINUTO, minutosDeCaminata } from '../config.js';
 import { explicarProgreso, proyeccionDeNivel } from '../analisis.js';
 import { xpToNextLevel } from '../xp.js';
 import { bodySummary, bodyDelta, ffmiBand } from '../body.js';
-import { calibracion, faseDe, FASES, CALIBRACION } from '../calorias.js';
+import { calibracion, faseDe, fasesEnVentana, FASES, CALIBRACION } from '../calorias.js';
 import { getData } from '../state.js';
 
 export function render({ params, navigate, celebrate }) {
@@ -604,8 +604,15 @@ function bodySection(st) {
  */
 function tarjetaDeCalibracion(mediciones, perfil) {
   const fase = faseDe(perfil);
-  const c = calibracion(mediciones, FASES[fase].delta, daysBetween);
+  // La ventana la decide calibracion(); recién ahí se sabe qué fases cayeron
+  // adentro y cuántos días cada una.
+  let mezcla = null;
+  const c = calibracion(mediciones, (desde, hasta) => {
+    mezcla = fasesEnVentana(perfil?.faseHistory, fase, desde, hasta, daysBetween);
+    return mezcla.delta;
+  }, daysBetween);
   if (!c) return null;
+  const variasFases = mezcla && mezcla.tramos.length > 1;
 
   const kgSem = formatNumber(Math.abs(c.kgPorSemana));
   const rumbo = c.kgPorSemana < 0 ? 'bajando' : c.kgPorSemana > 0 ? 'subiendo' : 'quieto';
@@ -619,7 +626,7 @@ function tarjetaDeCalibracion(mediciones, perfil) {
 
   const signo = (n) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
   const filas = el('div', { class: 'list', style: 'margin-top:10px' },
-    fila(`La app asume (${FASES[fase].nombre.toLowerCase()})`, `${signo(c.asumido)} kcal/día`),
+    fila(`La app asume (${variasFases ? 'promedio de fases' : FASES[mezcla.tramos[0].fase].nombre.toLowerCase()})`, `${signo(c.asumido)} kcal/día`),
     fila('Tu peso dice', `${signo(c.medido)} kcal/día`),
     fila(`Peso, ${rumbo}`, `${kgSem} kg/semana`));
 
@@ -634,7 +641,15 @@ function tarjetaDeCalibracion(mediciones, perfil) {
     : el('p', { class: 'hint', style: 'margin-top:6px' },
       `Si comiste lo que la app te pidió, el que está mal es el cálculo: para que la fase haga lo que promete, ${c.diferencia > 0 ? 'comé' : 'sumá'} ${formatNumber(Math.abs(c.diferencia))} kcal/día ${c.diferencia > 0 ? 'menos' : 'más'} que el número de Hoy.`);
 
+  // Si cambiaste de fase adentro de la ventana, el número asumido no es el
+  // de hoy: es el promedio de lo que la app te fue pidiendo, y hay que decirlo.
+  const reparto = variasFases
+    ? el('p', { class: 'hint', style: 'margin-top:10px' },
+      `Cambiaste de fase en estos ${c.dias} días: ${enLista(mezcla.tramos.map((t) => `${plural(t.dias, 'día', 'días')} en ${FASES[t.fase].nombre.toLowerCase()}`))}. Lo asumido es el promedio, pesado por días.`)
+    : null;
+
   return el('div', { class: 'card', style: 'margin-top:10px' }, cabeza, filas,
+    reparto,
     el('p', { class: 'hint', style: 'margin-top:10px', text: texto }),
     accion,
     el('p', { class: 'hint', style: 'margin-top:6px' },

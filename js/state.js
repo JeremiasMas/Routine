@@ -4,6 +4,8 @@ import { DEFAULT_ACTIVITIES, DEFAULT_PROFILE, SCHEMA_VERSION } from './config.js
 import { waterGoalMl } from './body.js';
 import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive, ANTES_DE_TODO } from './derive.js';
+import { anotarFase } from './calorias.js';
+import { corregirBarra } from './barra.js';
 import { todayKey, uid, daysBetween, weekStart } from './utils.js';
 import { fusionar } from './merge.js';
 import { tramos, agregar, quitar } from './pausas.js';
@@ -342,7 +344,49 @@ export function quitarPausa(tramo) {
 }
 
 export function updateSettings(patch) {
-  return mutate((d) => Object.assign(d.settings, patch));
+  return mutate((d) => {
+    // Cambiar de fase deja escrito desde cuándo: la calibración compara la
+    // balanza contra lo que la app pedía en cada tramo, no contra lo de hoy.
+    if (patch && 'fase' in patch) {
+      const historia = anotarFase(d.settings, patch.fase, todayKey());
+      if (historia) d.settings.faseHistory = historia;
+    }
+    Object.assign(d.settings, patch);
+  });
+}
+
+/**
+ * Corrige de una vez el peso de la barra en los registros de gimnasio.
+ * @returns {object} el resumen de lo que cambió (ver barra.js)
+ */
+export function corregirPesoDeBarra(ejercicios, kg) {
+  let resumen = null;
+  mutate((d) => {
+    resumen = corregirBarra(d, { ejercicios, kg });
+  });
+  return resumen;
+}
+
+/**
+ * Lo que pasaría con la corrección, sin tocar nada: qué series cambian y,
+ * como los récords se vuelven a decidir con los pesos reales, cuánta XP de
+ * gimnasio se mueve. Corre sobre una copia.
+ */
+export function previaDePesoDeBarra(ejercicios, kg) {
+  const copia = structuredClone(getData());
+  const resumen = corregirBarra(copia, { ejercicios, kg });
+  const xpDe = (estado) => [...estado.byActivity.values()]
+    .filter((st) => st.activity.kind === 'gym')
+    .reduce((n, st) => n + st.xp, 0);
+  const antes = getState();
+  const despues = resumen.series ? derive(copia) : antes;
+  return {
+    ...resumen,
+    xpAntes: xpDe(antes),
+    xpDespues: xpDe(despues),
+    nivelAntes: antes.player.level,
+    nivelDespues: despues.player.level,
+  };
 }
 
 export function exportData() {
@@ -395,8 +439,11 @@ export function previewMerge(json) {
  */
 export function mergeData(json) {
   const entrante = parseBackup(json);
-  const { entries, unlocked, actividadesNuevas, pausas, resumen } = fusionar(getData(), entrante);
+  const { entries, unlocked, actividadesNuevas, pausas, barra, resumen } = fusionar(getData(), entrante);
   data.entries = entries;
+  // Los registros ya vienen todos en la misma barra; la anotación tiene que
+  // decir cuál, o la próxima corrección restaría dos veces.
+  if (barra) data.settings.barra = barra;
   data.unlocked = unlocked;
   data.pausas = pausas;
   for (const act of actividadesNuevas) data.activities.push(act);
