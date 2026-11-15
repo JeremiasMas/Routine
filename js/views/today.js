@@ -16,6 +16,7 @@ import { colorDe, estiloDeBoton } from '../theme.js';
 import { rachasEnRiesgo } from '../analisis.js';
 import { enApp } from '../native.js';
 import { puedeUnToque } from '../resumen.js';
+import { abrirSeccion } from './settings.js';
 import { tramos } from '../pausas.js';
 import { tocaDescarga, estancados, esDescarga, CADA_CUANTAS_SEMANAS } from '../descargas.js';
 
@@ -159,6 +160,8 @@ export function render({ navigate, celebrate }) {
     const dias = diasSinBackup();
     root.append(el('a', {
       class: 'row', href: '#/ajustes',
+      // Ajustes es un índice plegado: que llegue con la copia ya abierta.
+      onClick: () => abrirSeccion('datos'),
       style: 'margin-top:14px;border-color:color-mix(in srgb, var(--danger) 40%, var(--line));background:rgba(251,113,133,.08)',
     },
       el('span', { style: 'font-size:1.2rem' }, '⚠️'),

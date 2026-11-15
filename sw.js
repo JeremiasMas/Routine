@@ -29,6 +29,7 @@ const ASSETS = [
   './js/resumen.js',
   './js/sesion.js',
   './js/barra.js',
+  './js/ajustes.js',
   './js/csv.js',
   './js/backup.js',
   './js/theme.js',
