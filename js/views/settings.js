@@ -413,7 +413,7 @@ function tarjetaDeBarra(navigate, data) {
       : `Hasta ahora todo está anotado como si la barra pesara ${BARRA_ASUMIDA} kg.`;
   return el('div', { class: 'card' },
     el('p', { class: 'hint' },
-      'Lo que hacés con barra se anota con la barra incluida. Si la tuya no pesa lo que suponías, acá se corrigen de una vez todos los registros viejos: cambia el peso y nada más.'),
+      'Lo que hacés con barra se anota con la barra incluida. Si alguna no pesa lo que suponías, acá se corrigen de una vez todos los registros viejos de lo que hacés con ella: cambia el peso y nada más. Cada barra, con su peso.'),
     el('p', { class: 'hint', style: 'margin-top:8px', text: estado }),
     candidatos.length
       ? el('div', { class: 'btn-row', style: 'margin-top:12px' },
@@ -423,27 +423,31 @@ function tarjetaDeBarra(navigate, data) {
 
 function corregirLaBarra(navigate) {
   const candidatos = candidatosDeBarra(getData());
-  // Lo único que arranca tildado es lo que ya corregiste. Qué se hace con
-  // barra lo decís vos: el nombre no alcanza para saberlo.
-  const elegidos = new Set(candidatos.filter((c) => c.barra !== BARRA_ASUMIDA).map((c) => c.clave));
-  const anterior = candidatos.find((c) => c.barra !== BARRA_ASUMIDA)?.barra;
+  // Nada arranca tildado, ni lo que ya corregiste. En un gimnasio hay varias
+  // barras —la del rack, la corta, la EZ— y cada pasada es UNA: su peso y
+  // sus ejercicios. Si lo ya corregido viniera tildado, al cargar la segunda
+  // barra se llevaría puestos los ejercicios de la primera. Y qué se hace con
+  // cada barra lo decís vos: el nombre no alcanza para saberlo.
+  const elegidos = new Set();
   const gimnasio = getData().activities.find((a) => a.kind === 'gym');
   const color = gimnasio ? colorDe(gimnasio) : '#fb7185';
 
   const peso = el('input', {
     type: 'number', inputmode: 'decimal', step: '0.5',
     min: String(BARRA_MIN), max: String(BARRA_MAX),
-    placeholder: String(BARRA_ASUMIDA), value: anterior ? String(anterior) : '',
-    'aria-label': 'Cuánto pesa la barra, en kilos',
+    placeholder: String(BARRA_ASUMIDA), value: '',
+    'aria-label': 'Cuánto pesa esta barra, en kilos',
   });
   const resumen = el('div', { 'aria-live': 'polite', style: 'margin-top:12px' });
   const aplicar = el('button', {
     class: 'btn btn--primary', type: 'button', style: estiloDeBoton(color),
     onClick: () => {
       const hecho = corregirPesoDeBarra([...elegidos], Number(peso.value));
-      closeSheet();
       navigate?.();
-      toast('🏋️', `${plural(hecho.series, 'serie corregida', 'series corregidas')}.`);
+      // El panel vuelve a abrirse limpio en vez de cerrarse: si hay otra
+      // barra, se carga a continuación, y lo recién corregido ya figura.
+      corregirLaBarra(navigate);
+      toast('🏋️', `${plural(hecho.series, 'serie corregida', 'series corregidas')}. Si usás otra barra, cargala ahora.`, 4500);
     },
   }, 'Corregir');
 
@@ -473,11 +477,13 @@ function corregirLaBarra(navigate) {
       const f = cambios.get(c.clave);
       sub.textContent = f
         ? `Tu serie más pesada: ${kilos(f.maximoAntes)} → ${kilos(f.maximoDespues)} · ${plural(f.series, 'serie', 'series')}`
-        : `Máximo ${kilos(c.maximo)} · ${plural(c.sesiones, 'sesión', 'sesiones')}${c.barra !== BARRA_ASUMIDA ? ` · barra de ${kilos(c.barra)}` : ''}`;
+        : c.barra !== BARRA_ASUMIDA
+          ? `✓ Corregido con barra de ${kilos(c.barra)} · máximo ${kilos(c.maximo)}`
+          : `Máximo ${kilos(c.maximo)} · ${plural(c.sesiones, 'sesión', 'sesiones')}`;
     }
 
     const lineas = [];
-    if (!escrito) lineas.push('Poné cuánto pesa la barra.');
+    if (!escrito) lineas.push('Poné cuánto pesa esta barra.');
     else if (!valido) lineas.push(`Una barra pesa entre ${BARRA_MIN} y ${BARRA_MAX} kg.`);
     else if (!elegidos.size) lineas.push('Tildá los ejercicios que hacés con esa barra.');
     else if (!p.series) lineas.push(`Lo que tildaste ya está anotado con una barra de ${kilos(p.kg)}: no hay nada que corregir.`);
@@ -488,7 +494,7 @@ function corregirLaBarra(navigate) {
         : 'Los récords y el nivel de fuerza se recalculan con el peso real. La XP no cambia.');
       if (p.nivelDespues !== p.nivelAntes) lineas.push(`Tu nivel general pasa de ${p.nivelAntes} a ${p.nivelDespues}.`);
       if (p.sinTocar) lineas.push(`${plural(p.sinTocar, 'serie queda', 'series quedan')} como ${p.sinTocar === 1 ? 'está' : 'están'}: sin peso anotado, o tan ${p.sinTocar === 1 ? 'liviana' : 'livianas'} que no ${p.sinTocar === 1 ? 'pudo' : 'pudieron'} incluir la barra.`);
-      lineas.push('Se puede deshacer: volvé a entrar y poné el peso de antes.');
+      lineas.push('Se puede deshacer: tildá lo mismo y poné el peso de antes.');
     }
     resumen.replaceChildren(...lineas.map((t, i) => el('p', { class: 'hint', style: i ? 'margin-top:6px' : '', text: t })));
     aplicar.disabled = !(p && p.series > 0);
@@ -497,15 +503,17 @@ function corregirLaBarra(navigate) {
   pintar();
 
   const cuerpo = el('div', {},
-    el('div', { class: 'field' }, el('label', { text: 'La barra pesa (kg)' }), peso),
+    el('p', { class: 'hint', style: 'margin-bottom:12px' },
+      'De a una barra por vez: cuánto pesa y qué hacés con ella. Si usás varias —la del rack, la corta, la EZ—, corregís una, y el panel queda abierto para la siguiente.'),
+    el('div', { class: 'field' }, el('label', { text: 'Esta barra pesa (kg)' }), peso),
     el('p', { class: 'hint' },
-      `Hasta ahora anotaste como si pesara ${BARRA_ASUMIDA}. La olímpica larga, de 2,2 m, pesa 20 kg y la de 2 m, 15. Las más cortas o finas varían mucho: lo seguro es pesarla o preguntar en el gimnasio.`),
+      `Hasta ahora todo está anotado como si la barra pesara ${BARRA_ASUMIDA}. La olímpica larga, de 2,2 m, pesa 20 kg y la de 2 m, 15. Las más cortas o finas varían mucho: lo seguro es pesarlas o preguntar en el gimnasio.`),
     el('div', { class: 'section-title', style: 'margin-top:14px' },
-      el('h2', { text: 'Qué hacés con esa barra' })),
+      el('h2', { text: 'Qué hacés con esta barra' })),
     el('div', { class: 'list' }, filas.map((f) => f.nodo)),
     resumen,
     el('div', { class: 'btn-row', style: 'margin-top:16px' },
-      el('button', { class: 'btn', type: 'button', onClick: closeSheet }, 'Cancelar'),
+      el('button', { class: 'btn', type: 'button', onClick: closeSheet }, 'Listo'),
       aplicar));
 
   openSheet('El peso de la barra', cuerpo);

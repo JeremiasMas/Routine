@@ -216,6 +216,33 @@ test('un ejercicio que te olvidaste se corrige después sin volver a tocar los o
   assert.deepEqual(d.settings.barra, { 'sentadilla con barra': 15, 'peso muerto rumano': 15 });
 });
 
+test('cada barra con su peso: corregir una no toca lo que se hace con otra', () => {
+  // La del rack pesa 15 y la corta del remo, 10.
+  const d = datos();
+  corregirBarra(d, { ejercicios: ['Sentadilla con barra', 'Peso muerto rumano'], kg: 15 });
+  const r = corregirBarra(d, { ejercicios: ['Remo con barra al pecho'], kg: 10 });
+  assert.deepEqual(r.filas.map((f) => [f.clave, f.de, f.a, f.delta]), [['remo con barra al pecho', 20, 10, -10]]);
+  assert.deepEqual(pesos(d, '2026-10-12', 'Remo con barra al pecho'), [30, 30, 30]);
+  assert.deepEqual(pesos(d, '2026-10-02', 'Sentadilla con barra'), [55, 55, 55]);
+  assert.deepEqual(pesos(d, '2026-10-02', 'Peso muerto rumano'), [65, 65, 65]);
+  assert.deepEqual(d.settings.barra, {
+    'sentadilla con barra': 15, 'peso muerto rumano': 15, 'remo con barra al pecho': 10,
+  });
+  assert.equal(barraDe(d.settings, 'Remo con barra al pecho'), 10);
+  assert.equal(barraDe(d.settings, 'Sentadilla con barra'), 15);
+});
+
+test('con varias barras, fusionar lleva cada ejercicio a la suya', () => {
+  const corregida = datos();
+  corregirBarra(corregida, { ejercicios: ['Sentadilla con barra'], kg: 15 });
+  corregirBarra(corregida, { ejercicios: ['Remo con barra al pecho'], kg: 10 });
+  const r = fusionar(datos(), corregida);
+  assert.equal(r.entries['2026-10-02'].gym.exercises[0].sets[0].weight, 55);
+  assert.equal(r.entries['2026-10-12'].gym.exercises[0].sets[0].weight, 30);
+  assert.deepEqual(r.barra, { 'sentadilla con barra': 15, 'remo con barra al pecho': 10 });
+  assert.equal(r.resumen.barraAjustadas, 9);
+});
+
 test('cambiar de opinión corrige desde la barra anotada, no desde 20', () => {
   const d = datos();
   corregirBarra(d, { ejercicios: ['Sentadilla con barra'], kg: 15 });
@@ -468,8 +495,14 @@ test('Ajustes ofrece la corrección y no elige ejercicios por su cuenta', () => 
   const hoja = funcion(ajustes, 'function corregirLaBarra(');
   assert.match(hoja, /corregirPesoDeBarra\(\[\.\.\.elegidos\], Number\(peso\.value\)\)/);
   assert.match(hoja, /previaDePesoDeBarra\(\[\.\.\.elegidos\], Number\(peso\.value\)\)/);
-  // Lo único que arranca tildado es lo que YA corregiste: "Curl en polea
-  // baja con barra" tiene la palabra y no tiene la barra.
-  assert.match(hoja, /new Set\(candidatos\.filter\(\(c\) => c\.barra !== BARRA_ASUMIDA\)\.map\(\(c\) => c\.clave\)\)/);
+  // Nada arranca tildado. Ni por el nombre —"Curl en polea baja con barra"
+  // tiene la palabra y no tiene la barra— ni por estar ya corregido: hay
+  // varias barras, y al cargar la segunda lo de la primera no puede venir
+  // marcado, o se lo lleva puesto.
+  assert.match(hoja, /const elegidos = new Set\(\);/);
+  assert.doesNotMatch(hoja, /checked: true/);
   assert.doesNotMatch(hoja, /\/barra\/i?\.test|includes\('barra'\)/);
+  // Y después de corregir una, el panel se vuelve a abrir para la siguiente.
+  const alCorregir = hoja.slice(hoja.indexOf('corregirPesoDeBarra(['));
+  assert.match(alCorregir, /navigate\?\.\(\);[\s\S]*?corregirLaBarra\(navigate\);/);
 });
