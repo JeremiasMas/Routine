@@ -284,6 +284,8 @@ export const GRUPOS = {
  *    llevan media serie de crédito cada uno (un remo entrena bíceps, pero no
  *    como un curl)
  *  - rango: en qué rango de repeticiones vive el ejercicio
+ *  - conBarra: se hace con barra y discos. Son los que el panel de barras
+ *    ofrece para cargar el peso por lado; cuánto pesa cada barra lo decís vos
  *  - salto: de a cuánto sube la carga cuando cerrás el rango. Por defecto 2,5
  *    en barra y polea y 2 en mancuerna, que es el escalón real del rack
  */
@@ -295,8 +297,8 @@ export const GYM_TEMPLATES = [
     short: 'Espalda · Bíceps',
     exercises: [
       { name: 'Dominadas agarre ancho', bw: true, grupo: 'espalda', tambien: ['biceps'], rango: 'pesado' },
-      { name: 'Remo bajo cerrado', grupo: 'espalda', tambien: ['biceps'], rango: 'medio' },
-      { name: 'Remo con barra al pecho', grupo: 'espalda', tambien: ['biceps'], rango: 'pesado' },
+      { name: 'Remo bajo cerrado', conBarra: true, grupo: 'espalda', tambien: ['biceps'], rango: 'medio' },
+      { name: 'Remo con barra al pecho', conBarra: true, grupo: 'espalda', tambien: ['biceps'], rango: 'pesado' },
       { name: 'Remo sentado con agarre supino en polea', grupo: 'espalda', tambien: ['biceps'], rango: 'medio' },
       { name: 'Pullover', grupo: 'espalda', tambien: ['pecho'], rango: 'medio' },
       { name: 'Curl en polea baja con barra', grupo: 'biceps', rango: 'medio' },
@@ -324,7 +326,7 @@ export const GYM_TEMPLATES = [
       { name: 'Vuelo lateral con mancuerna horizontal', db: true, grupo: 'hombros', rango: 'liviano' },
       { name: 'Vuelo posterior', db: true, grupo: 'hombros', tambien: ['espalda'], rango: 'liviano' },
       { name: 'Fondo de tríceps', bw: true, grupo: 'triceps', tambien: ['pecho', 'hombros'], rango: 'medio' },
-      { name: 'Encogimientos de trapecio', grupo: 'espalda', rango: 'medio' },
+      { name: 'Encogimientos de trapecio', conBarra: true, grupo: 'espalda', rango: 'medio' },
       { name: 'Press militar', db: true, grupo: 'hombros', tambien: ['triceps'], rango: 'pesado' },
       { name: 'Arnold con polea', grupo: 'hombros', tambien: ['triceps'], rango: 'medio' },
       { name: 'Tríceps supino', grupo: 'triceps', rango: 'medio' },
@@ -345,16 +347,16 @@ export const GYM_TEMPLATES = [
     name: 'Pecho / Piernas',
     short: 'Pecho · Piernas',
     exercises: [
-      { name: 'Pecho plano', grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
-      { name: 'Pecho inclinado', grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
+      { name: 'Pecho plano', conBarra: true, grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
+      { name: 'Pecho inclinado', conBarra: true, grupo: 'pecho', tambien: ['triceps', 'hombros'], rango: 'pesado' },
       { name: 'Aperturas inclinadas', db: true, grupo: 'pecho', rango: 'medio' },
       { name: 'Pec deck', grupo: 'pecho', rango: 'medio' },
-      { name: 'Sentadilla con barra', grupo: 'cuadriceps', tambien: ['gluteos'], rango: 'pesado' },
+      { name: 'Sentadilla con barra', conBarra: true, grupo: 'cuadriceps', tambien: ['gluteos'], rango: 'pesado' },
       { name: 'Sillón de cuádriceps', sets: 4, grupo: 'cuadriceps', rango: 'medio' },
       { name: 'Camilla de isquiotibiales', sets: 4, grupo: 'isquios', rango: 'medio' },
-      { name: 'Peso muerto rumano', grupo: 'isquios', tambien: ['gluteos', 'espalda'], rango: 'pesado' },
+      { name: 'Peso muerto rumano', conBarra: true, grupo: 'isquios', tambien: ['gluteos', 'espalda'], rango: 'pesado' },
       { name: 'Sillón de abductores', grupo: 'gluteos', rango: 'medio' },
-      { name: 'Elevaciones de talón', grupo: 'pantorrillas', rango: 'liviano' },
+      { name: 'Elevaciones de talón', conBarra: true, grupo: 'pantorrillas', rango: 'liviano' },
       { name: 'Elevación de talón sentado', grupo: 'pantorrillas', rango: 'liviano' },
     ],
   },
@@ -420,6 +422,7 @@ export function perfilDeEjercicio(nombre, plantillas = GYM_TEMPLATES) {
     rango: ex?.rango || 'medio',
     bw: Boolean(ex?.bw),
     db,
+    conBarra: Boolean(ex?.conBarra),
     // El escalón real del gimnasio. Las mancuernas del tuyo van de 2,5 en
     // 2,5 —de ahí las de 17,5— así que no hace falta distinguirlas: lo que
     // cambia son las excepciones, como las de muñeca, que declaran su salto.

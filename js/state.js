@@ -5,7 +5,7 @@ import { waterGoalMl } from './body.js';
 import { buildSeedEntries, ACUMULADO_PREVIO } from './seed.js';
 import { derive, ANTES_DE_TODO } from './derive.js';
 import { anotarFase } from './calorias.js';
-import { corregirBarra } from './barra.js';
+import { corregirBarra, quitarBarra } from './barra.js';
 import { todayKey, uid, daysBetween, weekStart } from './utils.js';
 import { fusionar } from './merge.js';
 import { tramos, agregar, quitar } from './pausas.js';
@@ -356,35 +356,46 @@ export function updateSettings(patch) {
 }
 
 /**
- * Corrige de una vez el peso de la barra en los registros de gimnasio.
+ * Marca ejercicios como hechos con una barra de `kg`. Desde ahí el
+ * registrador pide el peso por lado. `antes` es con qué barra venías sumando
+ * lo ya anotado: sólo si era otra se corrigen los registros.
  * @returns {object} el resumen de lo que cambió (ver barra.js)
  */
-export function corregirPesoDeBarra(ejercicios, kg) {
+export function marcarBarra(ejercicios, kg, antes) {
   let resumen = null;
   mutate((d) => {
-    resumen = corregirBarra(d, { ejercicios, kg });
+    resumen = corregirBarra(d, { ejercicios, kg, antes });
+  });
+  return resumen;
+}
+
+/** Desmarca ejercicios y deshace lo que se hubiera corregido al marcarlos. */
+export function desmarcarBarra(ejercicios) {
+  let resumen = null;
+  mutate((d) => {
+    resumen = quitarBarra(d, ejercicios);
   });
   return resumen;
 }
 
 /**
- * Lo que pasaría con la corrección, sin tocar nada: qué series cambian y,
- * como los récords se vuelven a decidir con los pesos reales, cuánta XP de
- * gimnasio se mueve. Corre sobre una copia.
+ * Lo que pasaría al marcar, sin tocar nada: qué series cambian y, como los
+ * récords se vuelven a decidir con los pesos reales, cuánta XP de gimnasio
+ * se mueve. Corre sobre una copia.
  */
-export function previaDePesoDeBarra(ejercicios, kg) {
+export function previaDeMarcarBarra(ejercicios, kg, antes) {
   const copia = structuredClone(getData());
-  const resumen = corregirBarra(copia, { ejercicios, kg });
+  const resumen = corregirBarra(copia, { ejercicios, kg, antes });
   const xpDe = (estado) => [...estado.byActivity.values()]
     .filter((st) => st.activity.kind === 'gym')
     .reduce((n, st) => n + st.xp, 0);
-  const antes = getState();
-  const despues = resumen.series ? derive(copia) : antes;
+  const antesDeTocar = getState();
+  const despues = resumen.series ? derive(copia) : antesDeTocar;
   return {
     ...resumen,
-    xpAntes: xpDe(antes),
+    xpAntes: xpDe(antesDeTocar),
     xpDespues: xpDe(despues),
-    nivelAntes: antes.player.level,
+    nivelAntes: antesDeTocar.player.level,
     nivelDespues: despues.player.level,
   };
 }

@@ -19,6 +19,7 @@
 
 import { weekStart, addDays, esFechaValida, formatNumber } from './utils.js';
 import { RANGOS_REPS, DEFAULT_SETS } from './config.js';
+import { porLado } from './barra.js';
 
 /** Cada cuántas semanas de trabajo conviene una de descarga. */
 export const CADA_CUANTAS_SEMANAS = 5;
@@ -224,7 +225,7 @@ export function textoDeDescarga(objetivo, perfil) {
   const cada = perfil?.db ? ' c/u' : '';
   const plan = objetivo.reps.join('-');
   const peso = objetivo.peso > 0
-    ? `${formatNumber(objetivo.peso)} kg${cada} × ${plan}`
+    ? `${porLado(objetivo.peso, perfil) ?? `${formatNumber(objetivo.peso)} kg${cada}`} × ${plan}`
     : `${plan} repeticiones`;
   return `Descarga: ${peso}. El mismo peso de siempre y lejos del fallo — tienen que sobrarte repeticiones.`;
 }
