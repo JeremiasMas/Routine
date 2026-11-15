@@ -408,19 +408,20 @@ function tarjetaDeBarra(navigate, data) {
   // decir tres veces lo mismo.
   const porBarra = new Map();
   for (const c of marcados) porBarra.set(c.barra, [...(porBarra.get(c.barra) || []), c.nombre]);
-  const estado = !candidatos.length
-    ? 'Todavía no hay series con peso anotadas.'
-    : marcados.length
-      ? [...porBarra].map(([kg, nombres]) => `Con barra de ${formatNumber(kg)} kg: ${enLista(nombres)}.`).join(' ')
-      : 'Todavía no marcaste ninguna: en todos los ejercicios se anota el total.';
+  // Lo que la rutina sabe que es de barra y todavía no tiene una: sin eso,
+  // "marqué tres" no dice si terminaste o si te faltan cinco.
+  const faltan = candidatos.filter((c) => c.deBarra && c.barra === null).map((c) => c.nombre);
+  const estado = [
+    ...[...porBarra].map(([kg, nombres]) => `Con barra de ${formatNumber(kg)} kg: ${enLista(nombres)}.`),
+    !marcados.length ? 'Todavía no marcaste ninguna: en todos los ejercicios se anota el total.' : null,
+    faltan.length ? `${marcados.length ? 'Falta' : 'Para marcar'}: ${enLista(faltan)}.` : null,
+  ].filter(Boolean).join(' ');
   return el('div', { class: 'card' },
     el('p', { class: 'hint' },
       'Decí con qué barra hacés cada ejercicio y cuánto pesa. Desde ahí, al registrar cargás el peso que hay de cada lado y la barra la suma la app.'),
     el('p', { class: 'hint', style: 'margin-top:8px', text: estado }),
-    candidatos.length
-      ? el('div', { class: 'btn-row', style: 'margin-top:12px' },
-        el('button', { class: 'btn', type: 'button', onClick: () => misBarras(navigate) }, '🏋️ Mis barras'))
-      : null);
+    el('div', { class: 'btn-row', style: 'margin-top:12px' },
+      el('button', { class: 'btn', type: 'button', onClick: () => misBarras(navigate) }, '🏋️ Mis barras')));
 }
 
 function misBarras(navigate) {
@@ -486,13 +487,19 @@ function misBarras(navigate) {
       }, '✕')
       : null;
     return {
-      c, sub,
+      c, sub, caja,
       nodo: el('label', { class: 'row elegir', style: `--c:${color}` },
         caja,
         el('div', { class: 'row__main' }, el('div', { text: c.nombre }), sub),
         quitar),
     };
   });
+
+  // Arriba, los que la rutina sabe que son de barra (y lo que ya marcaste,
+  // sea lo que sea); el resto, plegado.
+  const deBarra = filas.filter((f) => f.c.deBarra || f.c.barra !== null);
+  const otros = filas.filter((f) => !deBarra.includes(f));
+  const sinMarcar = deBarra.filter((f) => f.c.barra === null);
 
   function pintar() {
     const escrito = peso.value.trim() !== '';
@@ -509,6 +516,9 @@ function misBarras(navigate) {
         // cuánto queda por lado, que es lo que se puede comprobar de memoria.
         const nuevo = c.ultimo + f.delta;
         sub.textContent = `Última vez: ${kilos(c.ultimo)} → ${kilos(nuevo)}${lado(nuevo, kg) ? ` = ${lado(nuevo, kg)}` : ''} · ${plural(f.series, 'serie cambia', 'series cambian')}`;
+      } else if (!c.ultimo) {
+        // Está en la rutina pero todavía no lo anotaste con peso.
+        sub.textContent = c.barra !== null ? `✓ Barra de ${kilos(c.barra)}` : 'Todavía sin registros';
       } else if (tildado) {
         // La cuenta a la vista: si el lado no es lo que cargás, la barra o
         // el ejercicio están mal puestos, y se ve antes de guardar.
@@ -553,8 +563,26 @@ function misBarras(navigate) {
     el('p', { class: 'hint' },
       'La olímpica larga, de 2,2 m, pesa 20 kg y la de 2 m, 15. Las más cortas o finas varían mucho: lo seguro es pesarlas o preguntar en el gimnasio.'),
     el('div', { class: 'section-title', style: 'margin-top:14px' },
-      el('h2', { text: 'Qué hacés con esta barra' })),
-    el('div', { class: 'list' }, filas.map((f) => f.nodo)),
+      el('h2', { text: 'Qué hacés con esta barra' }),
+      sinMarcar.length > 1
+        ? el('button', {
+          class: 'btn btn--ghost', type: 'button',
+          style: 'min-height:30px;padding:0 10px;font-size:.76rem;white-space:nowrap;flex:0 0 auto',
+          'aria-label': 'Tildar todas las que faltan marcar',
+          onClick: () => {
+            for (const f of sinMarcar) { f.caja.checked = true; elegidos.add(f.c.clave); }
+            pintar();
+          },
+        }, 'Tildar todas')
+        : null),
+    el('div', { class: 'list' }, deBarra.map((f) => f.nodo)),
+    // Lo demás —poleas, máquinas— no lleva barra. Queda a mano por si la
+    // rutina cambia o hacés algo que la app no conoce.
+    otros.length
+      ? el('details', { style: 'margin-top:10px' },
+        el('summary', { class: 'hint', style: 'cursor:pointer', text: `Otro ejercicio (${otros.length})` }),
+        el('div', { class: 'list', style: 'margin-top:8px' }, otros.map((f) => f.nodo)))
+      : null,
     el('details', { style: 'margin-top:14px' },
       el('summary', { class: 'hint', style: 'cursor:pointer', text: '¿La venías sumando con otro peso?' }),
       el('p', { class: 'hint', style: 'margin:8px 0' },

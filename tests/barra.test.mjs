@@ -7,7 +7,7 @@ import {
 } from '../js/barra.js';
 import { derive } from '../js/derive.js';
 import { fusionar } from '../js/merge.js';
-import { DEFAULT_ACTIVITIES, perfilDeEjercicio } from '../js/config.js';
+import { DEFAULT_ACTIVITIES, GYM_TEMPLATES, perfilDeEjercicio } from '../js/config.js';
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../js/progresion.js';
 import { objetivoDeDescarga, textoDeDescarga } from '../js/descargas.js';
 
@@ -150,22 +150,60 @@ test('un ejercicio terminado se resume como se cargó', () => {
 
 // ── Qué ejercicios pueden llevar barra ────────────────────────────────────
 
-test('los candidatos son los que tienen peso y no son de mancuerna ni de peso corporal', () => {
+// Los que se hacen con barra, dicho por quien los hace. Ni uno más: el curl
+// en polea tiene "barra" en el nombre y no lleva la barra.
+const DE_BARRA = [
+  'Remo bajo cerrado', 'Remo con barra al pecho', 'Encogimientos de trapecio',
+  'Pecho plano', 'Pecho inclinado', 'Sentadilla con barra', 'Peso muerto rumano',
+  'Elevaciones de talón',
+];
+
+test('la rutina sabe cuáles ejercicios se hacen con barra', () => {
+  const todos = GYM_TEMPLATES.flatMap((t) => t.exercises);
+  assert.deepEqual([...new Set(todos.filter((e) => e.conBarra).map((e) => e.name))], DE_BARRA);
+  // Ninguno puede ser a la vez de mancuerna o de peso corporal.
+  for (const e of todos.filter((x) => x.conBarra)) assert.ok(!e.db && !e.bw, e.name);
+  assert.equal(perfilDeEjercicio('pecho plano ').conBarra, true);
+  assert.equal(perfilDeEjercicio('Curl en polea baja con barra').conBarra, false);
+  assert.equal(perfilDeEjercicio('Elevación de talón sentado').conBarra, false);
+  assert.equal(perfilDeEjercicio('Algo inventado').conBarra, false);
+});
+
+test('los candidatos son los de barra de la rutina, más lo que tiene peso sin ser de mancuerna ni de cuerpo', () => {
   const c = candidatosDeBarra(datos());
   assert.deepEqual(c.map((f) => f.nombre), [
-    // En el orden de la rutina: lunes primero, viernes después.
-    'Remo con barra al pecho', 'Curl en polea baja con barra',
-    'Pec deck', 'Sentadilla con barra', 'Peso muerto rumano',
+    // En el orden de la rutina: lunes, miércoles, viernes.
+    'Remo bajo cerrado', 'Remo con barra al pecho', 'Curl en polea baja con barra',
+    'Encogimientos de trapecio', 'Pecho plano', 'Pecho inclinado', 'Pec deck',
+    'Sentadilla con barra', 'Peso muerto rumano', 'Elevaciones de talón',
   ]);
+  // Los de barra se distinguen del resto, que es lo que el panel pliega.
+  assert.deepEqual(c.filter((f) => f.deBarra).map((f) => f.nombre), DE_BARRA);
+});
+
+test('un ejercicio de barra figura aunque todavía no tenga registros', () => {
+  const vacio = candidatosDeBarra({ activities: [gym], settings: {}, entries: {} });
+  assert.deepEqual(vacio.map((f) => f.nombre), DE_BARRA);
+  assert.deepEqual(vacio[0], {
+    clave: 'remo bajo cerrado', nombre: 'Remo bajo cerrado', deBarra: true,
+    sesiones: 0, series: 0, maximo: 0, ultimo: 0, barra: null,
+  });
+  // Y ya se le puede marcar la barra.
+  const d = { activities: [gym], settings: { barra: { 'pecho plano': { kg: 20, antes: 20 } } }, entries: {} };
+  assert.equal(candidatosDeBarra(d).find((f) => f.clave === 'pecho plano').barra, 20);
+  // Sin datos, lo mismo: no rompe.
+  assert.equal(candidatosDeBarra(undefined).length, DE_BARRA.length);
 });
 
 test('cada candidato dice sesiones, series, máximo, lo último que levantó y su barra', () => {
   const sentadilla = candidatosDeBarra(datos()).find((f) => f.clave === 'sentadilla con barra');
   // El nombre con otra caja y un espacio de más es el mismo ejercicio.
   assert.deepEqual(sentadilla, {
-    clave: 'sentadilla con barra', nombre: 'Sentadilla con barra',
+    clave: 'sentadilla con barra', nombre: 'Sentadilla con barra', deBarra: true,
     sesiones: 2, series: 6, maximo: 62.5, ultimo: 62.5, barra: null,
   });
+  // Uno que no es de barra pero tiene peso: candidato, sin la marca.
+  assert.equal(candidatosDeBarra(datos()).find((f) => f.clave === 'pec deck').deBarra, false);
 });
 
 test('lo último es lo más reciente, no lo más pesado', () => {
@@ -829,6 +867,10 @@ test('Ajustes deja marcar barras, y no decide nada por su cuenta', () => {
   assert.match(hoja, /const valorDeAntes = \(\) => \(barraValida\(antes\.value\) \? Number\(antes\.value\) : undefined\);/);
   // Guardar se habilita también cuando sólo se marca, sin corregir nada.
   assert.match(hoja, /aplicar\.disabled = !\(p && \(p\.series > 0 \|\| p\.marcados > 0\)\);/);
+  // Arriba van los de barra de la rutina y lo ya marcado; el resto, plegado.
+  assert.match(hoja, /const deBarra = filas\.filter\(\(f\) => f\.c\.deBarra \|\| f\.c\.barra !== null\);/);
+  assert.match(hoja, /el\('div', \{ class: 'list' \}, deBarra\.map\(\(f\) => f\.nodo\)\)/);
+  assert.match(hoja, /otros\.map\(\(f\) => f\.nodo\)/);
   // Y después de guardar una, el panel se vuelve a abrir para la siguiente.
   assert.match(hoja, /const reabrir = \(\) => \{ navigate\?\.\(\); misBarras\(navigate\); \};/);
 });

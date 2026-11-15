@@ -162,26 +162,38 @@ GYM_TEMPLATES.forEach((t) => t.exercises.forEach((e) => {
 }));
 
 /**
- * Los ejercicios que tienen algo anotado con peso y sin mancuernas: los que
- * podrían ser de barra. En el orden de la rutina, que es como los conocés.
+ * Los ejercicios a los que se les puede marcar una barra, en el orden de la
+ * rutina, que es como los conocés.
+ *
+ * `deBarra` separa los que la rutina sabe que se hacen con barra —van
+ * primero y son los que el panel muestra— del resto: todo lo que tiene peso
+ * anotado y no es de mancuerna ni de peso corporal, por si la rutina cambia
+ * o hacés algo a mano. Los de la rutina figuran aunque todavía no tengan
+ * registros: se puede marcar la barra antes de la primera sesión.
  *
  * `ultimo` es el peso de la última serie con peso: sirve para mostrar cuánto
  * sería por lado y que se vea a simple vista si la barra está bien puesta.
  *
- * @returns {Array<{clave:string, nombre:string, sesiones:number, series:number,
- *   maximo:number, ultimo:number, barra:number|null}>}
+ * @returns {Array<{clave:string, nombre:string, deBarra:boolean, sesiones:number,
+ *   series:number, maximo:number, ultimo:number, barra:number|null}>}
  */
 export function candidatosDeBarra(data) {
   const barras = barrasDe(data?.settings);
   const porClave = new Map();
+  const nueva = (k, nombre) => ({
+    clave: k, nombre, deBarra: perfilDeEjercicio(nombre).conBarra,
+    sesiones: 0, series: 0, maximo: 0, ultimo: 0, barra: barras.get(k) ?? null,
+  });
+  for (const t of GYM_TEMPLATES) {
+    for (const e of t.exercises) {
+      if (e.conBarra && !porClave.has(clave(e.name))) porClave.set(clave(e.name), nueva(clave(e.name), e.name));
+    }
+  }
   recorrer(data, (ex) => {
     const conPeso = (ex.sets || []).filter((s) => Number(s?.weight) > 0);
     if (!conPeso.length) return;
     const k = clave(ex.name);
-    const fila = porClave.get(k) || {
-      clave: k, nombre: ex.name.trim(), sesiones: 0, series: 0, maximo: 0, ultimo: 0,
-      barra: barras.get(k) ?? null,
-    };
+    const fila = porClave.get(k) || nueva(k, ex.name.trim());
     fila.sesiones += 1;
     fila.series += conPeso.length;
     fila.maximo = Math.max(fila.maximo, ...conPeso.map((s) => Number(s.weight)));
