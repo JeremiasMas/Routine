@@ -849,7 +849,8 @@ test('al fusionar se guarda la anotación junto con los registros', () => {
 
 test('Ajustes deja marcar barras, y no decide nada por su cuenta', () => {
   const ajustes = fuente('js/views/settings.js');
-  assert.match(funcion(ajustes, 'export function render('), /root\.append\(tarjetaDeBarra\(navigate, data\)\);/);
+  // Ajustes pasó a ser un índice plegado: la tarjeta vive en su sección.
+  assert.match(funcion(ajustes, 'export function render('), /gimnasio: \(\) => tarjetaDeBarra\(navigate, data\),/);
   const hoja = funcion(ajustes, 'function misBarras(');
   assert.match(hoja, /marcarBarra\(\[\.\.\.elegidos\], Number\(peso\.value\), valorDeAntes\(\)\)/);
   assert.match(hoja, /previaDeMarcarBarra\(\[\.\.\.elegidos\], kg, valorDeAntes\(\)\)/);

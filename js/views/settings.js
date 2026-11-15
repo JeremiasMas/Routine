@@ -8,6 +8,7 @@ import {
   marcarBarra, desmarcarBarra, previaDeMarcarBarra,
 } from '../state.js';
 import { candidatosDeBarra, barraValida, aLado, BARRA_ASUMIDA, BARRA_MIN, BARRA_MAX } from '../barra.js';
+import { GRUPOS, IDS, estadoDeSecciones } from '../ajustes.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
 import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe, estiloDeBoton } from '../theme.js';
 import { tramos, largo, esLibre } from '../pausas.js';
@@ -24,30 +25,132 @@ import { nombreDeCopiaManual } from '../backup.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { toast } from '../ui/feedback.js';
 
+/**
+ * Qué sección está abierta.
+ *
+ * Vive fuera del render a propósito: casi todo lo que se toca acá adentro
+ * vuelve a dibujar la pantalla, y sin esto elegir un tema o cambiar de fase
+ * cerraría la sección que estabas usando.
+ */
+let abierta = null;
+
+/** Para llegar a Ajustes con una sección ya abierta (el aviso de copia vencida). */
+export function abrirSeccion(id) {
+  abierta = IDS.includes(id) ? id : null;
+}
+
+/**
+ * Una sección del índice: la fila con su estado, y adentro lo de siempre.
+ * Es un <details> nativo: se abre con el teclado y un lector de pantalla
+ * dice si está abierta sin que haya que contárselo.
+ */
+function seccion({ id, icono, titulo }, { estado, alerta }, contenido, releer) {
+  const linea = el('div', { class: 'ajuste__estado', text: estado });
+  const nodo = el('details', {
+    class: `ajuste${alerta ? ' ajuste--alerta' : ''}`, id: `ajuste-${id}`, open: abierta === id,
+  },
+    el('summary', { class: 'ajuste__cabeza' },
+      el('span', { class: 'ajuste__icono', 'aria-hidden': 'true', text: icono }),
+      el('div', { class: 'ajuste__titulo' },
+        el('div', { class: 'ajuste__nombre', text: titulo }),
+        linea),
+      el('span', { class: 'ajuste__flecha', 'aria-hidden': 'true', text: '⌄' })),
+    el('div', { class: 'ajuste__cuerpo' }, contenido));
+
+  nodo.addEventListener('toggle', () => {
+    if (!nodo.open) {
+      if (abierta === id) abierta = null;
+      // No todo lo de adentro redibuja la pantalla (un interruptor, la hora
+      // del aviso): al cerrar, la fila vuelve a leer en qué quedó.
+      const ahora = releer?.();
+      if (ahora) {
+        linea.textContent = ahora.estado;
+        nodo.classList.toggle('ajuste--alerta', ahora.alerta);
+      }
+      return;
+    }
+    abierta = id;
+    // De a una: con dos abiertas la pantalla vuelve a ser la tira larga.
+    // En toda la pantalla, no sólo en su grupo.
+    for (const otra of nodo.closest('.ajustes')?.querySelectorAll('details.ajuste[open]') || []) {
+      if (otra !== nodo) otra.open = false;
+    }
+    // Al cerrarse una de arriba, ésta sube y puede quedar fuera de la vista.
+    if (nodo.getBoundingClientRect().top < 0) nodo.scrollIntoView({ block: 'start' });
+  });
+  return nodo;
+}
+
+/** Una explicación que no hace falta leer cada vez: plegada, a un toque. */
+function masInfo(titulo, ...contenido) {
+  return el('details', { class: 'mas-info' },
+    el('summary', { class: 'hint', text: titulo }),
+    el('div', { class: 'mas-info__cuerpo' }, contenido));
+}
+
 export function render({ navigate }) {
   const data = getData();
   const state = getState();
-  const root = el('div', {});
 
-  // --- Metas por actividad ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Tus metas' }), el('small', { text: 'cumplirlas = 100 XP' })));
-  root.append(el('div', { class: 'list' }, data.activities.map((a) => el('button', {
-    class: 'row', style: 'width:100%;text-align:left',
-    onClick: () => editActivity(a, navigate),
-  },
-    el('span', { style: 'font-size:1.3rem', text: a.icon }),
-    el('div', { class: 'row__main' },
-      el('div', { text: a.name }),
-      el('div', { class: 'row__sub', text: `${formatValue(a.goal, a.unit)} · ${a.streakMode === 'weekly' ? `${a.weeklyTarget}× por semana` : scheduleLabel(a.days)}` })),
-    el('span', { class: 'muted', text: '✎' })))));
+  // Lo que hay adentro de cada sección. Son funciones para que sólo se arme
+  // lo que este dispositivo muestra.
+  const contenido = {
+    metas: () => [
+      el('p', { class: 'hint', text: 'Cumplir la meta de una actividad son 100 XP. Tocá una para cambiarla.' }),
+      el('div', { class: 'list' }, data.activities.map((a) => el('button', {
+        class: 'row', style: 'width:100%;text-align:left',
+        onClick: () => editActivity(a, navigate),
+      },
+        el('span', { style: 'font-size:1.3rem', text: a.icon }),
+        el('div', { class: 'row__main' },
+          el('div', { text: a.name }),
+          el('div', { class: 'row__sub', text: `${formatValue(a.goal, a.unit)} · ${a.streakMode === 'weekly' ? `${a.weeklyTarget}× por semana` : scheduleLabel(a.days)}` })),
+        el('span', { class: 'muted', text: '✎' })))),
+      el('button', { class: 'btn btn--block', onClick: () => editActivity(null, navigate) }, '+ Agregar actividad'),
+    ],
+    gimnasio: () => tarjetaDeBarra(navigate, data),
+    libres: () => [enApp() ? tarjetaDelWidget() : null, tarjetaDePausas(navigate)],
+    cuerpo: () => tarjetaDeCuerpo(navigate, data),
+    calorias: () => tarjetaDeFase(navigate, data),
+    pasos: () => [
+      // Adentro de la app de Android los pasos llegan solos por Health Connect.
+      enApp() ? tarjetaNativa(navigate) : null,
+      tarjetaDeImportarPasos(navigate),
+    ],
+    aviso: () => tarjetaDeAviso(navigate),
+    aspecto: () => selectorDeTema(navigate),
+    preferencias: () => el('div', { class: 'card' },
+      toggle('Sonidos', 'Efectos al sumar XP y subir de nivel.', data.settings.sound, (v) => updateSettings({ sound: v })),
+      toggle('Celebraciones', 'Confeti y pantalla al subir de nivel.', data.settings.celebrate !== false, (v) => updateSettings({ celebrate: v }))),
+    datos: () => tarjetaDeDatos(navigate),
+  };
 
-  root.append(el('div', { style: 'margin-top:10px' },
-    el('button', { class: 'btn btn--block', onClick: () => editActivity(null, navigate) }, '+ Agregar actividad')));
+  const disponible = { puedeAvisar: puedeAvisar() };
+  const leerEstados = () => estadoDeSecciones(getData(), {
+    hoy: todayKey(),
+    diasSinCopia: diasSinBackup(),
+    copiaVencida: backupVencido(),
+    enApp: enApp(),
+    origenDePasos: nombreDelOrigen(),
+    aviso: disponible.puedeAvisar ? estadoDelAviso() : null,
+  });
+  const estados = leerEstados();
 
-  // --- Perfil corporal ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Tu cuerpo' }), el('small', { text: 'alimenta los cálculos' })));
+  const root = el('div', { class: 'ajustes' });
+  for (const grupo of GRUPOS) {
+    const visibles = grupo.secciones.filter((sec) => !sec.soloSi || disponible[sec.soloSi]);
+    if (!visibles.length) continue;
+    root.append(el('div', { class: 'section-title' }, el('h2', { text: grupo.titulo })));
+    root.append(el('div', { class: 'ajustes__grupo' },
+      visibles.map((sec) => seccion(sec, estados[sec.id], contenido[sec.id](), () => leerEstados()[sec.id]))));
+  }
+
+  root.append(pieDeVersion(state, data));
+  return root;
+}
+
+/** Estatura y fórmula: lo que alimenta el cálculo de grasa, agua y calorías. */
+function tarjetaDeCuerpo(navigate, data) {
   const estatura = el('input', { type: 'number', min: '100', max: '230', step: '0.5', value: String(data.settings.height || 160) });
   const formula = el('select', {},
     el('option', { value: '3', selected: (data.settings.bodyFormula || '3') === '3' }, 'Cintura, cuello y estatura'),
@@ -59,95 +162,57 @@ export function render({ navigate }) {
   };
   estatura.addEventListener('change', guardarPerfil);
   formula.addEventListener('change', guardarPerfil);
-  root.append(el('div', { class: 'card' },
+  const linea = bodySummary(
+    { weight: data.settings.weight, waist: data.settings.waist, neck: data.settings.neck, hip: data.settings.hip },
+    data.settings,
+  );
+  return el('div', { class: 'card' },
     el('div', { class: 'field' }, el('label', { text: 'Estatura (cm)' }), estatura),
     el('div', { class: 'field' }, el('label', { text: 'Fórmula de grasa corporal' }), formula),
-    (() => {
-      const linea = bodySummary(
-        { weight: data.settings.weight, waist: data.settings.waist, neck: data.settings.neck, hip: data.settings.hip },
-        data.settings,
-      );
-      return linea.fatPct != null
-        ? el('p', { class: 'hint' },
-            `Línea de base: ${formatNumber(linea.waist)} cm de cintura y ${formatNumber(linea.neck)} de cuello con ${formatNumber(linea.weight)} kg dan ` +
-            `${formatNumber(linea.fatPct)}% de grasa (${formatNumber(linea.mass.fat)} kg) y ${formatNumber(linea.mass.lean)} kg de masa magra.`)
-        : null;
-    })(),
+    linea.fatPct != null
+      ? el('p', { class: 'hint' },
+          `Línea de base: ${formatNumber(linea.waist)} cm de cintura y ${formatNumber(linea.neck)} de cuello con ${formatNumber(linea.weight)} kg dan ` +
+          `${formatNumber(linea.fatPct)}% de grasa (${formatNumber(linea.mass.fat)} kg) y ${formatNumber(linea.mass.lean)} kg de masa magra.`)
+      : null,
     el('p', { class: 'hint', style: 'margin-top:8px' },
-      `Método de circunferencias de la Marina de EE.UU. La versión de 3 medidas es la que se usa para hombres; la de 4, que suma la cadera, para mujeres. ` +
-      `Con ${formatNumber(data.settings.weight || 61.5)} kg la meta de agua es ${formatValue(waterGoalMl(data.settings.weight || 61.5), 'ml')} por día y se actualiza sola cada vez que te medís.`)));
+      `Con ${formatNumber(data.settings.weight || 61.5)} kg la meta de agua es ${formatValue(waterGoalMl(data.settings.weight || 61.5), 'ml')} por día y se actualiza sola cada vez que te medís.`),
+    masInfo('Cómo se calcula la grasa',
+      el('p', { class: 'hint' },
+        'Método de circunferencias de la Marina de EE.UU. La versión de 3 medidas es la que se usa para hombres; la de 4, que suma la cadera, para mujeres.')));
+}
 
-  // --- Pasos desde Samsung Health ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Pasos' }), el('small', { text: 'Health Connect' })));
-
-  // Adentro de la app de Android los pasos llegan solos por Health Connect.
-  if (enApp()) root.append(tarjetaNativa(navigate));
-
-  root.append(el('div', { class: 'card' },
-    el('p', { class: 'hint' },
-      'Samsung Health no tiene una conexión en vivo para aplicaciones web: su SDK es solo para apps Android del programa de socios, y Health Connect no se puede leer desde el navegador. Lo que sí funciona es traer los datos de su exportación oficial, que podés repetir cuando quieras.'),
-    el('ol', { class: 'hint', style: 'margin:10px 0 0;padding-left:18px;line-height:1.7' },
+/** Traer los pasos de la exportación de Samsung Health. */
+function tarjetaDeImportarPasos(navigate) {
+  return el('div', { class: 'card' },
+    el('ol', { class: 'hint', style: 'margin:0;padding-left:18px;line-height:1.7' },
       el('li', {}, 'Samsung Health → ⚙ Ajustes → ', el('b', {}, 'Descargar datos personales'), '.'),
       el('li', {}, 'Elegí acá el ', el('b', {}, 'ZIP tal cual te llega'), ': la app busca sola el archivo de pasos adentro. (También acepta un CSV suelto.)')),
     el('div', { class: 'btn-row', style: 'margin-top:12px' },
       el('button', { class: 'btn btn--primary', style: estiloDeBoton('#34d399'), onClick: () => importarPasos(navigate) }, '⬆ Importar pasos (ZIP o CSV)')),
-    el('p', { class: 'hint', style: 'margin-top:12px' },
-      'Para una caminata suelta hay otro camino, sin esperar la exportación: el ',
-      el('b', {}, 'modo caminata'), ' en la pantalla de Pasos cuenta con el acelerómetro del teléfono ',
-      'mientras tenés la app abierta. Sirve para la caminata del día, no para el total: ',
-      'el navegador no recibe el sensor con la pantalla apagada.')));
+    masInfo('Por qué hay que importarlos',
+      el('p', { class: 'hint' },
+        'Samsung Health no tiene una conexión en vivo para aplicaciones web: su SDK es solo para apps Android del programa de socios, y Health Connect no se puede leer desde el navegador. Lo que sí funciona es traer los datos de su exportación oficial, que podés repetir cuando quieras.'),
+      el('p', { class: 'hint', style: 'margin-top:8px' },
+        'Para una caminata suelta hay otro camino, sin esperar la exportación: el ',
+        el('b', {}, 'modo caminata'), ' en la pantalla de Pasos cuenta con el acelerómetro del teléfono ',
+        'mientras tenés la app abierta. Sirve para la caminata del día, no para el total: ',
+        'el navegador no recibe el sensor con la pantalla apagada.')));
+}
 
-  // --- Días libres ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Días libres' }), el('small', { text: 'no rompen rachas' })));
-  if (enApp()) root.append(tarjetaDelWidget());
-  root.append(tarjetaDePausas(navigate));
-
-  // --- Lo que comés ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Calorías' }), el('small', { text: 'qué hacés con el gasto' })));
-  root.append(tarjetaDeFase(navigate, data));
-
-  // --- Gimnasio ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Gimnasio' }), el('small', { text: 'las barras' })));
-  root.append(tarjetaDeBarra(navigate, data));
-
-  // --- Aviso del teléfono ---
-  if (puedeAvisar()) {
-    root.append(el('div', { class: 'section-title' },
-      el('h2', { text: 'Aviso' }), el('small', { text: 'con la app cerrada' })));
-    root.append(tarjetaDeAviso(navigate));
-  }
-
-  // --- Aspecto ---
-  root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Aspecto' }), el('small', { text: 'tema' })));
-  root.append(selectorDeTema(navigate));
-
-  // --- Preferencias ---
-  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Preferencias' })));
-  root.append(el('div', { class: 'card' },
-    toggle('Sonidos', 'Efectos al sumar XP y subir de nivel.', data.settings.sound, (v) => updateSettings({ sound: v })),
-    toggle('Celebraciones', 'Confeti y pantalla al subir de nivel.', data.settings.celebrate !== false, (v) => updateSettings({ celebrate: v }))));
-
-  // --- Datos ---
-  root.append(el('div', { class: 'section-title' }, el('h2', { text: 'Tus datos' })));
-  root.append(el('div', { class: 'card' },
-    (() => {
-      const dias = diasSinBackup();
-      if (dias === null) return null;
-      if (!backupVencido()) {
-        return el('p', { class: 'hint', style: 'color:var(--ok)' },
-          dias === 0 ? '✓ Copia de seguridad hecha hoy.' : `✓ Última copia hace ${dias} ${dias === 1 ? 'día' : 'días'}.`);
-      }
-      return el('div', { class: 'row', style: 'border-color:color-mix(in srgb, var(--danger) 45%, var(--line));background:rgba(251,113,133,.08);margin-bottom:10px' },
+/** La copia de seguridad, importar, el CSV y borrar todo. */
+function tarjetaDeDatos(navigate) {
+  const dias = diasSinBackup();
+  const copia = dias === null ? null
+    : !backupVencido()
+      ? el('p', { class: 'hint', style: 'color:var(--ok)' },
+        dias === 0 ? '✓ Copia de seguridad hecha hoy.' : `✓ Última copia hace ${dias} ${dias === 1 ? 'día' : 'días'}.`)
+      : el('div', { class: 'row', style: 'border-color:color-mix(in srgb, var(--danger) 45%, var(--line));background:rgba(251,113,133,.08);margin-bottom:10px' },
         el('span', { style: 'font-size:1.3rem' }, '⚠️'),
         el('div', { class: 'row__main' },
           el('div', { style: 'font-weight:650', text: dias === Infinity ? 'Nunca exportaste tu progreso' : `Hace ${dias} días que no exportás` }),
           el('div', { class: 'row__sub', text: 'Si se borran los datos de este navegador, se pierde todo.' })));
-    })(),
+  return el('div', { class: 'card' },
+    copia,
     el('p', { class: 'hint' }, 'Todo se guarda solamente en este dispositivo, en el navegador. Exportá de vez en cuando para no perder el progreso si borrás los datos del navegador o cambiás de teléfono.'),
     // La copia automática va a Descargas, que está en el mismo teléfono: te
     // salva de borrar la app, no de perderlo. Esto la saca de acá adentro.
@@ -160,12 +225,10 @@ export function render({ navigate }) {
       el('button', { class: 'btn', onClick: doExport }, '⬇ Exportar'),
       puedeCompartir() ? el('button', { class: 'btn', onClick: doCompartir }, '📤 Mandar') : null,
       el('button', { class: 'btn', onClick: () => doImport(navigate) }, '⬆ Importar'),
-      el('button', { class: 'btn', onClick: doExportCsv }, '📊 CSV'),
-      el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo'))));
-
-  root.append(pieDeVersion(state, data));
-
-  return root;
+      el('button', { class: 'btn', onClick: doExportCsv }, '📊 CSV')),
+    // Aparte y abajo: no puede quedar al lado de "Exportar" como un botón más.
+    el('div', { class: 'btn-row', style: 'margin-top:16px' },
+      el('button', { class: 'btn btn--danger', onClick: () => doReset(navigate) }, 'Borrar todo')));
 }
 
 /**
@@ -385,9 +448,10 @@ function tarjetaDeFase(navigate, data) {
     }, opciones),
     el('p', { class: 'hint', style: 'margin-top:10px', text: FASES[actual].nota }),
     camposDeComidaFija(data),
-    el('p', { class: 'hint', style: 'margin-top:6px' },
-      'El gasto sale de tu masa magra y de lo que entrenás, no de un multiplicador. ',
-      'Los METs de cada actividad son referencias, no mediciones tuyas: ubican, no deciden decimales.'));
+    masInfo('De dónde sale el gasto',
+      el('p', { class: 'hint' },
+        'El gasto sale de tu masa magra y de lo que entrenás, no de un multiplicador. ',
+        'Los METs de cada actividad son referencias, no mediciones tuyas: ubican, no deciden decimales.')));
 }
 
 /**
