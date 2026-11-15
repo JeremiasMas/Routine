@@ -12,6 +12,7 @@ import {
   DEFAULT_SETS, esMancuerna, perfilDeEjercicio, RANGOS_REPS, plannedSets,
 } from '../config.js';
 import { objetivoDeHoy, textoDeObjetivo, superarRecord, textoDeRecord } from '../progresion.js';
+import { barraDe, llevaBarra, aLado, deLado, resumenDeCarga } from '../barra.js';
 import { colorDe, estiloDeBoton } from '../theme.js';
 import { queTocaHoy, ESTADOS, esDescarga, objetivoDeDescarga, textoDeDescarga } from '../descargas.js';
 
@@ -339,11 +340,21 @@ function gymForm(activity, dateKey, onSaved) {
     return (ex.sets || []).length > 0 && ex.sets.every((s) => Number(s.reps) > 0);
   }
 
+  /**
+   * La barra con la que se hace este ejercicio hoy, o null.
+   *
+   * Con barra, el casillero pide el peso POR LADO y la app suma: lo que se
+   * guarda sigue siendo el total. Una sesión hecha con mancuernas no la usa
+   * aunque el ejercicio esté marcado.
+   */
+  const barras = getData().settings;
+  const barraHoy = (ex) => (llevaBarra(ex) ? barraDe(barras, ex.name) : null);
+
   function exerciseCard(ex, index) {
     const rec = records.get((ex.name || '').trim().toLowerCase());
     const head = ex.name
       ? (() => {
-          const perfil = perfilDeEjercicio(ex.name);
+          const perfil = { ...perfilDeEjercicio(ex.name), barra: barraHoy(ex) };
           const objetivo = ex.objetivo ?? objetivoDe(ex.name);
           const rango = objetivo?.rango || RANGOS_REPS[perfil.rango] || RANGOS_REPS.medio;
           // Con récord manda el récord: es lo que está precargado y lo que hay
@@ -380,26 +391,44 @@ function gymForm(activity, dateKey, onSaved) {
     const setsWrap = el('div', {});
     const renderSets = () => {
       setsWrap.innerHTML = '';
+      const barra = barraHoy(ex);
+      const conBarra = barra !== null;
       ex.sets.forEach((set, si) => {
+        // `set.weight` es siempre el total: con barra, el casillero muestra y
+        // recibe el lado, y la cuenta se hace acá. Todo lo demás —el
+        // resumen, el borrador, lo que se guarda— sigue viendo el total.
+        const lado = conBarra ? aLado(set.weight, barra) : null;
         const weight = el('input', {
           // El paso de las flechitas es el escalón real del equipo: 2,5 en
-          // barra y polea, 2 en mancuerna, 1 en las de muñeca.
+          // barra y polea, 2 en mancuerna, 1 en las de muñeca. Por lado es
+          // la mitad: un disco de cada lado.
           type: 'number', inputmode: 'decimal', min: '0',
-          step: String(perfilDeEjercicio(ex.name).salto),
-          placeholder: ex.bw ? '+kg' : (ex.db ? 'kg c/u' : 'kg'), value: set.weight ?? '',
+          step: String(perfilDeEjercicio(ex.name).salto / (conBarra ? 2 : 1)),
+          placeholder: ex.bw ? '+kg' : (ex.db ? 'kg c/u' : (conBarra ? 'por lado' : 'kg')),
+          value: conBarra ? (lado ?? '') : (set.weight ?? ''),
         });
+        // El total, a la vista: es lo que la app sumó por vos.
+        const total = conBarra ? el('small', { class: 'set-row__total' }) : null;
+        const decirTotal = () => {
+          if (total) total.textContent = Number(set.weight) > 0 ? `= ${formatNumber(Number(set.weight))} kg` : '';
+        };
+        decirTotal();
         const reps = el('input', {
           type: 'number', inputmode: 'numeric', min: '0', step: '1',
           placeholder: set.target ? String(set.target) : 'reps', value: set.reps ?? '',
         });
-        weight.addEventListener('input', () => { set.weight = weight.value; updateSummary(); });
+        weight.addEventListener('input', () => {
+          set.weight = conBarra ? deLado(weight.value, barra) : weight.value;
+          decirTotal();
+          updateSummary();
+        });
         reps.addEventListener('input', () => { set.reps = reps.value; updateSummary(); });
         // Al terminar el ejercicio se pliega solo: durante el entrenamiento
         // querés ver lo que falta, no lo que ya hiciste.
         reps.addEventListener('change', () => { if (isComplete(ex)) collapse(true); });
-        setsWrap.append(el('div', { class: 'set-row' },
+        setsWrap.append(el('div', { class: `set-row${conBarra ? ' set-row--barra' : ''}` },
           el('span', { class: 'set-row__n', text: `${si + 1}` }),
-          weight, reps,
+          total ? el('div', { class: 'set-row__lado' }, weight, total) : weight, reps,
           el('button', {
             class: 'icon-btn', type: 'button', 'aria-label': `Quitar serie ${si + 1}`,
             onClick: () => { ex.sets.splice(si, 1); if (!ex.sets.length) ex.sets.push({ weight: '', reps: '' }); refresh(); },
@@ -420,7 +449,7 @@ function gymForm(activity, dateKey, onSaved) {
       el('div', { class: 'exercise__body' },
         el('div', { class: 'set-row', style: 'margin:8px 0 4px' },
           el('span', {}),
-          etiquetaDePeso(ex, refresh),
+          etiquetaDePeso(ex, refresh, barraHoy(ex)),
           el('span', { class: 'set-row__n', text: 'reps' }),
           el('span', {})),
         setsWrap,
@@ -435,9 +464,11 @@ function gymForm(activity, dateKey, onSaved) {
       const hechas = ex.sets.filter((x) => Number(x.reps) > 0);
       const pesos = [...new Set(hechas.map((x) => Number(x.weight) || 0))];
       const sufijo = ex.db ? ' c/u' : '';
-      const carga = pesos.length === 1
+      const barra = barraHoy(ex);
+      const carga = resumenDeCarga(pesos, barra)
+        ?? (pesos.length === 1
         ? (pesos[0] > 0 ? `${pesos[0]} kg${sufijo}` : 'peso corporal')
-        : `${Math.min(...pesos)}–${Math.max(...pesos)} kg${sufijo}`;
+          : `${Math.min(...pesos)}–${Math.max(...pesos)} kg${sufijo}`);
       resumen.textContent = `✓ ${hechas.length} series · ${carga} × ${hechas.map((x) => x.reps).join(', ')}`;
     }
     // Tocar el encabezado vuelve a abrirlo para corregir.
@@ -582,9 +613,16 @@ function multiForm(activity, dateKey, onSaved) {
  * una sola; tocándola se cambia, porque hay ejercicios que uno hace con barra
  * o con mancuernas según el día y sólo vos sabés cuál fue.
  */
-function etiquetaDePeso(ex, refresh) {
+function etiquetaDePeso(ex, refresh, barra = null) {
   if (ex.bw) return el('span', { class: 'set-row__n', text: 'peso extra' });
   if (ex.db === undefined) ex.db = esMancuerna(ex.name);
+  // Con barra no hay nada que alternar: se carga por lado y listo.
+  if (barra !== null) {
+    return el('span', {
+      class: 'set-row__n', title: `Barra de ${formatNumber(barra)} kg: la app la suma.`,
+      text: `por lado · barra ${formatNumber(barra)}`,
+    });
+  }
   return el('button', {
     type: 'button',
     class: `set-row__n set-row__peso${ex.db ? ' is-db' : ''}`,

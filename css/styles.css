@@ -918,6 +918,16 @@ button:focus-visible,
   cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px;
 }
 .set-row__peso.is-db { color: var(--accent); }
+/* Con barra: el casillero es el lado, y abajo el total que sumó la app. El
+   total cuelga por fuera de la fila para que los dos casilleros sigan a la
+   misma altura; el lugar se lo hace el margen de la fila. */
+.set-row--barra { margin-bottom: 20px; }
+.set-row__lado { position: relative; min-width: 0; }
+.set-row__total {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+  font-size: .66rem; line-height: 1.2; color: var(--muted); text-align: center;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 
 /* Los identificadores de app no tienen espacios y no cortan solos: sin esto
    uno largo estira la fila y desborda la pantalla entera.

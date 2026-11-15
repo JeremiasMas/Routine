@@ -1,13 +1,13 @@
 // Ajustes: metas, actividades, copia de seguridad.
-import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey, addDays, plural, enLista } from '../utils.js';
+import { el, formatValue, formatNumber, shortDate, weekdayShort, scheduleLabel, todayKey, addDays, plural, enLista, formatPreciso } from '../utils.js';
 import {
   getData, getState, updateActivity, updateSettings, addActivity,
   removeActivity, exportData, importData, resetAll, bulkSetEntries,
   diasSinBackup, backupVencido, markExported, DIAS_SIN_BACKUP,
   previewMerge, mergeData, parseBackup, agregarPausa, quitarPausa,
-  corregirPesoDeBarra, previaDePesoDeBarra,
+  marcarBarra, desmarcarBarra, previaDeMarcarBarra,
 } from '../state.js';
-import { candidatosDeBarra, barraValida, BARRA_ASUMIDA, BARRA_MIN, BARRA_MAX } from '../barra.js';
+import { candidatosDeBarra, barraValida, aLado, BARRA_ASUMIDA, BARRA_MIN, BARRA_MAX } from '../barra.js';
 import { parseStepsCsv, diffSteps, elegirArchivosDePasos } from '../steps-import.js';
 import { TEMAS, aplicarTema, TEMA_POR_DEFECTO, colorDe, estiloDeBoton } from '../theme.js';
 import { tramos, largo, esLibre } from '../pausas.js';
@@ -111,7 +111,7 @@ export function render({ navigate }) {
 
   // --- Gimnasio ---
   root.append(el('div', { class: 'section-title' },
-    el('h2', { text: 'Gimnasio' }), el('small', { text: 'el peso de la barra' })));
+    el('h2', { text: 'Gimnasio' }), el('small', { text: 'las barras' })));
   root.append(tarjetaDeBarra(navigate, data));
 
   // --- Aviso del teléfono ---
@@ -391,43 +391,45 @@ function tarjetaDeFase(navigate, data) {
 }
 
 /**
- * El peso de la barra.
+ * Las barras.
  *
- * Los pesos con barra se anotan con la barra adentro, y la barra se supone.
- * Si la supusiste mal, todo lo anotado con ella está corrido por la misma
- * diferencia. La tarjeta sólo cuenta en qué estado está; la corrección vive
- * en un panel aparte porque es algo que se hace una vez, no un ajuste que se
- * mira todos los días.
+ * En el gimnasio se cargan discos de a pares y se piensa en "20 por lado";
+ * el total con la barra adentro había que sumarlo de cabeza en cada serie.
+ * Acá se dice una vez con qué barra se hace cada ejercicio, y desde ahí el
+ * registrador pide el peso por lado y suma solo.
+ *
+ * La tarjeta sólo cuenta qué está marcado; el panel aparte es donde se marca,
+ * porque es algo que se hace una vez por barra y no un ajuste de todos los días.
  */
 function tarjetaDeBarra(navigate, data) {
   const candidatos = candidatosDeBarra(data);
-  const corregidos = candidatos.filter((c) => c.barra !== BARRA_ASUMIDA);
-  // Agrupado por barra: lo normal es una sola, y repetir "barra de 15 kg"
-  // detrás de cada ejercicio es decir tres veces lo mismo.
+  const marcados = candidatos.filter((c) => c.barra !== null);
+  // Agrupado por barra: repetir "barra de 15 kg" detrás de cada ejercicio es
+  // decir tres veces lo mismo.
   const porBarra = new Map();
-  for (const c of corregidos) porBarra.set(c.barra, [...(porBarra.get(c.barra) || []), c.nombre]);
+  for (const c of marcados) porBarra.set(c.barra, [...(porBarra.get(c.barra) || []), c.nombre]);
   const estado = !candidatos.length
-    ? 'Todavía no hay series con peso para corregir.'
-    : corregidos.length
+    ? 'Todavía no hay series con peso anotadas.'
+    : marcados.length
       ? [...porBarra].map(([kg, nombres]) => `Con barra de ${formatNumber(kg)} kg: ${enLista(nombres)}.`).join(' ')
-      : `Hasta ahora todo está anotado como si la barra pesara ${BARRA_ASUMIDA} kg.`;
+      : 'Todavía no marcaste ninguna: en todos los ejercicios se anota el total.';
   return el('div', { class: 'card' },
     el('p', { class: 'hint' },
-      'Lo que hacés con barra se anota con la barra incluida. Si alguna no pesa lo que suponías, acá se corrigen de una vez todos los registros viejos de lo que hacés con ella: cambia el peso y nada más. Cada barra, con su peso.'),
+      'Decí con qué barra hacés cada ejercicio y cuánto pesa. Desde ahí, al registrar cargás el peso que hay de cada lado y la barra la suma la app.'),
     el('p', { class: 'hint', style: 'margin-top:8px', text: estado }),
     candidatos.length
       ? el('div', { class: 'btn-row', style: 'margin-top:12px' },
-        el('button', { class: 'btn', type: 'button', onClick: () => corregirLaBarra(navigate) }, '🏋️ Corregir el peso de la barra'))
+        el('button', { class: 'btn', type: 'button', onClick: () => misBarras(navigate) }, '🏋️ Mis barras'))
       : null);
 }
 
-function corregirLaBarra(navigate) {
+function misBarras(navigate) {
   const candidatos = candidatosDeBarra(getData());
-  // Nada arranca tildado, ni lo que ya corregiste. En un gimnasio hay varias
-  // barras —la del rack, la corta, la EZ— y cada pasada es UNA: su peso y
-  // sus ejercicios. Si lo ya corregido viniera tildado, al cargar la segunda
-  // barra se llevaría puestos los ejercicios de la primera. Y qué se hace con
-  // cada barra lo decís vos: el nombre no alcanza para saberlo.
+  // Nada arranca tildado, ni lo ya marcado. En un gimnasio hay varias barras
+  // —la del rack, la corta, la EZ— y cada pasada es UNA: su peso y sus
+  // ejercicios. Si lo ya marcado viniera tildado, al cargar la segunda barra
+  // se llevaría puestos los ejercicios de la primera. Y qué se hace con cada
+  // barra lo decís vos: el nombre no alcanza para saberlo.
   const elegidos = new Set();
   const gimnasio = getData().activities.find((a) => a.kind === 'gym');
   const color = gimnasio ? colorDe(gimnasio) : '#fb7185';
@@ -438,20 +440,33 @@ function corregirLaBarra(navigate) {
     placeholder: String(BARRA_ASUMIDA), value: '',
     'aria-label': 'Cuánto pesa esta barra, en kilos',
   });
+  // Lo único que toca registros viejos, y por eso va plegado y vacío: sólo
+  // hace falta si el total lo venías sumando con una barra que no era.
+  const antes = el('input', {
+    type: 'number', inputmode: 'decimal', step: '0.5',
+    min: String(BARRA_MIN), max: String(BARRA_MAX), value: '',
+    'aria-label': 'Con cuántos kilos de barra venías sumando',
+  });
+  const valorDeAntes = () => (barraValida(antes.value) ? Number(antes.value) : undefined);
+
   const resumen = el('div', { 'aria-live': 'polite', style: 'margin-top:12px' });
+  const reabrir = () => { navigate?.(); misBarras(navigate); };
   const aplicar = el('button', {
     class: 'btn btn--primary', type: 'button', style: estiloDeBoton(color),
     onClick: () => {
-      const hecho = corregirPesoDeBarra([...elegidos], Number(peso.value));
-      navigate?.();
+      const hecho = marcarBarra([...elegidos], Number(peso.value), valorDeAntes());
       // El panel vuelve a abrirse limpio en vez de cerrarse: si hay otra
-      // barra, se carga a continuación, y lo recién corregido ya figura.
-      corregirLaBarra(navigate);
-      toast('🏋️', `${plural(hecho.series, 'serie corregida', 'series corregidas')}. Si usás otra barra, cargala ahora.`, 4500);
+      // barra, se carga a continuación, y lo recién marcado ya figura.
+      reabrir();
+      toast('🏋️', `${hecho.series > 0 ? `${plural(hecho.series, 'serie corregida', 'series corregidas')}. ` : ''}Listo: en ${hecho.marcados === 1 ? 'ese ejercicio' : 'esos ejercicios'} cargás el peso por lado. Si usás otra barra, marcala ahora.`, 5000);
     },
-  }, 'Corregir');
+  }, 'Guardar');
 
   const kilos = (n) => `${formatNumber(n)} kg`;
+  const lado = (total, barra) => {
+    const l = aLado(total, barra);
+    return l === null ? null : `${formatPreciso(l, 3)} por lado`;
+  };
   const filas = candidatos.map((c) => {
     const caja = el('input', { type: 'checkbox', checked: elegidos.has(c.clave) });
     const sub = el('div', { class: 'row__sub' });
@@ -459,64 +474,98 @@ function corregirLaBarra(navigate) {
       if (caja.checked) elegidos.add(c.clave); else elegidos.delete(c.clave);
       pintar();
     });
+    const quitar = c.barra !== null
+      ? el('button', {
+        class: 'icon-btn', type: 'button', 'aria-label': `Quitar la barra de ${c.nombre}`,
+        onClick: (e) => {
+          e.preventDefault();
+          const hecho = desmarcarBarra([c.clave]);
+          reabrir();
+          toast('↩', `${c.nombre} vuelve a anotarse por total.${hecho.series > 0 ? ` ${plural(hecho.series, 'serie vuelve', 'series vuelven')} a como ${hecho.series === 1 ? 'estaba' : 'estaban'}.` : ''}`, 4500);
+        },
+      }, '✕')
+      : null;
     return {
       c, sub,
       nodo: el('label', { class: 'row elegir', style: `--c:${color}` },
         caja,
-        el('div', { class: 'row__main' }, el('div', { text: c.nombre }), sub)),
+        el('div', { class: 'row__main' }, el('div', { text: c.nombre }), sub),
+        quitar),
     };
   });
 
   function pintar() {
     const escrito = peso.value.trim() !== '';
     const valido = barraValida(peso.value);
-    const p = valido && elegidos.size ? previaDePesoDeBarra([...elegidos], Number(peso.value)) : null;
+    const kg = Number(peso.value);
+    const p = valido && elegidos.size ? previaDeMarcarBarra([...elegidos], kg, valorDeAntes()) : null;
     const cambios = new Map((p?.filas || []).map((f) => [f.clave, f]));
 
     for (const { c, sub } of filas) {
       const f = cambios.get(c.clave);
-      sub.textContent = f
-        ? `Tu serie más pesada: ${kilos(f.maximoAntes)} → ${kilos(f.maximoDespues)} · ${plural(f.series, 'serie', 'series')}`
-        : c.barra !== BARRA_ASUMIDA
-          ? `✓ Corregido con barra de ${kilos(c.barra)} · máximo ${kilos(c.maximo)}`
-          : `Máximo ${kilos(c.maximo)} · ${plural(c.sesiones, 'sesión', 'sesiones')}`;
+      const tildado = valido && elegidos.has(c.clave);
+      if (f) {
+        // Hay registros que cambian: se muestra el antes y el después, y
+        // cuánto queda por lado, que es lo que se puede comprobar de memoria.
+        const nuevo = c.ultimo + f.delta;
+        sub.textContent = `Última vez: ${kilos(c.ultimo)} → ${kilos(nuevo)}${lado(nuevo, kg) ? ` = ${lado(nuevo, kg)}` : ''} · ${plural(f.series, 'serie cambia', 'series cambian')}`;
+      } else if (tildado) {
+        // La cuenta a la vista: si el lado no es lo que cargás, la barra o
+        // el ejercicio están mal puestos, y se ve antes de guardar.
+        sub.textContent = lado(c.ultimo, kg)
+          ? `Última vez: ${kilos(c.ultimo)} = ${lado(c.ultimo, kg)}`
+          : `Última vez: ${kilos(c.ultimo)}, menos que esta barra sola`;
+      } else if (c.barra !== null) {
+        sub.textContent = `✓ Barra de ${kilos(c.barra)}${lado(c.ultimo, c.barra) ? ` · última vez ${lado(c.ultimo, c.barra)}` : ''}`;
+      } else {
+        sub.textContent = `Última vez: ${kilos(c.ultimo)} · ${plural(c.sesiones, 'sesión', 'sesiones')}`;
+      }
     }
 
     const lineas = [];
     if (!escrito) lineas.push('Poné cuánto pesa esta barra.');
     else if (!valido) lineas.push(`Una barra pesa entre ${BARRA_MIN} y ${BARRA_MAX} kg.`);
-    else if (!elegidos.size) lineas.push('Tildá los ejercicios que hacés con esa barra.');
-    else if (!p.series) lineas.push(`Lo que tildaste ya está anotado con una barra de ${kilos(p.kg)}: no hay nada que corregir.`);
-    else {
-      lineas.push(`${plural(p.series, 'serie cambia', 'series cambian')} de peso, en ${plural(p.sesiones, 'sesión', 'sesiones')}. No cambia ninguna serie, repetición ni meta: lo que estaba cumplido sigue cumplido.`);
+    else if (!elegidos.size) lineas.push('Tildá lo que hacés con esta barra.');
+    else if (!p.series && !p.marcados) lineas.push(`Eso ya está marcado con una barra de ${kilos(p.kg)}.`);
+    else if (!p.series) {
+      lineas.push(`Lo que ya anotaste no cambia. Desde ahora, en ${p.marcados === 1 ? 'ese ejercicio' : 'esos ejercicios'} cargás el peso de cada lado y la app suma los ${kilos(p.kg)} de la barra.`);
+      lineas.push('Fijate que el "por lado" de cada uno sea lo que cargás: si no coincide, la barra no es esa.');
+    } else {
+      lineas.push(`${plural(p.series, 'serie cambia', 'series cambian')} de peso, en ${plural(p.sesiones, 'sesión', 'sesiones')}: los discos son los mismos y cambia la barra. No cambia ninguna serie, repetición ni meta: lo que estaba cumplido sigue cumplido.`);
       lineas.push(p.xpDespues !== p.xpAntes
         ? `Los récords se vuelven a decidir con el peso real, y eso mueve cuáles días fueron récord: la XP de gimnasio pasa de ${formatNumber(p.xpAntes)} a ${formatNumber(p.xpDespues)}.`
         : 'Los récords y el nivel de fuerza se recalculan con el peso real. La XP no cambia.');
       if (p.nivelDespues !== p.nivelAntes) lineas.push(`Tu nivel general pasa de ${p.nivelAntes} a ${p.nivelDespues}.`);
       if (p.sinTocar) lineas.push(`${plural(p.sinTocar, 'serie queda', 'series quedan')} como ${p.sinTocar === 1 ? 'está' : 'están'}: sin peso anotado, o tan ${p.sinTocar === 1 ? 'liviana' : 'livianas'} que no ${p.sinTocar === 1 ? 'pudo' : 'pudieron'} incluir la barra.`);
-      lineas.push('Se puede deshacer: tildá lo mismo y poné el peso de antes.');
+      lineas.push('Se deshace con la ✕ de cada ejercicio.');
     }
     resumen.replaceChildren(...lineas.map((t, i) => el('p', { class: 'hint', style: i ? 'margin-top:6px' : '', text: t })));
-    aplicar.disabled = !(p && p.series > 0);
+    aplicar.disabled = !(p && (p.series > 0 || p.marcados > 0));
   }
   peso.addEventListener('input', pintar);
+  antes.addEventListener('input', pintar);
   pintar();
 
   const cuerpo = el('div', {},
     el('p', { class: 'hint', style: 'margin-bottom:12px' },
-      'De a una barra por vez: cuánto pesa y qué hacés con ella. Si usás varias —la del rack, la corta, la EZ—, corregís una, y el panel queda abierto para la siguiente.'),
+      'De a una barra por vez: cuánto pesa y qué hacés con ella. Si usás varias —la del rack, la corta, la EZ—, guardás una y el panel queda abierto para la siguiente.'),
     el('div', { class: 'field' }, el('label', { text: 'Esta barra pesa (kg)' }), peso),
     el('p', { class: 'hint' },
-      `Hasta ahora todo está anotado como si la barra pesara ${BARRA_ASUMIDA}. La olímpica larga, de 2,2 m, pesa 20 kg y la de 2 m, 15. Las más cortas o finas varían mucho: lo seguro es pesarlas o preguntar en el gimnasio.`),
+      'La olímpica larga, de 2,2 m, pesa 20 kg y la de 2 m, 15. Las más cortas o finas varían mucho: lo seguro es pesarlas o preguntar en el gimnasio.'),
     el('div', { class: 'section-title', style: 'margin-top:14px' },
       el('h2', { text: 'Qué hacés con esta barra' })),
     el('div', { class: 'list' }, filas.map((f) => f.nodo)),
+    el('details', { style: 'margin-top:14px' },
+      el('summary', { class: 'hint', style: 'cursor:pointer', text: '¿La venías sumando con otro peso?' }),
+      el('p', { class: 'hint', style: 'margin:8px 0' },
+        'Sólo si los totales que anotaste los sumabas con una barra que no era: por ejemplo, la contabas como 20 y pesa 15. En ese caso los totales viejos están corridos y se corrigen: los discos no cambian. Si sumabas con el peso de arriba, dejalo vacío.'),
+      el('div', { class: 'field' }, el('label', { text: 'La venía contando como (kg)' }), antes)),
     resumen,
     el('div', { class: 'btn-row', style: 'margin-top:16px' },
       el('button', { class: 'btn', type: 'button', onClick: closeSheet }, 'Listo'),
       aplicar));
 
-  openSheet('El peso de la barra', cuerpo);
+  openSheet('Mis barras', cuerpo);
 }
 
 /**
@@ -661,11 +710,11 @@ function mostrarPreviaDeImportacion(texto, navigate) {
     linea(r.reemplazados, 'registro que el archivo tiene más actualizado', 'registros que el archivo tiene más actualizados'),
     linea(r.actividadesNuevas, 'actividad que no existía acá', 'actividades que no existían acá'));
 
-  // El archivo puede traer corregido el peso de la barra. Eso no suma
+  // El archivo puede traer corregido el peso de una barra. Eso no suma
   // registros pero sí cambia pesos de acá, y hay que decirlo antes.
   const barra = r.barraAjustadas > 0
     ? el('p', { class: 'hint', style: 'margin-top:10px' },
-        `El archivo trae corregido el peso de la barra: ${plural(r.barraAjustadas, 'serie de acá se ajusta', 'series de acá se ajustan')} a esa corrección, para que las dos copias hablen de los mismos kilos.`)
+        `El archivo trae corregido el peso de una barra: ${plural(r.barraAjustadas, 'serie de acá se ajusta', 'series de acá se ajustan')} a esa corrección, para que las dos copias hablen de los mismos kilos.`)
     : null;
 
   const cuerpo = el('div', {},

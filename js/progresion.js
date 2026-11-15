@@ -11,6 +11,7 @@
  */
 import { RANGOS_REPS, DEFAULT_SETS, perfilDeEjercicio } from './config.js';
 import { formatNumber } from './utils.js';
+import { porLado } from './barra.js';
 import { estimatedOneRepMax, REPS_FIABLES } from './xp.js';
 
 const redondear = (n) => Math.round(n * 10) / 10;
@@ -86,7 +87,8 @@ export function objetivoPorNombre(nombre, previas, series = DEFAULT_SETS) {
 export function textoDeObjetivo(objetivo, perfil) {
   if (!objetivo) return null;
   const cada = perfil?.db ? ' c/u' : '';
-  const kg = (n) => `${formatNumber(redondear(n))} kg${cada}`;
+  // Con barra se dice como se carga: por lado. El total lo suma la app.
+  const kg = (n) => porLado(n, perfil) ?? `${formatNumber(redondear(n))} kg${cada}`;
 
   if (objetivo.sube) {
     return objetivo.pesoAnterior > 0
@@ -162,7 +164,8 @@ export function superarRecord(record, perfil, { pesoCorporal = 0 } = {}) {
 export function textoDeRecord(record, superar, perfil) {
   if (!record) return null;
   const cada = perfil?.db ? ' c/u' : '';
-  const kg = (n) => `${formatNumber(redondear(n))} kg${cada}`;
+  // Con barra se dice como se carga: por lado. El total lo suma la app.
+  const kg = (n) => porLado(n, perfil) ?? `${formatNumber(redondear(n))} kg${cada}`;
   const marca = record.bw && !(record.weight > 0)
     ? `sin lastre × ${record.reps}`
     : `${kg(record.weight)} × ${record.reps}`;
