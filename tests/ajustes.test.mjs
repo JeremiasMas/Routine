@@ -131,6 +131,25 @@ test('sonidos y festejos: los festejos vienen prendidos si nadie los tocó', () 
   assert.equal(leer(datos({ sound: false, celebrate: true })).preferencias.estado, 'Sonidos no · festejos sí');
 });
 
+test('el widget tiene su propia sección, y sólo adentro de la app', () => {
+  const widget = GRUPOS.flatMap((g) => g.secciones).find((x) => x.id === 'widget');
+  assert.equal(widget.soloSi, 'enApp');
+  assert.equal(leer(datos(), { widgetListo: true }).widget.estado, 'Las misiones de hoy, sin abrir la app');
+  assert.equal(leer(datos(), { widgetListo: false }).widget.estado, 'Hace falta reinstalar el APK');
+  // Sin saber nada del dispositivo, no se promete un widget que no se sabe si está.
+  assert.equal(leer(datos()).widget.estado, 'Hace falta reinstalar el APK');
+  // Y ya no cuelga de "Días libres": no tiene nada que ver con eso.
+  const render = funcion(fuente('js/views/settings.js'), 'export function render(');
+  assert.match(render, /\n    libres: \(\) => tarjetaDePausas\(navigate\),/);
+  assert.match(render, /\n    widget: \(\) => tarjetaDelWidget\(\),/);
+  assert.match(render, /const disponible = \{ puedeAvisar: puedeAvisar\(\), enApp: enApp\(\) \};/);
+  assert.match(render, /widgetListo: widgetPuesto\(\),/);
+  // El APK viejo no trae el puente del widget: se detecta por el método, no se supone.
+  const ajustes = fuente('js/views/settings.js');
+  assert.match(funcion(ajustes, 'function widgetPuesto('), /return typeof window\.RutinaNativa\?\.guardarResumen === 'function';/);
+  assert.match(funcion(ajustes, 'function tarjetaDelWidget('), /if \(!widgetPuesto\(\)\) \{/);
+});
+
 test('la copia vencida es la única fila que viene en rojo', () => {
   const nunca = leer(datos(), { diasSinCopia: Infinity, copiaVencida: true });
   assert.deepEqual(nunca.datos, { estado: 'Nunca exportaste tu progreso', alerta: true });

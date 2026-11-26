@@ -47,6 +47,7 @@ export const GRUPOS = [
     titulo: 'La app',
     secciones: [
       { id: 'aviso', icono: '🔔', titulo: 'Aviso', soloSi: 'puedeAvisar' },
+      { id: 'widget', icono: '🧩', titulo: 'Widget de inicio', soloSi: 'enApp' },
       { id: 'aspecto', icono: '🎨', titulo: 'Aspecto' },
       { id: 'preferencias', icono: '🔊', titulo: 'Sonidos y festejos' },
       { id: 'datos', icono: '💾', titulo: 'Tus datos' },
@@ -64,13 +65,14 @@ const siNo = (v) => (v ? 'sí' : 'no');
  *
  * @param {object} data
  * @param {{hoy:string, diasSinCopia:number|null, copiaVencida:boolean,
- *   enApp:boolean, origenDePasos:string, aviso:object|null}} dispositivo
+ *   enApp:boolean, widgetListo:boolean, origenDePasos:string,
+ *   aviso:object|null}} dispositivo
  *   lo que no sale de los datos sino de dónde corre la app
  * @returns {Record<string, {estado:string, alerta:boolean}>}
  */
 export function estadoDeSecciones(data, dispositivo = {}) {
   const s = data?.settings || {};
-  const { hoy, diasSinCopia = null, copiaVencida = false, enApp = false, origenDePasos = 'Health Connect', aviso = null } = dispositivo;
+  const { hoy, diasSinCopia = null, copiaVencida = false, enApp = false, widgetListo = false, origenDePasos = 'Health Connect', aviso = null } = dispositivo;
   const decir = (estado, alerta = false) => ({ estado, alerta });
 
   const actividades = (data?.activities || []).length;
@@ -112,6 +114,7 @@ export function estadoDeSecciones(data, dispositivo = {}) {
     calorias: decir(`${FASES[faseDe(s)].nombre} · ${fijas > 0 ? `${formatNumber(fijas)} kcal fijas` : 'sin comidas fijas'}`),
     pasos: decir(enApp ? `Llegan solos · ${origenDePasos}` : 'Se importan de Samsung Health'),
     aviso: decir(hora ? `Todos los días a las ${hora}` : 'Apagado'),
+    widget: decir(widgetListo ? 'Las misiones de hoy, sin abrir la app' : 'Hace falta reinstalar el APK'),
     aspecto: decir(tema.nombre),
     preferencias: decir(`Sonidos ${siNo(s.sound)} · festejos ${siNo(s.celebrate !== false)}`),
     // La única fila que puede venir en rojo: una copia vencida no puede
