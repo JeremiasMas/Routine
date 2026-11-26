@@ -109,7 +109,7 @@ export function render({ navigate }) {
       el('button', { class: 'btn btn--block', onClick: () => editActivity(null, navigate) }, '+ Agregar actividad'),
     ],
     gimnasio: () => tarjetaDeBarra(navigate, data),
-    libres: () => [enApp() ? tarjetaDelWidget() : null, tarjetaDePausas(navigate)],
+    libres: () => tarjetaDePausas(navigate),
     cuerpo: () => tarjetaDeCuerpo(navigate, data),
     calorias: () => tarjetaDeFase(navigate, data),
     pasos: () => [
@@ -118,6 +118,7 @@ export function render({ navigate }) {
       tarjetaDeImportarPasos(navigate),
     ],
     aviso: () => tarjetaDeAviso(navigate),
+    widget: () => tarjetaDelWidget(),
     aspecto: () => selectorDeTema(navigate),
     preferencias: () => el('div', { class: 'card' },
       toggle('Sonidos', 'Efectos al sumar XP y subir de nivel.', data.settings.sound, (v) => updateSettings({ sound: v })),
@@ -125,12 +126,13 @@ export function render({ navigate }) {
     datos: () => tarjetaDeDatos(navigate),
   };
 
-  const disponible = { puedeAvisar: puedeAvisar() };
+  const disponible = { puedeAvisar: puedeAvisar(), enApp: enApp() };
   const leerEstados = () => estadoDeSecciones(getData(), {
     hoy: todayKey(),
     diasSinCopia: diasSinBackup(),
     copiaVencida: backupVencido(),
     enApp: enApp(),
+    widgetListo: widgetPuesto(),
     origenDePasos: nombreDelOrigen(),
     aviso: disponible.puedeAvisar ? estadoDelAviso() : null,
   });
@@ -862,21 +864,23 @@ function doReset(navigate) {
  * existe es código que no hace nada, y el de la pantalla de bloqueo es el que
  * más explicación necesita porque Android no deja hacer lo obvio.
  */
+/** ¿Esta versión del APK trae el widget? */
+function widgetPuesto() {
+  return typeof window.RutinaNativa?.guardarResumen === 'function';
+}
+
 function tarjetaDelWidget() {
-  const puesto = typeof window.RutinaNativa?.guardarResumen === 'function';
-  return el('div', { class: 'card', style: 'margin-top:10px' },
-    el('div', { style: 'display:flex;align-items:center;gap:10px' },
-      el('span', { style: 'font-size:1.3rem', text: puesto ? '🧩' : '⚠️' }),
-      el('div', { style: 'flex:1;min-width:0' },
-        el('div', { style: 'font-weight:700', text: 'Widget de la pantalla de inicio' }),
-        el('div', { class: 'hint', text: puesto
-          ? 'Las misiones de hoy, sin abrir la app.'
-          : 'Esta versión de la app todavía no lo trae: hace falta reinstalar el APK.' }))),
-    !puesto ? null : el('div', {},
-      el('p', { class: 'hint', style: 'margin-top:10px' },
-        'Para ponerlo: mantené apretado un espacio vacío de la pantalla de inicio, ',
-        'entrá en Widgets, buscá Rutina y arrastralo.'),
-      el('p', { class: 'hint', style: 'margin-top:8px' },
+  // El título ya lo dice la fila de la sección: acá sólo lo que se hace.
+  if (!widgetPuesto()) {
+    return el('div', { class: 'card' },
+      el('p', { class: 'hint', text: 'Esta versión de la app todavía no lo trae: hace falta reinstalar el APK.' }));
+  }
+  return el('div', { class: 'card' },
+    el('p', { class: 'hint' },
+      'Las misiones de hoy, sin abrir la app. Para ponerlo: mantené apretado un espacio vacío de la pantalla de inicio, ',
+      'entrá en Widgets, buscá Rutina y arrastralo.'),
+    masInfo('Cómo funciona',
+      el('p', { class: 'hint' },
         'Tocando una misión se abre la app en esa actividad. Las que se cumplen con un ',
         'número obvio —minutos, agua— traen un ✓ que las marca sin abrir nada: quedan en ',
         'amarillo hasta la próxima vez que entres, que es cuando se registran de verdad ',
@@ -886,11 +890,12 @@ function tarjetaDelWidget() {
         'registrar y ponerlo sería inventarte el dato.'),
       el('p', { class: 'hint', style: 'margin-top:8px' },
         'Pasada la medianoche el widget no sabe solo qué toca: muestra "Día nuevo" hasta ',
-        'que abras la app una vez.'),
-      el('p', { class: 'hint', style: 'margin-top:8px' },
-        'En la pantalla de bloqueo no se pueden poner widgets —Android los sacó en la ',
-        'versión 5— pero en Samsung podés elegir Rutina como uno de los dos atajos de ',
-        'abajo, en Ajustes → Pantalla de bloqueo → Atajos.')));
+        'que abras la app una vez.')),
+    masInfo('Y en la pantalla de bloqueo',
+      el('p', { class: 'hint' },
+        'No se pueden poner widgets —Android los sacó en la versión 5— pero en Samsung ',
+        'podés elegir Rutina como uno de los dos atajos de abajo, en Ajustes → ',
+        'Pantalla de bloqueo → Atajos.')));
 }
 
 /**
